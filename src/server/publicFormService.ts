@@ -34,7 +34,7 @@ export class NeonPublicFormService implements PublicFormService {
           .where(eq(questionOptions.questionId,q.id)).orderBy(asc(questionOptions.position));
          
         const limits=audioLimits(q.settings);
-        resultQuestions.push({id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,options,mode:audioMode(q.type,q.settings),maxAudioSeconds:limits.maxSeconds,maxAudioBytes:limits.maxBytes});
+        resultQuestions.push({id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,settings:q.type==='statement'?q.settings:undefined,options,mode:audioMode(q.type,q.settings),maxAudioSeconds:limits.maxSeconds,maxAudioBytes:limits.maxBytes});
       }
       resultPages.push({...p,questions:resultQuestions});
     }
@@ -74,7 +74,7 @@ async function getPublicVersion(slug:string,versionId:string):Promise<PublicForm
         .where(eq(questionOptions.questionId,q.id)).orderBy(asc(questionOptions.position));
        
       const limits=audioLimits(q.settings);
-      resultQuestions.push({id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,options:opts,mode:audioMode(q.type,q.settings),maxAudioSeconds:limits.maxSeconds,maxAudioBytes:limits.maxBytes});
+      resultQuestions.push({id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,settings:q.type==='statement'?q.settings:undefined,options:opts,mode:audioMode(q.type,q.settings),maxAudioSeconds:limits.maxSeconds,maxAudioBytes:limits.maxBytes});
     }
     resultPages.push({id:p.id,title:p.title,description:p.description,questions:resultQuestions});
   }
