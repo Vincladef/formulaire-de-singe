@@ -8,6 +8,7 @@ export default tseslint.config(
   { ignores: ['dist', '.netlify', 'coverage', 'node_modules'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  { files: ['**/*.mjs'], languageOptions: { globals: { ...globals.node } } },
   {
     files: ['**/*.{ts,tsx,mts}'],
     languageOptions: { globals: { ...globals.browser, ...globals.node } },

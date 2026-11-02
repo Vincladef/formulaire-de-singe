@@ -1,8 +1,7 @@
-import type { Context } from '@netlify/functions';
 import { healthResponseSchema } from '../../src/shared/contracts';
 
 /** Endpoint public de diagnostic sans accès à Neon ou aux secrets. */
-export default async function health(_request: Request, _context: Context): Promise<Response> {
+export default async function health(): Promise<Response> {
   const payload = healthResponseSchema.parse({
     status: 'ok',
     service: 'formulaire-de-singe',
