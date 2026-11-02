@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Archive, ArrowLeft, CheckCircle2, CircleAlert, Clock3, Copy, Eye, FilePlus2, Files, LoaderCircle, Plus, Save, Send, X } from 'lucide-react';
+import { Archive, ArrowLeft, CheckCircle2, CircleAlert, Clock3, Copy, Eye, Files, LoaderCircle, Plus, Save, Send, X } from 'lucide-react';
 import { getAccessToken } from '../authClient';
 import type { FormDetail, FormSummary } from '../shared/formApi';
-import { draftPayloadSchema, duplicateQuestion, makePage, moveQuestionAt, type QuestionType, type StudioPageData, type StudioQuestion } from '../shared/studio';
-import { insertAtAnchor, type EditorAnchor } from '../shared/documentEditor';
-import { QuestionCard } from '../components/studio/QuestionCard';
+import { draftPayloadSchema, makePage, type QuestionType, type StudioPageData, type StudioQuestion } from '../shared/studio';
+import { DocumentCanvas, type DocumentCanvasHandle } from '../components/studio/DocumentCanvas';
 import { StudioSidebar, type SidebarMode } from '../components/studio/StudioSidebar';
 import { ResultsPanel } from '../components/studio/ResultsPanel';
 import { StudioPreview } from '../components/studio/StudioPreview';
@@ -45,7 +44,7 @@ export function StudioPage(){
  function askDialog(intent:StudioDialogIntent):Promise<string|null>{return new Promise(resolve=>{dialogResolver.current?.(null);dialogResolver.current=resolve;setDialog(intent);});}
  function resolveDialog(answer:string|null){dialogResolver.current?.(answer);dialogResolver.current=null;setDialog(null);}
  const revisionRef=useRef(0);const draftRef=useRef<string|null>(null);
- const cursorRef=useRef<EditorAnchor|null>(null);
+ const documentRef=useRef<DocumentCanvasHandle|null>(null);
  const savedRef=useRef('');const latestRef=useRef<StudioPageData[]>([]);const savingRef=useRef(false);
  const page=pages[pageIndex];const selected=page?.questions.find(q=>q.id===questionId)??null;
  const published=detail?.versions.some(v=>v.status==='published')??false;
@@ -65,7 +64,7 @@ export function StudioPage(){
      draftRef.current=draft?.id??null;revisionRef.current=draft?.revision??0;
      const next:StudioPageData[]=draft?.pages.map(p=>({id:p.id,title:p.title,description:p.description,
        questions:p.questions.map(q=>({id:q.id,type:q.type as QuestionType,label:q.label,description:q.description,required:q.required,settings:q.settings,options:q.options.map(o=>({id:o.id,value:o.value,label:o.label}))}))})) ?? [];
-     savedRef.current=JSON.stringify(next);setPages(next.length?next:[makePage()]);setPageIndex(0);setQuestionId(null);cursorRef.current=null;setPreview(false);setActiveTab('questions');setSideMode('add');setSaveState('saved');
+     savedRef.current=JSON.stringify(next);setPages(next.length?next:[makePage()]);setPageIndex(0);setQuestionId(null);setPreview(false);setActiveTab('questions');setSideMode('add');setSaveState('saved');
    }catch(e){setError(e instanceof Error?e.message:'Chargement impossible');}finally{setOperation(false);}
  }
  async function createForm(){
@@ -132,18 +131,6 @@ export function StudioPage(){
   setSaveState('pending');
   setPages(prev=>prev.map((p,i)=>i===pageIndex?{...p,questions:p.questions.map(q=>q.id===question.id?question:q)}:p));
  }
- function addQuestion(type:QuestionType, at?:EditorAnchor|null){
-  if(!page)return;
-  const anchor=at===undefined?cursorRef.current:at;
-  const id=crypto.randomUUID();
-  setSaveState('pending');
-  setPages(prev=>prev.map((p,i)=>i===pageIndex?{...p,questions:insertAtAnchor(p.questions,type,anchor,id).questions}:p));
-  // Keep the editing position after choosing a type in the menu or sidebar.
-  cursorRef.current={questionId:id};setQuestionId(id);setSideMode('settings');
-  requestAnimationFrame(()=>document.querySelector<HTMLTextAreaElement>(`[data-question-id="${id}"] textarea`)?.focus());
- }
- function moveQuestion(from:number,to:number){if(!page||to<0||to>=page.questions.length)return;
-   updatePage({...page,questions:moveQuestionAt(page.questions,from,to)});}
  async function deleteQuestion(id:string){if(!page||!(await askDialog({kind:'confirm',title:'Supprimer cette question ?',description:'La question sera retirée du brouillon ; les versions déjà publiées resteront intactes.',confirmLabel:'Supprimer',danger:true})))return;
    setSaveState('pending');setPages(prev=>prev.map((p,i)=>i===pageIndex?{...p,questions:p.questions.filter(q=>q.id!==id)}:p));if(questionId===id)setQuestionId(null);}
  function addPage(){setSaveState('pending');setPages(p=>[...p,makePage()]);setPageIndex(pages.length);setQuestionId(null);}
@@ -210,31 +197,23 @@ export function StudioPage(){
        </section>:
        preview?<StudioPreview pages={pages} title={detail.title}/>:<div className={`grid items-start gap-4 ${sidebarOpen?'lg:grid-cols-[255px_minmax(0,1fr)]':'lg:grid-cols-[70px_minmax(0,1fr)]'}`}>
         <StudioSidebar mode={sideMode} onModeChange={mode=>{setSideMode(mode);setSidebarOpen(true);}} open={sidebarOpen} onToggle={()=>setSidebarOpen(v=>!v)} pages={pages} pageIndex={pageIndex}
-          onPageIndex={idx=>{setPageIndex(idx);setQuestionId(null);cursorRef.current=null;}}
+          onPageIndex={idx=>{setPageIndex(idx);setQuestionId(null);}}
           selected={selected} editable={editable} onQuestionUpdate={updateQuestion}
-          onAddQuestion={addQuestion} onAddPage={addPage} onDeletePage={deletePage}/>
-        <section aria-label="Éditeur de page" className="min-w-0 rounded-[22px] border border-[#e4eae1] bg-white px-4 py-6 sm:px-10 sm:py-10">
-          {page&&<>
-            <div className="mb-7 border-b border-[#eff2ee] pb-5"><div className="flex items-center justify-between gap-2"><p className="text-xs font-semibold tracking-wide text-[#607265]">PAGE {pageIndex+1}</p>
-                {pages.length===1&&editable&&<button type="button" onClick={addPage} className="inline-flex items-center gap-1 rounded-lg border border-[#d7e6d7] px-3 py-2 text-xs font-semibold text-[#417353] hover:bg-[#edf5ec]"><Plus size={14}/> Ajouter une page</button>}
-              </div>
-              <input aria-label="Titre de la page" className="mt-3 w-full bg-transparent text-3xl font-extrabold tracking-tight text-[#314a37] outline-none placeholder:text-[#607265]" placeholder="Titre de la page" value={page.title} disabled={!editable} onChange={e=>updatePage({...page,title:e.target.value})}/>
-              <textarea aria-label="Description de la page" className="mt-3 w-full resize-y bg-transparent text-sm text-[#607265] outline-none placeholder:text-[#607265]" rows={2} placeholder="Une courte introduction (facultative)…" value={page.description??''} disabled={!editable} onChange={e=>updatePage({...page,description:e.target.value||null})}/>
-              {pages.length>1&&<button disabled={!editable} className="text-xs font-semibold text-[#98483f]" onClick={()=>void deletePage()}>Supprimer cette page</button>}
-            </div>
-            {page.questions.map((q,i)=><QuestionCard key={q.id} index={i} questionNumber={page.questions.slice(0,i+1).filter(item=>item.type!=='statement').length} question={q} selected={questionId===q.id}
- onSelect={()=>{setQuestionId(q.id);setSideMode('settings');cursorRef.current={questionId:q.id};}}
- onCursor={(offset,text)=>{cursorRef.current={questionId:q.id,offset,text};}}
- onInsert={(type,offset,text)=>addQuestion(type,{questionId:q.id,offset,text})}
- onUpdate={updateQuestion} onMove={d=>moveQuestion(i,i+d)} onDrop={from=>moveQuestion(from,i)}
- onDuplicate={()=>{const next=duplicateQuestion(q);const questions=[...page.questions];questions.splice(i+1,0,next);updatePage({...page,questions});setQuestionId(next.id);}}
- onDelete={()=>void deleteQuestion(q.id)} onOpenSettings={()=>{setQuestionId(q.id);setSideMode('settings');setSidebarOpen(true);}} readOnly={!editable}/>)}
-            {page.questions.length===0&&<div className="rounded-[22px] border border-dashed border-[#d8e5d8] bg-white px-6 py-12 text-center"><FilePlus2 className="mx-auto text-[#607265]" size={30}/><p className="mt-4 font-semibold text-[#53715a]">Tout commence par une question.</p><p className="mt-2 text-sm text-[#607265]">Écris comme dans un document, puis utilise / pour insérer une question.</p><button type="button" onClick={()=>addQuestion('statement')} className="mt-4 rounded-xl bg-[#e9f3e8] px-4 py-2 text-sm font-semibold text-[#35764b]">Commencer à écrire</button></div>}
-            {editable&&<button type="button" className="mt-6 flex w-full items-center gap-2 rounded-lg px-2 py-3 text-left text-sm text-[#607265] hover:bg-[#f5faf5]"
-              onClick={()=>addQuestion('statement',null)}><Plus size={18}/> Écrire un paragraphe… <span className="ml-auto text-xs">Tape / pour les questions</span></button>}
-          </>}
+          onAddQuestion={type=>documentRef.current?.insert(type)} onAddPage={addPage} onDeletePage={()=>void deletePage()}/>
+        <section aria-label="Éditeur de page" className="min-w-0 rounded-[22px] border border-[#e4eae1] bg-white px-5 py-7 sm:px-10 sm:py-10">
+         {page&&<>
+          <div className="mb-5 flex items-center justify-between gap-3">
+           <span className="text-xs font-medium text-[#607265]">{pages.length>1?'Page '+(pageIndex+1)+' sur '+pages.length:'Rédige ton formulaire comme un document'}</span>
+           {editable&&<button type="button" onClick={addPage} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-[#366e48] hover:bg-[#eef5ea]"><Plus size={16}/> Ajouter une page</button>}
+          </div>
+          <DocumentCanvas key={page.id} ref={documentRef} page={page} editable={editable} onChange={updatePage}
+            onSelectQuestion={id=>setQuestionId(id)}
+            onOpenSettings={id=>{setQuestionId(id);setSideMode('settings');setSidebarOpen(true);}}
+            onDeleteQuestion={id=>void deleteQuestion(id)}/>
+          {pages.length>1&&editable&&<button type="button" onClick={()=>void deletePage()} className="mt-4 rounded-lg px-2 py-2 text-xs font-medium text-[#98534b] hover:bg-red-50">Supprimer cette page</button>}
+         </>}
         </section>
-      </div>}
+       </div>}
     </>}
   </div>
    {dialog&&<StudioDialog intent={dialog} onResolve={resolveDialog}/>}

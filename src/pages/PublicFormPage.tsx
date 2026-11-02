@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { sanitizeDocumentHtml } from '../shared/richText';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, FileQuestion, LoaderCircle } from 'lucide-react';
 import { AudioRecorder } from '../components/AudioRecorder';
 import { audioMode, type UploadedAudio, AUDIO_PART_BYTES } from '../shared/audio';
@@ -30,7 +31,7 @@ export function QuestionField({question,value,onChange,error}: {question:PublicQ
  const common={id:question.id,'aria-invalid':!!error,'aria-describedby':ariaDesc,required:question.required} as const;
  return <div className={question.type==='statement'?'px-1 py-2 sm:px-3':'rounded-2xl border border-[#e1e9df] bg-white p-5 sm:p-7'}>
   {question.type==='statement' ? <>
-   <h3 className={question.settings?.textStyle==='heading'?'font-display text-2xl font-bold leading-snug text-[#294a34]':question.settings?.textStyle==='quote'?'border-l-[3px] border-[#a8c4aa] pl-4 text-base italic leading-7 text-[#647c69]':'whitespace-pre-line text-[15px] font-normal leading-8 text-[#526c59]'}>{question.label}</h3>
+   <h3 className={question.settings?.textStyle==='heading'?'font-display text-2xl font-bold leading-snug text-[#294a34]':question.settings?.textStyle==='quote'?'border-l-[3px] border-[#a8c4aa] pl-4 text-base italic leading-7 text-[#647c69]':'whitespace-pre-line text-[15px] font-normal leading-8 text-[#526c59]'}>{typeof question.settings?.richHtml==='string'?<span dangerouslySetInnerHTML={{__html:sanitizeDocumentHtml(question.settings.richHtml)}}/>:question.label}</h3>
    {question.description&&<p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-[#607265]">{question.description}</p>}
   </> : <>
    <label htmlFor={question.id} className="font-display mb-2 block text-[17px] font-bold leading-snug text-[#294a34]">
