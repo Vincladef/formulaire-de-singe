@@ -8,6 +8,9 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  # These URLs are public endpoints, including the Vite-injected client URL.
+  # Keep scanning enabled for DATABASE_URL and all other real secrets.
+  SECRETS_SCAN_OMIT_KEYS = "NEON_AUTH_URL,NEON_AUTH_JWKS_URL,VITE_NEON_AUTH_URL"
 
 [[redirects]]
   from = "/api/health"
