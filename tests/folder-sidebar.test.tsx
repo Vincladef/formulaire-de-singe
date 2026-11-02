@@ -1,5 +1,5 @@
 import { afterEach,describe,expect,it,vi } from 'vitest';
-import { cleanup,fireEvent,render,screen } from '@testing-library/react';
+import { cleanup,fireEvent,render,screen,within } from '@testing-library/react';
 import { FolderSidebar } from '../src/components/studio/FolderSidebar';
 afterEach(cleanup);
 const folders=[{id:'research',name:'Recherche',createdAt:'2026-11-02T10:00:00Z'},{id:'events',name:'Événements',createdAt:'2026-11-02T10:00:00Z'}];
@@ -20,10 +20,10 @@ describe('bibliothèque de formulaires',()=>{
   fireEvent.click(screen.getByRole('button',{name:'Nouveau dossier'}));
   expect(onCreate).toHaveBeenCalledOnce();
   fireEvent.click(screen.getByLabelText('Options du dossier Recherche'));
-  fireEvent.click(screen.getByRole('button',{name:'Renommer'}));
+  fireEvent.click(within(screen.getByLabelText('Options du dossier Recherche').closest('details')!).getByRole('button',{name:'Renommer'}));
   expect(onRename).toHaveBeenCalledWith(folders[0]);
   fireEvent.click(screen.getByLabelText('Options du dossier Recherche'));
-  fireEvent.click(screen.getByRole('button',{name:'Supprimer'}));
+  fireEvent.click(within(screen.getByLabelText('Options du dossier Recherche').closest('details')!).getByRole('button',{name:'Supprimer'}));
   expect(onDelete).toHaveBeenCalledWith(folders[0]);
  });
 });
