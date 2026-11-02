@@ -203,3 +203,21 @@ La durée est mesurée par le navigateur, et plafonnée côté API selon la déc
 - Accès : propriétaire, éditeur et lecteur peuvent consulter et exporter ; seuls propriétaire et éditeur peuvent modifier les transcriptions ; seul le propriétaire peut supprimer les participations.
 - Ne jamais rendre publiques les clés R2 ou `DATABASE_URL`. Les liens de lecture sont temporaires, obtenus sur `/api/audio/:id` après contrôle des permissions.
 - La suppression des fichiers R2 doit être finalisée avant toute promesse de suppression complète ; un appel de suppression peut être relancé après une erreur de stockage.
+
+
+## Étape 8 : design system et personnalisation
+
+Le Studio propose désormais des styles par questionnaire : cinq palettes, trois typographies, trois fonds, trois formes de boutons et deux présentations (pages ou une question à la fois). Chaque réglage est validé par Zod et conservé dans `fs_forms.settings.theme` via `PATCH /api/forms/:id/theme`, réservé au propriétaire ou à un éditeur. Les options sont des préréglages statiques, sans CSS libre.
+
+Le formulaire public est débarrassé de la navigation du Studio ; son thème est appliqué au rendu, et la navigation question par question conserve la saisie. Le bouton micro affiche un indicateur animé lorsque l'enregistrement est en cours ; il ne simule pas un niveau sonore réellement mesuré.
+
+L'aperçu est navigable ; il ne soumet aucune réponse. La duplication recopie également le thème.
+
+[Audit UX/UI](docs/UX_AUDIT_ETAPE8.md) : comparaison avant/après, points d'accessibilité et limites de validation.
+
+**Vérifications :** `npm run smoke`, puis `npm run check` sur un environnement doté d'un accès npm. Les paramètres de production Neon et R2 restent nécessaires.
+
+
+## Étape 9 : intégration MCP ChatGPT
+
+Le serveur MCP expose onze outils authentifiés. Voir [le guide complet](docs/PLUGIN_CHATGPT_ETAPE9.md). Le serveur OAuth géré Neon Auth et la page de consentement doivent être activés et testés avant toute connexion à ChatGPT ; aucune compatibilité avec ChatGPT classique n’est présumée.

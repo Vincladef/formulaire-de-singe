@@ -23,6 +23,21 @@ describe('Parcours répondant',()=>{
   fireEvent.click(screen.getByRole('button',{name:/retour/i}));
   expect((screen.getByLabelText(/Votre couleur/i) as HTMLInputElement).value).toBe('Vert');
  });
+ it('présente une question à la fois, conserve les réponses et permet de revenir',async()=>{
+  const themed:PublicForm={...form,theme:{accent:'ocean',font:'modern',background:'mist',button:'pill',layout:'questions'},pages:[
+   {...form.pages[0],questions:[...form.pages[0].questions,{id:crypto.randomUUID(),type:'short_text',label:'Votre magasin ?',description:null,required:true,options:[]}]},
+   form.pages[1],
+  ]};
+  fetchMock.mockImplementation(async (_path:string,opts?:RequestInit)=>({ok:true,status:opts?.method==='POST'?201:200,json:async()=>opts?.method==='POST'?{ok:true,data:{id:'ok'}}:{ok:true,data:themed}}));
+  renderForm();await screen.findByText('Mon enquête');
+  expect(screen.getByText(/Question 1 sur 3/)).toBeInTheDocument();
+  expect(screen.queryByLabelText('Votre magasin ?')).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText(/Votre couleur/i),{target:{value:'Bleu'}});
+  fireEvent.click(screen.getByRole('button',{name:/continuer/i}));
+  expect(screen.getByLabelText(/Votre magasin/i)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:/retour/i}));
+  expect((screen.getByLabelText(/Votre couleur/i) as HTMLInputElement).value).toBe('Bleu');
+ });
  it('n’envoie aucune réponse lors du refus de consentement',async()=>{
   renderForm();await screen.findByText('Mon enquête');
   fireEvent.change(screen.getByLabelText(/Votre couleur/i),{target:{value:'Vert'}});
