@@ -14,13 +14,13 @@ export function StudioSidebar({mode,onModeChange,open,onToggle,pages,pageIndex,o
  onQuestionUpdate,onAddQuestion,onAddPage,onDeletePage}:Props){
  const tools=[{mode:'add',name:'Ajouter',icon:Plus},{mode:'settings',name:'Options',icon:SlidersHorizontal},
  {mode:'pages',name:'Pages',icon:Layers3}] as const;
- return <aside aria-label="Outils du formulaire" className="rounded-2xl border border-[#e4eae1] bg-white p-2.5 lg:sticky lg:top-4">
-   <div className="mb-2 flex justify-end"><button type="button" onClick={onToggle} title={open?'Réduire les outils':'Afficher les outils'}
+ return <aside aria-label="Outils du formulaire" className={open?"fixed inset-x-3 top-20 z-40 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl border border-[#e4eae1] bg-white p-3 shadow-xl lg:sticky lg:inset-auto lg:top-4 lg:max-h-none lg:overflow-visible lg:p-2.5 lg:shadow-none":"flex flex-row items-center justify-between rounded-2xl border border-[#e4eae1] bg-white p-2 lg:sticky lg:top-4 lg:flex-col"}>
+   <div className={open?"mb-2 flex justify-end":"flex justify-start lg:mb-2 lg:justify-center"}><button type="button" onClick={onToggle} title={open?'Réduire les outils':'Afficher les outils'}
      aria-label={open?'Réduire le menu latéral':'Ouvrir le menu latéral'}
      aria-expanded={open} className="flex h-11 w-11 items-center justify-center rounded-lg text-[#3f654a] hover:bg-[#eef6ed]">
       {open?<PanelLeftClose size={19}/>:<PanelLeftOpen size={19}/>}
    </button></div>
-   <nav aria-label="Outils" className={open?'grid grid-cols-3 gap-1':'flex flex-col items-center gap-1'}>
+   <nav aria-label="Outils" className={open?'grid grid-cols-3 gap-1':'flex flex-row items-center gap-1 lg:flex-col'}>
     {tools.map(t=><button key={t.mode} type="button" aria-pressed={mode===t.mode} aria-label={t.name} title={t.name}
       onClick={()=>onModeChange(t.mode)}
       className={`flex flex-col items-center gap-1 min-h-11 rounded-xl px-2 py-2.5 text-xs font-semibold transition ${mode===t.mode?'bg-[#e7f3e5] text-[#2f7549]':'text-[#43674d] hover:bg-[#f2f7f1]'}`}>
