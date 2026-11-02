@@ -37,7 +37,7 @@ export function ColorPalette({label,kind,value,onColor}:Props){
     {kind==='text'?<Palette size={19}/>:<Highlighter size={19}/>}
     <span className="absolute bottom-1 h-[3px] w-5 rounded" style={{backgroundColor:value,border:'1px solid #0002'}}/>
    </button>
-   {open&&<div role="dialog" aria-label={label} className="absolute left-0 top-[calc(100%+7px)] z-50 w-[292px] max-w-[calc(100vw-2rem)] rounded-xl border border-[#dde7db] bg-white p-3 shadow-[0_15px_35px_-12px_rgba(20,48,25,.25)]">
+   {open&&<div role="dialog" aria-label={label} className="absolute right-0 top-[calc(100%+7px)] z-50 w-[292px] sm:right-auto sm:left-0 max-w-[calc(100vw-2rem)] rounded-xl border border-[#dde7db] bg-white p-3 shadow-[0_15px_35px_-12px_rgba(20,48,25,.25)]">
     <p className="mb-2 px-0.5 text-xs font-semibold text-[#48624e]">Couleurs prédéfinies</p>
     <div role="group" aria-label="Nuancier" className="grid grid-cols-10 gap-[4px]">
      {presetColors.map((color,index)=><button type="button" key={color+index}
