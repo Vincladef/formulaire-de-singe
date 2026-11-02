@@ -24,7 +24,7 @@ export class NeonPublicFormService implements PublicFormService {
     const pageRows=await db.select({id:pages.id,title:pages.title,description:pages.description})
       .from(pages).where(eq(pages.versionId,row.versionId)).orderBy(asc(pages.position));
     const resultPages=[];
-    let hasAudio=false;
+     
     for(const p of pageRows){
       const qs=await db.select({id:questions.id,type:questions.type,label:questions.label,description:questions.description,required:questions.required,settings:questions.settings})
         .from(questions).where(eq(questions.pageId,p.id)).orderBy(asc(questions.position));
@@ -32,14 +32,14 @@ export class NeonPublicFormService implements PublicFormService {
       for(const q of qs){
         const options=await db.select({value:questionOptions.value,label:questionOptions.label}).from(questionOptions)
           .where(eq(questionOptions.questionId,q.id)).orderBy(asc(questionOptions.position));
-        hasAudio ||=audioMode(q.type,q.settings)!=='text';
+         
         const limits=audioLimits(q.settings);
         resultQuestions.push({id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,options,mode:audioMode(q.type,q.settings),maxAudioSeconds:limits.maxSeconds,maxAudioBytes:limits.maxBytes});
       }
       resultPages.push({...p,questions:resultQuestions});
     }
     return {id:row.id,slug:row.slug,title:row.title,description:row.description,versionId:row.versionId,versionNumber:row.number,
-      requireConsent:row.settings?.requireConsent===true||hasAudio,pages:resultPages};
+      requireConsent:false,pages:resultPages};
   }
 
   async submit(slug:string,input:PublicSubmissionInput):Promise<{id:string;alreadySubmitted:boolean}>{
@@ -65,20 +65,20 @@ async function getPublicVersion(slug:string,versionId:string):Promise<PublicForm
     .where(and(eq(forms.slug,slug),isNull(forms.archivedAt),isNull(forms.deletedAt))).limit(1);
   if(!row)return null;
   const pageRows=await db.select().from(pages).where(eq(pages.versionId,row.versionId)).orderBy(asc(pages.position));
-  const resultPages:PublicForm['pages']=[];let hasAudio=false;
+  const resultPages:PublicForm['pages']=[]; 
   for(const p of pageRows){
     const qs=await db.select().from(questions).where(eq(questions.pageId,p.id)).orderBy(asc(questions.position));
     const resultQuestions:PublicForm['pages'][number]['questions']=[];
     for(const q of qs){
       const opts=await db.select({value:questionOptions.value,label:questionOptions.label}).from(questionOptions)
         .where(eq(questionOptions.questionId,q.id)).orderBy(asc(questionOptions.position));
-      hasAudio ||=audioMode(q.type,q.settings)!=='text';
+       
       const limits=audioLimits(q.settings);
       resultQuestions.push({id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,options:opts,mode:audioMode(q.type,q.settings),maxAudioSeconds:limits.maxSeconds,maxAudioBytes:limits.maxBytes});
     }
     resultPages.push({id:p.id,title:p.title,description:p.description,questions:resultQuestions});
   }
-  return {id:row.id,slug,title:row.title,description:row.description,versionId:row.versionId,versionNumber:row.number,requireConsent:row.settings?.requireConsent===true||hasAudio,pages:resultPages};
+  return {id:row.id,slug,title:row.title,description:row.description,versionId:row.versionId,versionNumber:row.number,requireConsent:false,pages:resultPages};
 }
 async function submitValidated(slug:string,form:PublicForm,input:PublicSubmissionInput){
   if(form.requireConsent&&!input.consent)throw new PublicFormFault(400,'VALIDATION_ERROR','Le consentement est nécessaire pour participer.');

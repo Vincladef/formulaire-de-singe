@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, FileQuestion, LoaderCircle, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, FileQuestion, LoaderCircle, LockKeyhole } from 'lucide-react';
 import { AudioRecorder } from '../components/AudioRecorder';
 import { audioMode, type UploadedAudio, AUDIO_PART_BYTES } from '../shared/audio';
 import { type AnswerValues, type PublicForm, type PublicQuestion, toSubmissionAnswers, validateAnswers, isAnswered } from '../shared/publicForm';
@@ -84,16 +84,16 @@ export function PublicFormPage(){
  const [pageIndex,setPageIndex]=useState(0);
  const [answers,setAnswers]=useState<AnswerValues>({});
  const [errors,setErrors]=useState<Record<string,string>>({});
- const [consent,setConsent]=useState(false);
- const [consentError,setConsentError]=useState(false);
+  
+  
  const [submitting,setSubmitting]=useState(false);
  const [submitted,setSubmitted]=useState(false);
- const [declined,setDeclined]=useState(false);
+  
  const nonceRef=useRef(crypto.randomUUID());
  const inFlightRef=useRef(false);
  useEffect(()=>{
   const controller=new AbortController();
-  setForm(null);setLoading(true);setError('');setPageIndex(0);setAnswers({});setConsent(false);setSubmitted(false);setDeclined(false);setErrors({});nonceRef.current=crypto.randomUUID();
+  setForm(null);setLoading(true);setError('');setPageIndex(0);setAnswers({}); setSubmitted(false); setErrors({});nonceRef.current=crypto.randomUUID();
   getPublic(slug,controller.signal).then(data=>{if(!controller.signal.aborted)setForm(data);}).catch(e=>{if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Formulaire indisponible.');}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
   return()=>controller.abort();
  },[slug]);
@@ -113,7 +113,7 @@ export function PublicFormPage(){
   if(!form||inFlightRef.current)return;
   const issue=validateAnswers(form,answers);setErrors(issue);
   if(Object.keys(issue).length){const first=form.pages.findIndex(p=>p.questions.some(q=>issue[q.id]));if(first>=0)setPageIndex(first);setError('Certaines questions demandent une réponse.');return;}
-  if(form.requireConsent&&!consent){setConsentError(true);setError('Le consentement est nécessaire avant l’envoi.');return;}
+ 
   inFlightRef.current=true;setSubmitting(true);setError('');
   try{
    const readyValues:AnswerValues={...answers};
@@ -123,7 +123,7 @@ export function PublicFormPage(){
     const api=`/api/public/forms/${encodeURIComponent(form.slug)}/audio`;
     const prepare=await fetch(`${api}/prepare`,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({versionId:form.versionId,questionId,clientNonce:nonceRef.current,
-        consent:true,mimeType:draft.file.type,byteSize:draft.file.size,durationMs:draft.durationMs})});
+        mimeType:draft.file.type,byteSize:draft.file.size,durationMs:draft.durationMs})});
     const prep=await prepare.json() as ApiResult<{uploadId:string;claimToken:string;partBytes:number;partCount:number}>;
     if(!prep.ok)throw new Error(prep.error.message);
     const {uploadId,claimToken,partCount}=prep.data;
@@ -143,7 +143,7 @@ export function PublicFormPage(){
    }
    setAnswers(readyValues);
    const response=await fetch(`/api/public/forms/${encodeURIComponent(form.slug)}/submissions`,{
-    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({versionId:form.versionId,clientNonce:nonceRef.current,consent,website:'',answers:toSubmissionAnswers(form,readyValues)}),
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({versionId:form.versionId,clientNonce:nonceRef.current,website:'',answers:toSubmissionAnswers(form,readyValues)}),
    });
    const json=await response.json() as ApiResult<{id:string}>;
    if(!json.ok)throw new Error(json.error.message);
@@ -153,7 +153,6 @@ export function PublicFormPage(){
  }
  if(loading)return <main className="mx-auto flex min-h-[65vh] max-w-2xl items-center justify-center px-5" role="status"><LoaderCircle className="animate-spin text-[#4d865e]" size={30}/><span className="ml-3 text-[#64806c]">Chargement du questionnaire…</span></main>;
  if(!form)return <main className="mx-auto max-w-xl px-6 py-28 text-center"><FileQuestion className="mx-auto text-[#88a68a]" size={42}/><h1 className="mt-6 font-display text-3xl font-bold">Formulaire indisponible</h1><p className="mt-4 text-[#839487]">{error||'Ce questionnaire est introuvable ou n’a pas été publié.'}</p></main>;
- if(declined)return <main className="mx-auto max-w-xl px-6 py-28 text-center"><ShieldCheck size={48} className="mx-auto text-[#5c946c]"/><h1 className="mt-6 font-display text-3xl font-bold">Choix respecté</h1><p className="mt-4 text-[#6d8271]">Aucune réponse n’a été envoyée. Merci d’avoir pris le temps de consulter ce questionnaire.</p></main>;
  if(submitted)return <main className="mx-auto max-w-xl px-6 py-28 text-center" role="status"><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#e4f4e4]"><CheckCircle2 size={44} className="text-[#397b51]"/></div><h1 className="mt-7 font-display text-4xl font-bold">Merci pour votre participation !</h1><p className="mt-4 text-[#718374]">Vos réponses ont bien été enregistrées. Vous pouvez fermer cette page.</p></main>;
  return <main className="min-h-[75vh] bg-[#fafcf8] px-4 pb-24 pt-8 sm:px-7 sm:pt-14">
   <div className="mx-auto max-w-[740px]">
@@ -165,12 +164,6 @@ export function PublicFormPage(){
     {page?.description&&<p className="mt-3 whitespace-pre-line text-sm leading-7 text-[#819385]">{page.description}</p>}
    </header>
    <div className="space-y-4">{page?.questions.map(q=><QuestionField key={q.id} question={q} value={answers[q.id]} onChange={v=>setAnswer(q.id,v)} error={errors[q.id]}/>)}</div>
-   {pageIndex===form.pages.length-1&&form.requireConsent&&<section className="mt-7 rounded-[24px] border border-[#dfebdc] bg-[#f0f7ed] p-5 sm:p-6">
-    <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 shrink-0 text-[#588265]" size={21}/><div><h3 className="font-bold text-[#315c3e]">Consentement à la participation</h3><p className="mt-2 text-sm leading-6 text-[#68816f]">Je comprends que mes réponses seront enregistrées et consultées par les responsables de ce questionnaire. Ma participation est volontaire. Je peux refuser sans envoyer de données.</p></div></div>
-    <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm font-semibold text-[#356045]"><input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#347b4e]" checked={consent} onChange={e=>{setConsent(e.target.checked);setConsentError(false);}}/>J’accepte de participer.</label>
-    {consentError&&<p role="alert" className="mt-3 text-sm font-semibold text-[#a9584f]">Pour continuer, confirmez votre accord ou refusez la participation.</p>}
-    <button type="button" className="mt-4 text-sm font-medium text-[#9f665b] underline underline-offset-4" onClick={()=>{setAnswers({});setDeclined(true);}}>Je ne souhaite pas participer</button>
-   </section>}
    {error&&<div role="alert" className="mt-6 flex gap-3 rounded-2xl border border-[#f0d4cc] bg-[#fff8f4] p-4 text-sm text-[#aa594d]"><CircleAlert className="shrink-0" size={19}/>{error}</div>}
    <nav aria-label="Navigation dans le formulaire" className="mt-9 flex flex-wrap items-center justify-between gap-4">
     {pageIndex>0?<button type="button" className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-semibold text-[#588061] hover:bg-[#edf4eb]" onClick={()=>{setError('');setPageIndex(i=>i-1);}}><ArrowLeft size={18}/> Retour</button>:<span className="flex items-center gap-2 text-xs text-[#9ba99b]"><LockKeyhole size={13}/> Envoi sécurisé</span>}

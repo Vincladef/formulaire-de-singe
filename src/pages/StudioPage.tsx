@@ -129,8 +129,7 @@ export function StudioPage(){
  return <main className="min-h-[calc(100vh-90px)] bg-[#f6f8f4] px-4 py-7 text-[#2b4836] sm:px-7">
   <div className="mx-auto max-w-[1550px]">
    <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-     <div><Link to="/" className="mb-2 inline-flex items-center gap-2 text-xs font-medium text-[#8da08f]"><ArrowLeft size={14}/> Accueil</Link>
-       <h1 className="font-display text-3xl font-extrabold tracking-[-.055em] sm:text-4xl">Le Studio<span className="text-[#8eaf8c]">.</span></h1>
+     <div><h1 className="font-display text-3xl font-extrabold tracking-[-.055em] sm:text-4xl">Le Studio<span className="text-[#8eaf8c]">.</span></h1>
        <p className="mt-1 text-sm text-[#8a9d8d]">Imagine, compose, publie.</p>
        <Link to="/studio/audios" className="mt-2 inline-block text-sm font-semibold text-[#37724d] underline underline-offset-4">Écouter les réponses vocales</Link>
      </div>

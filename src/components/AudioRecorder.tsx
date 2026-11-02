@@ -82,8 +82,8 @@ export function AudioRecorder({value,onChange,maxSeconds=600,maxBytes=MAX_AUDIO_
   <div className="mt-4 flex flex-wrap items-center gap-3">
    {recording?
     <button type="button" aria-label="Arrêter l’enregistrement" onClick={stop} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-3 font-semibold text-white"><Square size={17}/> Arrêter</button>:
-    <button type="button" aria-label="Commencer l’enregistrement" onClick={()=>void start()} className="inline-flex items-center gap-2 rounded-xl bg-[#2d704d] px-4 py-3 font-semibold text-white"><Mic size={18}/> Enregistrer</button>}
-   {value&&<button type="button" onClick={()=>{onChange(undefined);setError('');}} className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-3 text-sm"><RotateCcw size={16}/> Recommencer</button>}
+    !value&&<button type="button" aria-label="Commencer l’enregistrement" onClick={()=>void start()} className="inline-flex items-center gap-2 rounded-xl bg-[#2d704d] px-4 py-3 font-semibold text-white"><Mic size={18}/> Enregistrer</button>}
+   {value&&!recording&&<button type="button" onClick={()=>{onChange(undefined);setError('');}} className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-3 text-sm"><RotateCcw size={16}/> Recommencer</button>}
   </div>
   {value&&url&&<audio className="mt-4 w-full" controls src={url} preload="metadata" aria-label="Écouter votre réponse"/>}
   <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-[#316048]"><Upload size={17}/> Importer un fichier audio

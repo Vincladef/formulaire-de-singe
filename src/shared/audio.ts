@@ -12,7 +12,7 @@ export type UploadedAudio = z.infer<typeof uploadedAudioSchema>;
 export type AudioDraft = { kind: 'audio-draft'; file: Blob; durationMs: number };
 export const audioPrepareSchema = z.object({
  versionId:z.string().uuid(), questionId:z.string().uuid(), clientNonce:z.string().uuid(),
- consent:z.literal(true), mimeType:z.enum(audioMimeTypes),byteSize:z.number().int().positive().max(MAX_AUDIO_BYTES),
+ mimeType:z.enum(audioMimeTypes),byteSize:z.number().int().positive().max(MAX_AUDIO_BYTES),
  durationMs:z.number().int().positive().max(MAX_AUDIO_SECONDS * 1000),
 }).strict();
 export const audioCompleteSchema = z.object({

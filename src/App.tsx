@@ -1,4 +1,5 @@
-import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { authClient } from './authClient';
 import { SiteHeader } from './components/SiteHeader';
 import { HomePage } from './pages/HomePage';
 import { StudioPage } from './pages/StudioPage';
@@ -7,6 +8,15 @@ import { PublicFormPage } from './pages/PublicFormPage';
 import { ProtectedStudio } from './pages/ProtectedStudio';
 import { AudioResponsesPage } from './pages/AudioResponsesPage';
 
+function HomeGate() {
+ if(!authClient)return <HomePage/>;
+ return <SignedInHomeGate/>;
+}
+function SignedInHomeGate(){
+ const session=authClient!.useSession();
+ if(session.isPending)return <main role="status" className="p-16 text-center text-[#6a8371]">Ouverture…</main>;
+ return session.data?.user?<Navigate to="/studio" replace/>:<HomePage/>;
+}
 function AppShell() {
   const { pathname } = useLocation();
   const isPublicQuestionnaire = pathname.startsWith('/f/');
@@ -14,7 +24,7 @@ function AppShell() {
     <div className="min-h-screen bg-[#fbfcfa] text-[#253d30]">
       {!isPublicQuestionnaire && <SiteHeader />}
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<HomeGate />} />
           <Route path="/connexion" element={<AuthPage />} />
           <Route path="/f/:slug" element={<PublicFormPage />} />
           <Route path="/studio" element={<ProtectedStudio><StudioPage /></ProtectedStudio>} />
