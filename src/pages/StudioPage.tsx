@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Archive, ArrowLeft, CheckCircle2, ChevronRight, CircleAlert, Copy, Eye, FilePlus2, Files, LoaderCircle, Plus, Save, Send, Trash2, X } from 'lucide-react';
 import { getAccessToken } from '../authClient';
@@ -134,7 +133,6 @@ export function StudioPage(){
    <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
      <div><h1 className="font-display text-3xl font-extrabold tracking-[-.055em] sm:text-4xl">Le Studio<span className="text-[#8eaf8c]">.</span></h1>
        <p className="mt-1 text-sm text-[#8a9d8d]">Imagine, compose, publie.</p>
-       <Link to="/studio/audios" className="mt-2 inline-block text-sm font-semibold text-[#37724d] underline underline-offset-4">Écouter les réponses vocales</Link>
      </div>
      <div className="flex flex-wrap items-center gap-2">
        {detail&&<span role="status" aria-live="polite" className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium ${saveState==='error'?'bg-red-50 text-red-700':'bg-[#eaf2e7] text-[#5d8668]'}`}>
