@@ -31,10 +31,10 @@ export function QuestionField({question,value,onChange,error}: {question:PublicQ
  return <div className={question.type==='statement'?'px-1 py-2 sm:px-3':'rounded-2xl border border-[#e1e9df] bg-white p-5 sm:p-7'}>
   {question.type==='statement' ? <>
    <h3 className={question.settings?.textStyle==='heading'?'font-display text-2xl font-bold leading-snug text-[#294a34]':question.settings?.textStyle==='quote'?'border-l-[3px] border-[#a8c4aa] pl-4 text-base italic leading-7 text-[#647c69]':'whitespace-pre-line text-[15px] font-normal leading-8 text-[#526c59]'}>{question.label}</h3>
-   {question.description&&<p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-[#728678]">{question.description}</p>}
+   {question.description&&<p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-[#607265]">{question.description}</p>}
   </> : <>
    <label htmlFor={question.id} className="font-display mb-2 block text-[17px] font-bold leading-snug text-[#294a34]">
-    {question.label} {question.required ? <span aria-label="obligatoire" className="text-[#c07962]">*</span> : <span className="ml-1 text-xs font-normal text-[#607265]">Facultatif</span>}
+    {question.label} {question.required ? <span aria-label="obligatoire" className="text-[#a44f3b]">*</span> : <span className="ml-1 text-xs font-normal text-[#607265]">Facultatif</span>}
    </label>
    {question.description&&<p id={describedBy} className="mb-4 whitespace-pre-line text-sm leading-6 text-[#607265]">{question.description}</p>}
    <div className={question.description?'mt-3':'mt-4'}>
@@ -158,8 +158,8 @@ export function PublicFormPage(){
   }catch(e){setError(e instanceof Error?e.message:'Envoi impossible. Veuillez réessayer.');}
   finally{inFlightRef.current=false;setSubmitting(false);}
  }
- if(loading)return <main className="mx-auto flex min-h-[65vh] max-w-2xl items-center justify-center px-5" role="status"><LoaderCircle className="animate-spin text-[#4d865e]" size={30}/><span className="ml-3 text-[#64806c]">Chargement du questionnaire…</span></main>;
- if(!form)return <main className="mx-auto max-w-xl px-6 py-28 text-center"><FileQuestion className="mx-auto text-[#88a68a]" size={42}/><h1 className="mt-6 font-display text-3xl font-bold">Formulaire indisponible</h1><p className="mt-4 text-[#607265]">{error||'Ce questionnaire est introuvable ou n’a pas été publié.'}</p></main>;
+ if(loading)return <main className="mx-auto flex min-h-[65vh] max-w-2xl items-center justify-center px-5" role="status"><LoaderCircle className="animate-spin text-[#356944]" size={30}/><span className="ml-3 text-[#607265]">Chargement du questionnaire…</span></main>;
+ if(!form)return <main className="mx-auto max-w-xl px-6 py-28 text-center"><FileQuestion className="mx-auto text-[#5d795f]" size={42}/><h1 className="mt-6 font-display text-3xl font-bold">Formulaire indisponible</h1><p className="mt-4 text-[#607265]">{error||'Ce questionnaire est introuvable ou n’a pas été publié.'}</p></main>;
  if(submitted)return <main className="mx-auto max-w-xl px-6 py-28 text-center" role="status"><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#e4f4e4]"><CheckCircle2 size={44} className="text-[#397b51]"/></div><h1 className="mt-7 font-display text-4xl font-bold">Merci pour votre participation !</h1><p className="mt-4 text-[#607265]">Vos réponses ont bien été enregistrées. Vous pouvez fermer cette page.</p></main>;
  return <main className="min-h-[75vh] bg-[#fafcf8] px-4 pb-24 pt-8 sm:px-7 sm:pt-14">
   <div className="mx-auto max-w-[740px]">
@@ -173,7 +173,7 @@ export function PublicFormPage(){
    <div className="space-y-4">{page?.questions.map(q=><QuestionField key={q.id} question={q} value={answers[q.id]} onChange={v=>setAnswer(q.id,v)} error={errors[q.id]}/>)}</div>
    {error&&<div role="alert" className="mt-6 flex gap-3 rounded-2xl border border-[#f0d4cc] bg-[#fff8f4] p-4 text-sm text-[#aa594d]"><CircleAlert className="shrink-0" size={19}/>{error}</div>}
    <nav aria-label="Navigation dans le formulaire" className="mt-9 flex flex-wrap items-center justify-between gap-4">
-    {pageIndex>0?<button type="button" className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-semibold text-[#588061] hover:bg-[#edf4eb]" onClick={()=>{setError('');setPageIndex(i=>i-1);}}><ArrowLeft size={18}/> Retour</button>:<span/>}
+    {pageIndex>0?<button type="button" className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-semibold text-[#42664b] hover:bg-[#edf4eb]" onClick={()=>{setError('');setPageIndex(i=>i-1);}}><ArrowLeft size={18}/> Retour</button>:<span/>}
     {pageIndex<form.pages.length-1?<button type="button" className={solid} onClick={next}>Continuer <ArrowRight size={18}/></button>:<button type="button" disabled={submitting} className={solid} onClick={()=>void send()}>{submitting?<LoaderCircle className="animate-spin" size={18}/>:<Check size={18}/>} {submitting?'Envoi en cours…':'Envoyer mes réponses'}</button>}
    </nav>
    
