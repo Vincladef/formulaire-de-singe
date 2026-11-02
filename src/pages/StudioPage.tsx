@@ -23,7 +23,7 @@ async function request<T>(path:string,method='GET',body?:unknown):Promise<T>{
  if(!payload.ok)throw new Error(payload.error.message || 'Opération impossible');
  return payload.data;
 }
-function countQuestions(pages:StudioPageData[]){return pages.reduce((sum,p)=>sum+p.questions.length,0);}
+function countQuestions(pages:StudioPageData[]){return pages.reduce((sum,p)=>sum+p.questions.filter(q=>q.type!=='statement').length,0);}
 type SaveState='saved'|'pending'|'saving'|'error';
 export function StudioPage(){
  const [items,setItems]=useState<FormSummary[]>([]);
@@ -200,7 +200,7 @@ export function StudioPage(){
        activeTab==='settings'?<section className="max-w-xl space-y-4 rounded-2xl border border-[#e2eade] bg-white p-6">
         <h2 className="text-xl font-bold text-[#31553c]">Paramètres du formulaire</h2>
         <p className="text-sm text-[#607265]">Nom : {detail.title}</p>
-        <p className="break-all text-xs text-[#607265]">Lien public : {window.location.origin}/f/{detail.slug}</p>
+        <a className="block break-all text-sm font-medium text-[#315e40] underline underline-offset-4" target="_blank" rel="noopener noreferrer" href={`/f/${encodeURIComponent(detail.slug)}`}>Ouvrir le formulaire public</a>
         <div className="flex flex-wrap gap-2">
          <button className={light} disabled={!editable} onClick={()=>void renameForm()}>Renommer</button>
          <button className={light} onClick={()=>void duplicateForm()}><Copy size={15}/> Dupliquer</button>
@@ -222,7 +222,7 @@ export function StudioPage(){
               <textarea aria-label="Description de la page" className="mt-3 w-full resize-y bg-transparent text-sm text-[#607265] outline-none placeholder:text-[#607265]" rows={2} placeholder="Une courte introduction (facultative)…" value={page.description??''} disabled={!editable} onChange={e=>updatePage({...page,description:e.target.value||null})}/>
               {pages.length>1&&<button disabled={!editable} className="text-xs font-semibold text-[#ba7c75]" onClick={()=>void deletePage()}>Supprimer cette page</button>}
             </div>
-            {page.questions.map((q,i)=><QuestionCard key={q.id} index={i} question={q} selected={questionId===q.id}
+            {page.questions.map((q,i)=><QuestionCard key={q.id} index={i} questionNumber={page.questions.slice(0,i+1).filter(item=>item.type!=='statement').length} question={q} selected={questionId===q.id}
  onSelect={()=>{setQuestionId(q.id);setSideMode('settings');cursorRef.current={questionId:q.id};}}
  onCursor={(offset,text)=>{cursorRef.current={questionId:q.id,offset,text};}}
  onInsert={(type,offset,text)=>addQuestion(type,{questionId:q.id,offset,text})}
