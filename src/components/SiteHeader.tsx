@@ -55,14 +55,11 @@ function SignedInActions() {
 export function SiteHeader() {
   return (
     <header className="border-b border-[#e9ede7] bg-[#fbfcfa]/90">
-      <div className="mx-auto flex h-[82px] max-w-6xl items-center justify-between gap-2 px-4 sm:px-8">
+      <div className="mx-auto flex h-[66px] max-w-6xl items-center justify-between gap-2 px-4 sm:px-8">
         <Link to="/" className="flex items-center gap-2.5 sm:gap-3" aria-label="Formulaire de Singe, accueil">
-          <MonkeyMark size={43} />
-          <span className="font-display text-[18px] font-extrabold tracking-[-.045em] leading-[1.08] text-[#1d392e]">FORMULAIRE<br /><span className="text-[#4c7864]">DE SINGE</span></span>
+          <MonkeyMark size={36} />
+          <span className="font-display text-[15px] font-extrabold tracking-[-.045em] leading-[1.08] text-[#1d392e]">FORMULAIRE<br /><span className="text-[#4c7864]">DE SINGE</span></span>
         </Link>
-        <nav className="hidden items-center gap-8 text-sm font-semibold text-[#4a5d51] sm:flex" aria-label="Navigation principale">
-          <Link to="/studio" className="text-[#486750] hover:text-[#26553d]">Mes formulaires</Link>
-        </nav>
         <AccountActions />
       </div>
     </header>
