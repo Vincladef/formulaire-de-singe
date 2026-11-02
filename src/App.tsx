@@ -3,6 +3,7 @@ import { SiteHeader } from './components/SiteHeader';
 import { HomePage } from './pages/HomePage';
 import { StudioPage } from './pages/StudioPage';
 import { AuthPage } from './pages/AuthPage';
+import { OAuthConsentPage } from './pages/OAuthConsentPage';
 import { PublicFormPage } from './pages/PublicFormPage';
 import { ProtectedStudio } from './pages/ProtectedStudio';
 import { ResultsPage } from './pages/ResultsPage';
@@ -17,6 +18,7 @@ function AppContent(){
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/connexion" element={<AuthPage />} />
+          <Route path="/consentement" element={<OAuthConsentPage />} />
           <Route path="/f/:slug" element={<PublicFormPage />} />
           <Route path="/studio/resultats/:formId" element={<ProtectedStudio><ResultsPage /></ProtectedStudio>} />
           <Route path="/studio" element={<ProtectedStudio><StudioPage /></ProtectedStudio>} />
