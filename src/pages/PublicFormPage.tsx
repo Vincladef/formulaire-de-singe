@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, FileQuestion, LoaderCircle, LockKeyhole } from 'lucide-react';
 import { AudioRecorder } from '../components/AudioRecorder';
 import { audioMode, type UploadedAudio, AUDIO_PART_BYTES } from '../shared/audio';
-import { type AnswerValues, type PublicForm, type PublicQuestion, toSubmissionAnswers, validateAnswers, isAnswered } from '../shared/publicForm';
+import { type AnswerValues, type PublicForm, type PublicQuestion, toSubmissionAnswers, validateAnswers, isAnswered, OTHER_VALUE, isOtherAnswer } from '../shared/publicForm';
 
 type ApiResult<T>={ok:true;data:T}|{ok:false;error:{code:string;message:string}};
 const fieldStyle='w-full rounded-2xl border border-[#dce7dc] bg-white px-4 py-3.5 text-[#294735] outline-none transition focus:border-[#5b986e] focus:ring-4 focus:ring-[#e0eee0]';
@@ -20,6 +20,9 @@ export function QuestionField({question,value,onChange,error}: {question:PublicQ
  const errorId=`error-${question.id}`;
  const ariaDesc=[question.description?describedBy:null,error?errorId:null].filter(Boolean).join(' ')||undefined;
  const options=question.options;
+ const otherValue=typeof value==='string'&&isOtherAnswer(value)?value:Array.isArray(value)?value.find(isOtherAnswer):undefined;
+ const otherSelected=otherValue!==undefined;
+ const otherText=otherSelected?otherValue.slice(OTHER_VALUE.length+1):'';
  const mode=question.mode??audioMode(question.type);
  const [preferAudio,setPreferAudio]=useState(false);
  const vocal=mode==='audio'||(mode==='either'&&preferAudio);
@@ -44,21 +47,26 @@ export function QuestionField({question,value,onChange,error}: {question:PublicQ
     {!vocal&&question.type==='long_text'&&<textarea {...common} className={fieldStyle+' min-h-32 resize-y'} rows={4} maxLength={10000} placeholder="Racontez-nous…" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
     {question.type==='number'&&<input {...common} className={fieldStyle} type="number" placeholder="0" value={typeof value==='number'&&Number.isFinite(value)?value:''} onChange={e=>onChange(e.target.value===''?undefined:Number(e.target.value))}/>}
     {question.type==='date'&&<input {...common} className={fieldStyle} type="date" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
-    {question.type==='select'&&<select {...common} className={fieldStyle} value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}>
+    {question.type==='select'&&<select {...common} className={fieldStyle} value={typeof value==='string'?(otherSelected?OTHER_VALUE:value):''} onChange={e=>onChange(e.target.value===OTHER_VALUE?OTHER_VALUE+':':e.target.value)}>
       <option value="">Choisir une réponse…</option>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
     </select>}
     {question.type==='single_choice'&&<fieldset aria-describedby={ariaDesc} aria-invalid={!!error} className="space-y-2">
       <legend className="sr-only">{question.label}</legend>
-      {options.map(o=><label key={o.value} className={'flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm transition '+(value===o.value?'border-[#7eab87] bg-[#eff7ed] text-[#2c6041]':'border-[#e0e9de] hover:bg-[#f7faf5]')}>
-        <input type="radio" name={question.id} checked={value===o.value} value={o.value} onChange={()=>onChange(o.value)} className="h-4 w-4 accent-[#33764c]"/>{o.label}
+      {options.map(o=><label key={o.value} className={'flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm transition '+((o.value===OTHER_VALUE?otherSelected:value===o.value)?'border-[#7eab87] bg-[#eff7ed] text-[#2c6041]':'border-[#e0e9de] hover:bg-[#f7faf5]')}>
+        <input type="radio" name={question.id} checked={o.value===OTHER_VALUE?otherSelected:value===o.value} value={o.value} onChange={()=>onChange(o.value===OTHER_VALUE?OTHER_VALUE+':':o.value)} className="h-4 w-4 accent-[#33764c]"/>{o.label}
       </label>)}
     </fieldset>}
     {question.type==='multiple_choice'&&<fieldset aria-describedby={ariaDesc} aria-invalid={!!error} className="space-y-2">
       <legend className="sr-only">{question.label}</legend>
-      {options.map(o=>{const checked=Array.isArray(value)&&value.includes(o.value);return <label key={o.value} className={'flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm transition '+(checked?'border-[#7eab87] bg-[#eff7ed] text-[#2c6041]':'border-[#e0e9de] hover:bg-[#f7faf5]')}>
-        <input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked?[...(Array.isArray(value)?value:[]),o.value]:(Array.isArray(value)?value:[]).filter(v=>v!==o.value))} className="h-4 w-4 accent-[#33764c]"/>{o.label}
+      {options.map(o=>{const checked=Array.isArray(value)&&(o.value===OTHER_VALUE?value.some(isOtherAnswer):value.includes(o.value));return <label key={o.value} className={'flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm transition '+(checked?'border-[#7eab87] bg-[#eff7ed] text-[#2c6041]':'border-[#e0e9de] hover:bg-[#f7faf5]')}>
+        <input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked?[...(Array.isArray(value)?value:[]),o.value===OTHER_VALUE?OTHER_VALUE+':':o.value]:(Array.isArray(value)?value:[]).filter(v=>o.value===OTHER_VALUE?!isOtherAnswer(v):v!==o.value))} className="h-4 w-4 accent-[#33764c]"/>{o.label}
       </label>})}
     </fieldset>}
+    {!vocal&&otherSelected&&<input className={fieldStyle+' mt-3'} aria-label="Précisez votre réponse Autre"
+        placeholder="Précisez votre réponse…" maxLength={300} value={otherText}
+        onChange={e=>{const next=OTHER_VALUE+':'+e.target.value;
+         onChange(Array.isArray(value)?[...value.filter(v=>!isOtherAnswer(v)),next]:next);
+        }}/>}
     {vocal&&value&&typeof value==='object'&&!Array.isArray(value)&&value.kind==='audio'&&
       <p className="rounded-xl bg-[#eaf4e8] p-3 text-sm">Enregistrement prêt pour l'envoi.</p>}
     {vocal&&<AudioRecorder value={draft} onChange={onChange} maxSeconds={question.maxAudioSeconds??600} maxBytes={question.maxAudioBytes??15*1048576}/>}
@@ -159,17 +167,17 @@ export function PublicFormPage(){
    <div className="mb-8 flex items-center justify-between text-xs font-semibold uppercase tracking-[.12em] text-[#8da18f]"><span>Questionnaire</span><span>{form.pages.length===1?`${answeredCount}/${totalQuestions.length} réponses`:`Page ${pageIndex+1} sur ${form.pages.length}`}</span></div>
    {totalQuestions.length>1&&<div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e3ece1]" role="progressbar" aria-label="Questions complétées" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full bg-[#5d9b6c] transition-[width] duration-300" style={{width:`${progress}%`}}/></div>}
    <header className="pb-10 pt-10 sm:pt-12">
-    {pageIndex===0&&<><div className="mb-4 inline-flex items-center gap-2 rounded-full bg-[#edf5ea] px-3 py-1.5 text-xs font-bold text-[#648a6b]"><Check size={13}/> Participation libre</div><h1 className="font-display text-[clamp(2.2rem,6vw,3.5rem)] font-extrabold leading-tight tracking-[-.055em] text-[#254632]">{form.title}</h1>{form.description&&<p className="mt-4 max-w-2xl whitespace-pre-line text-base leading-8 text-[#748776]">{form.description}</p>}</>}
+    {pageIndex===0&&<><h1 className="font-display text-[clamp(2.2rem,6vw,3.5rem)] font-extrabold leading-tight tracking-[-.055em] text-[#254632]">{form.title}</h1>{form.description&&<p className="mt-4 max-w-2xl whitespace-pre-line text-base leading-8 text-[#748776]">{form.description}</p>}</>}
     <h2 className={'font-display font-bold text-[#35583f] '+(pageIndex===0?'mt-9 text-2xl':'text-3xl')}>{page?.title||`Page ${pageIndex+1}`}</h2>
     {page?.description&&<p className="mt-3 whitespace-pre-line text-sm leading-7 text-[#819385]">{page.description}</p>}
    </header>
    <div className="space-y-4">{page?.questions.map(q=><QuestionField key={q.id} question={q} value={answers[q.id]} onChange={v=>setAnswer(q.id,v)} error={errors[q.id]}/>)}</div>
    {error&&<div role="alert" className="mt-6 flex gap-3 rounded-2xl border border-[#f0d4cc] bg-[#fff8f4] p-4 text-sm text-[#aa594d]"><CircleAlert className="shrink-0" size={19}/>{error}</div>}
    <nav aria-label="Navigation dans le formulaire" className="mt-9 flex flex-wrap items-center justify-between gap-4">
-    {pageIndex>0?<button type="button" className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-semibold text-[#588061] hover:bg-[#edf4eb]" onClick={()=>{setError('');setPageIndex(i=>i-1);}}><ArrowLeft size={18}/> Retour</button>:<span className="flex items-center gap-2 text-xs text-[#9ba99b]"><LockKeyhole size={13}/> Envoi sécurisé</span>}
+    {pageIndex>0?<button type="button" className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-semibold text-[#588061] hover:bg-[#edf4eb]" onClick={()=>{setError('');setPageIndex(i=>i-1);}}><ArrowLeft size={18}/> Retour</button>:<span/>}
     {pageIndex<form.pages.length-1?<button type="button" className={solid} onClick={next}>Continuer <ArrowRight size={18}/></button>:<button type="button" disabled={submitting} className={solid} onClick={()=>void send()}>{submitting?<LoaderCircle className="animate-spin" size={18}/>:<Check size={18}/>} {submitting?'Envoi en cours…':'Envoyer mes réponses'}</button>}
    </nav>
-   <p className="mt-10 text-center text-xs leading-5 text-[#a0aea0]">Aucun compte n’est nécessaire pour répondre.</p>
+   
   </div>
  </main>;
 }

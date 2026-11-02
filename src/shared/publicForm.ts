@@ -25,6 +25,12 @@ export type PublicForm = {
   versionId:string; versionNumber:number; requireConsent:boolean;
   pages:PublicPage[];
 };
+export const OTHER_VALUE='__other__';
+export const isOtherAnswer=(value:string)=>value.startsWith(OTHER_VALUE+':');
+export function isValidOptionAnswer(value:string,options:Array<{value:string}>){
+ if(options.some(o=>o.value===value&&value!==OTHER_VALUE))return true;
+ return isOtherAnswer(value)&&options.some(o=>o.value===OTHER_VALUE)&&value.slice(OTHER_VALUE.length+1).trim().length>0&&value.length<=OTHER_VALUE.length+301;
+}
 export type AnswerValues = Record<string, string | number | string[] | AudioDraft | UploadedAudio | undefined>;
 
 export function isAnswered(value: AnswerValues[string]): boolean {
@@ -56,9 +62,9 @@ export function validateAnswers(form: PublicForm, values: AnswerValues): Record<
     } else if (q.type==='date') {
       if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`)) || new Date(`${value}T00:00:00Z`).toISOString().slice(0,10)!==value) errors[q.id]='Indiquez une date valide.';
     } else if (q.type==='single_choice'||q.type==='select') {
-      if(typeof value!=='string'||!q.options.some(o=>o.value===value)) errors[q.id]='Sélectionnez une option proposée.';
+      if(typeof value!=='string'||!isValidOptionAnswer(value,q.options)) errors[q.id]='Sélectionnez une option proposée.';
     } else if (q.type==='multiple_choice') {
-      if(!Array.isArray(value)||new Set(value).size!==value.length||value.some(v=>!q.options.some(o=>o.value===v))) errors[q.id]='Choisissez uniquement parmi les options proposées.';
+      if(!Array.isArray(value)||new Set(value).size!==value.length||value.some(v=>!isValidOptionAnswer(v,q.options))) errors[q.id]='Choisissez uniquement parmi les options proposées.';
     }
   }
   return errors;

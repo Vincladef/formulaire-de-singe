@@ -1,4 +1,3 @@
-import { Plus,Trash2 } from 'lucide-react';
 import { audioMode,audioLimits,MAX_AUDIO_SECONDS } from '../../shared/audio';
 import { questionTypeNames, questionTypes, type StudioQuestion, type QuestionType } from '../../shared/studio';
 const input='w-full rounded-xl border border-[#dce7db] bg-white px-3.5 py-2.5 text-sm text-[#3a5845] outline-none focus:border-[#79a386] focus:ring-2 focus:ring-[#d7e8d8]';
@@ -21,14 +20,7 @@ export function QuestionSettings({question,onUpdate}:Props){
     {question.type!=='statement'&&<label className="flex items-center justify-between rounded-xl border border-[#e2e9df] bg-[#f9fbf8] px-3 py-3 text-sm font-medium text-[#47614e]">Réponse obligatoire
       <input type="checkbox" className="h-4 w-4 accent-[#327454]" checked={question.required} onChange={e=>change({required:e.target.checked})}/>
     </label>}
-    {choice&&<div className="space-y-3"><p className="text-xs font-semibold text-[#607666]">Choix proposés</p>
-      {question.options.map((opt,i)=><div key={opt.id} className="flex items-center gap-2"><input aria-label={`Choix ${i+1}`} className={input} value={opt.label} onChange={e=>{
-        const options=question.options.map(o=>o.id===opt.id?{...o,label:e.target.value}:o);change({options});
-      }}/><button type="button" disabled={question.options.length<=2} title="Retirer le choix" aria-label={`Retirer le choix ${i+1}`} className="rounded-lg p-2 text-[#a77770] disabled:opacity-30" onClick={()=>change({options:question.options.filter(o=>o.id!==opt.id)})}><Trash2 size={16}/></button></div>)}
-      <button type="button" className="inline-flex items-center gap-2 text-xs font-semibold text-[#4f8660]" onClick={()=>{
-        const value=`option_${crypto.randomUUID().slice(0,8)}`;change({options:[...question.options,{id:crypto.randomUUID(),value,label:`Option ${question.options.length+1}`}]});
-      }}><Plus size={15}/> Ajouter un choix</button>
-    </div>}
+    {choice&&<p className="rounded-xl bg-[#f5f9f4] p-3 text-xs leading-5 text-[#708a74]">Les choix se modifient directement dans la question. Ajoute « Autre » pour permettre une réponse libre.</p>}
     {['short_text','long_text'].includes(question.type)&&<label className="block space-y-2 text-xs font-semibold text-[#607666]">Mode de réponse
       <select className={input} value={mode} onChange={e=>change({settings:{...question.settings,answerMode:e.target.value}})}>
         <option value="text">Texte</option><option value="audio">Vocal uniquement</option><option value="either">Texte ou vocal</option>

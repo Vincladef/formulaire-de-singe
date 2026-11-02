@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { audioLimits, audioMode } from '../../shared/audio';
 import { ArrowDown,ArrowUp,Copy,GripVertical,Trash2,Check,Mic } from 'lucide-react';
+import { OTHER_VALUE } from '../../shared/publicForm';
 import { questionTypeNames, type StudioQuestion } from '../../shared/studio';
 
 type Props={question:StudioQuestion;index:number;selected:boolean;onSelect:()=>void;onUpdate?:(question:StudioQuestion)=>void;onMove:(delta:number)=>void;onDuplicate:()=>void;onDelete:()=>void;onDrop:(from:number)=>void;readOnly?:boolean};
@@ -20,6 +21,11 @@ export function QuestionCard({question,index,selected,onSelect,onUpdate,onMove,o
     setChoiceLabels(labels=>{const next={...labels};delete next[id];return next;});
   }
   const choice=['single_choice','multiple_choice','select'].includes(question.type);
+ const hasOther=question.options.some(o=>o.value===OTHER_VALUE);
+ function addChoice(){if(question.options.length>=100)return;
+  onUpdate?.({...question,options:[...question.options,{id:crypto.randomUUID(),value:'option_'+crypto.randomUUID().slice(0,8),label:'Option '+(question.options.length+1)}]});}
+ function addOther(){if(hasOther||question.options.length>=100)return;
+  onUpdate?.({...question,options:[...question.options,{id:crypto.randomUUID(),value:OTHER_VALUE,label:'Autre'}]});}
   return <article data-testid={`question-${question.id}`}
      onDragOver={e=>{if(!readOnly){e.preventDefault();setDragOver(true);}}} onDragLeave={()=>setDragOver(false)}
      onDrop={e=>{e.preventDefault();setDragOver(false);const from=Number(e.dataTransfer.getData('text/plain'));if(Number.isInteger(from)&&from!==index)onDrop(from);}}
@@ -46,11 +52,19 @@ export function QuestionCard({question,index,selected,onSelect,onUpdate,onMove,o
       {question.type==='long_text'&&<div className="min-h-20 rounded-xl border border-dashed border-[#e0e7df] bg-[#fafbf9] px-4 py-3 text-sm text-[#a3afa6]">Rédigez votre réponse…</div>}
       {choice&&<div className="space-y-2">{question.options.map((o,i)=><div key={o.id} className="flex items-center gap-3 text-sm text-[#687b6d]">
        <span aria-hidden="true" className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center border border-[#bfcfc2] ${question.type==='multiple_choice'?'rounded-[5px]':'rounded-full'}`}/>
-       {readOnly?<span>{o.label}</span>:<input aria-label={`Choix ${i+1} de la question ${index+1}`}
+       {readOnly||o.value===OTHER_VALUE?<span className="flex-1">{o.label}</span>:<input aria-label={`Choix ${i+1} de la question ${index+1}`}
         className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm text-[#526b57] outline-none hover:border-[#dce9dc] focus:border-[#90b59a] focus:ring-2 focus:ring-[#e0efdf]"
         maxLength={180} value={choiceLabels[o.id]??o.label} onFocus={onSelect}
         onChange={e=>setChoiceLabels(v=>({...v,[o.id]:e.target.value}))} onBlur={()=>commitOption(o.id)}/>}
-      </div>)}</div>}
+       {!readOnly&&question.options.length>2&&<button type="button" aria-label={`Retirer le choix ${i+1}`} title="Retirer ce choix"
+         onClick={()=>onUpdate?.({...question,options:question.options.filter(x=>x.id!==o.id)})}
+         className="rounded-lg p-1.5 text-[#b07970] hover:bg-red-50"><Trash2 size={15}/></button>}
+      </div>)}
+      {!readOnly&&<div className="mt-3 flex flex-wrap gap-2">
+       <button type="button" onClick={addChoice} disabled={question.options.length>=100} className="rounded-lg px-2 py-2 text-xs font-semibold text-[#3f8154] hover:bg-[#edf7ed]">+ Ajouter un choix</button>
+       {!hasOther&&<button type="button" onClick={addOther} disabled={question.options.length>=100} className="rounded-lg px-2 py-2 text-xs text-[#52765a] hover:bg-[#edf7ed]">+ Ajouter « Autre »</button>}
+      </div>}
+      </div>}
       {audioMode(question.type,question.settings)!=='text'&&<div className="flex items-center gap-3 rounded-2xl bg-[#edf5ef] p-4 text-sm font-semibold text-[#47745a]"><Mic size={19}/> Réponse vocale possible <span className="ml-auto text-[11px] font-normal">{Math.round(audioLimits(question.settings).maxSeconds/60)} min max.</span></div>}
       {question.type==='statement'&&<div className="text-sm italic text-[#9baa9c]">Bloc d'information, sans réponse attendue</div>}
     </div>
