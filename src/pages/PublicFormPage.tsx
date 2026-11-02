@@ -34,9 +34,9 @@ export function QuestionField({question,value,onChange,error}: {question:PublicQ
    {question.description&&<p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-[#728678]">{question.description}</p>}
   </> : <>
    <label htmlFor={question.id} className="font-display mb-2 block text-[17px] font-bold leading-snug text-[#294a34]">
-    {question.label} {question.required ? <span aria-label="obligatoire" className="text-[#c07962]">*</span> : <span className="ml-1 text-xs font-normal text-[#97a698]">Facultatif</span>}
+    {question.label} {question.required ? <span aria-label="obligatoire" className="text-[#c07962]">*</span> : <span className="ml-1 text-xs font-normal text-[#607265]">Facultatif</span>}
    </label>
-   {question.description&&<p id={describedBy} className="mb-4 whitespace-pre-line text-sm leading-6 text-[#859688]">{question.description}</p>}
+   {question.description&&<p id={describedBy} className="mb-4 whitespace-pre-line text-sm leading-6 text-[#607265]">{question.description}</p>}
    <div className={question.description?'mt-3':'mt-4'}>
     {mode==='either'&&<div className="mb-4 flex gap-2" role="group" aria-label="Type de réponse">
      <button type="button" className="rounded-lg border px-3 py-2 text-sm" aria-pressed={!preferAudio} onClick={()=>{setPreferAudio(false);onChange(undefined);}}>Écrire</button>
@@ -159,16 +159,16 @@ export function PublicFormPage(){
   finally{inFlightRef.current=false;setSubmitting(false);}
  }
  if(loading)return <main className="mx-auto flex min-h-[65vh] max-w-2xl items-center justify-center px-5" role="status"><LoaderCircle className="animate-spin text-[#4d865e]" size={30}/><span className="ml-3 text-[#64806c]">Chargement du questionnaire…</span></main>;
- if(!form)return <main className="mx-auto max-w-xl px-6 py-28 text-center"><FileQuestion className="mx-auto text-[#88a68a]" size={42}/><h1 className="mt-6 font-display text-3xl font-bold">Formulaire indisponible</h1><p className="mt-4 text-[#839487]">{error||'Ce questionnaire est introuvable ou n’a pas été publié.'}</p></main>;
- if(submitted)return <main className="mx-auto max-w-xl px-6 py-28 text-center" role="status"><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#e4f4e4]"><CheckCircle2 size={44} className="text-[#397b51]"/></div><h1 className="mt-7 font-display text-4xl font-bold">Merci pour votre participation !</h1><p className="mt-4 text-[#718374]">Vos réponses ont bien été enregistrées. Vous pouvez fermer cette page.</p></main>;
+ if(!form)return <main className="mx-auto max-w-xl px-6 py-28 text-center"><FileQuestion className="mx-auto text-[#88a68a]" size={42}/><h1 className="mt-6 font-display text-3xl font-bold">Formulaire indisponible</h1><p className="mt-4 text-[#607265]">{error||'Ce questionnaire est introuvable ou n’a pas été publié.'}</p></main>;
+ if(submitted)return <main className="mx-auto max-w-xl px-6 py-28 text-center" role="status"><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#e4f4e4]"><CheckCircle2 size={44} className="text-[#397b51]"/></div><h1 className="mt-7 font-display text-4xl font-bold">Merci pour votre participation !</h1><p className="mt-4 text-[#607265]">Vos réponses ont bien été enregistrées. Vous pouvez fermer cette page.</p></main>;
  return <main className="min-h-[75vh] bg-[#fafcf8] px-4 pb-24 pt-8 sm:px-7 sm:pt-14">
   <div className="mx-auto max-w-[740px]">
-   <div className="mb-8 flex items-center justify-between text-xs font-semibold uppercase tracking-[.12em] text-[#8da18f]"><span>Questionnaire</span><span>{form.pages.length===1?`${answeredCount}/${totalQuestions.length} réponses`:`Page ${pageIndex+1} sur ${form.pages.length}`}</span></div>
+   <div className="mb-8 flex items-center justify-between text-xs font-semibold uppercase tracking-[.12em] text-[#607265]"><span>Questionnaire</span><span>{form.pages.length===1?`${answeredCount}/${totalQuestions.length} réponses`:`Page ${pageIndex+1} sur ${form.pages.length}`}</span></div>
    {totalQuestions.length>1&&<div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e3ece1]" role="progressbar" aria-label="Questions complétées" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full bg-[#5d9b6c] transition-[width] duration-300" style={{width:`${progress}%`}}/></div>}
    <header className="pb-10 pt-10 sm:pt-12">
-    {pageIndex===0&&<><h1 className="font-display text-[clamp(2.2rem,6vw,3.5rem)] font-extrabold leading-tight tracking-[-.055em] text-[#254632]">{form.title}</h1>{form.description&&<p className="mt-4 max-w-2xl whitespace-pre-line text-base leading-8 text-[#748776]">{form.description}</p>}</>}
+    {pageIndex===0&&<><h1 className="font-display text-[clamp(2.2rem,6vw,3.5rem)] font-extrabold leading-tight tracking-[-.055em] text-[#254632]">{form.title}</h1>{form.description&&<p className="mt-4 max-w-2xl whitespace-pre-line text-base leading-8 text-[#607265]">{form.description}</p>}</>}
     <h2 className={'font-display font-bold text-[#35583f] '+(pageIndex===0?'mt-9 text-2xl':'text-3xl')}>{page?.title||`Page ${pageIndex+1}`}</h2>
-    {page?.description&&<p className="mt-3 whitespace-pre-line text-sm leading-7 text-[#819385]">{page.description}</p>}
+    {page?.description&&<p className="mt-3 whitespace-pre-line text-sm leading-7 text-[#607265]">{page.description}</p>}
    </header>
    <div className="space-y-4">{page?.questions.map(q=><QuestionField key={q.id} question={q} value={answers[q.id]} onChange={v=>setAnswer(q.id,v)} error={errors[q.id]}/>)}</div>
    {error&&<div role="alert" className="mt-6 flex gap-3 rounded-2xl border border-[#f0d4cc] bg-[#fff8f4] p-4 text-sm text-[#aa594d]"><CircleAlert className="shrink-0" size={19}/>{error}</div>}
