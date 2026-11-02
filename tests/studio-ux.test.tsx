@@ -40,6 +40,24 @@ describe('Édition directe du Studio',()=>{
   expect(screen.getByText(question.label)).toBeInTheDocument();
  });
 });
+describe('Raccourci d’insertion dans le document',()=>{
+ it('laisse écrire une barre oblique dans une phrase et ne déclenche le menu que sur une ligne vide',()=>{
+  const insert=vi.fn();
+  function Editor(){
+   const [question,setQuestion]=useState(()=>({...makeQuestion('statement'),label:''}));
+   return <QuestionCard question={question} index={0} selected onSelect={()=>{}} onUpdate={setQuestion}
+     onMove={()=>{}} onDuplicate={()=>{}} onDelete={()=>{}} onDrop={()=>{}} onInsert={insert}/>;
+  }
+  render(<Editor/>);
+  const field=screen.getByRole('textbox',{name:'Texte du document'});
+  fireEvent.change(field,{target:{value:'Date du 02'}});
+  fireEvent.keyDown(field,{key:'/'});
+  expect(screen.queryByRole('textbox',{name:'Rechercher un type d’élément'})).not.toBeInTheDocument();
+  fireEvent.change(field,{target:{value:''}});
+  fireEvent.keyDown(field,{key:'/'});
+  expect(screen.getByRole('textbox',{name:'Rechercher un type d’élément'})).toBeInTheDocument();
+ });
+});
 describe('Durées audio',()=>{
  it('propose dix minutes par défaut et trente au maximum',()=>{
   expect(audioLimits().maxSeconds).toBe(600);
