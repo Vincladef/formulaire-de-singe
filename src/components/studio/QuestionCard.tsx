@@ -5,7 +5,7 @@ import { OTHER_VALUE } from '../../shared/publicForm';
 import { questionTypes,questionTypeNames,type QuestionType,type StudioQuestion } from '../../shared/studio';
 
 type Props={
- question:StudioQuestion;index:number;selected:boolean;onSelect:()=>void;
+ question:StudioQuestion;index:number;questionNumber?:number;selected:boolean;onSelect:()=>void;
  onUpdate?:(question:StudioQuestion)=>void;onMove:(delta:number)=>void;
  onDuplicate:()=>void;onDelete:()=>void;onDrop:(from:number)=>void;
  onCursor?:(offset?:number,text?:string)=>void;
@@ -13,7 +13,7 @@ type Props={
  onOpenSettings?:()=>void;
  readOnly?:boolean;
 };
-export function QuestionCard({question,index,selected,onSelect,onUpdate,onMove,onDuplicate,onDelete,onDrop,onCursor,onInsert,onOpenSettings,readOnly=false}:Props){
+export function QuestionCard({question,index,questionNumber,selected,onSelect,onUpdate,onMove,onDuplicate,onDelete,onDrop,onCursor,onInsert,onOpenSettings,readOnly=false}:Props){
  const [dragOver,setDragOver]=useState(false);
  const [localTitle,setLocalTitle]=useState(question.label);
  const [localDescription,setLocalDescription]=useState(question.description??'');
@@ -23,6 +23,7 @@ export function QuestionCard({question,index,selected,onSelect,onUpdate,onMove,o
  const caretRef=useRef(0);
  const skipBlurRef=useRef(false);
  const prose=question.type==='statement';
+ const number=questionNumber??index+1;
  const textStyle=String(question.settings.textStyle??'paragraph');
  useEffect(()=>{setLocalTitle(question.label);skipBlurRef.current=false;},[question.label]);
  useEffect(()=>setLocalDescription(question.description??''),[question.description]);
@@ -61,9 +62,9 @@ export function QuestionCard({question,index,selected,onSelect,onUpdate,onMove,o
    <div className="mt-1 max-h-64 overflow-y-auto">{visible.map(t=><button type="button" key={t} onClick={()=>insert(t)} className="block w-full rounded-lg px-3 py-2 text-left text-sm text-[#3d6249] hover:bg-[#edf5eb]">{t==='statement'?'Paragraphe':questionTypeNames[t]}</button>)}</div>
   </div>}
   <div className="min-w-0">
-   {!prose&&<p className="mb-1 text-xs font-semibold tracking-wide text-[#607265]">{String(index+1).padStart(2,'0')} · {questionTypeNames[question.type]}</p>}
+   {!prose&&<p className="mb-1 text-xs font-semibold tracking-wide text-[#607265]">{String(number).padStart(2,'0')} · {questionTypeNames[question.type]}</p>}
    {readOnly?<h3 className={prose?(textStyle==='heading'?'text-2xl font-bold':textStyle==='quote'?'border-l-2 border-[#9ebb9f] pl-3 italic text-[#657b6a]':'text-base leading-8'):'text-lg font-semibold'}>{question.label}</h3>:
-   <textarea ref={titleRef} aria-label={prose?'Texte du document':`Intitulé de la question ${index+1}`}
+   <textarea ref={titleRef} aria-label={prose?'Texte du document':`Intitulé de la question ${number}`}
     rows={prose?Math.max(1,Math.ceil(localTitle.length/75)):Math.max(1,Math.ceil(localTitle.length/65))}
     maxLength={prose?600:600} value={localTitle}
     placeholder={prose?'Écrivez votre texte…':'Écrivez votre question…'}
@@ -82,7 +83,7 @@ export function QuestionCard({question,index,selected,onSelect,onUpdate,onMove,o
     <span className="ml-2 text-[11px] text-[#9bad9e]">/ pour insérer · Entrée pour un paragraphe</span>
    </div>}
    {!prose&&(readOnly?question.description&&<p className="mt-1 text-sm leading-6 text-[#819486]">{question.description}</p>:
-   <textarea aria-label={`Description de la question ${index+1}`} rows={localDescription?2:1} maxLength={3000}
+   <textarea aria-label={`Description de la question ${number}`} rows={localDescription?2:1} maxLength={3000}
     value={localDescription} placeholder="Ajouter une description (facultatif)…" className="mt-1 block w-full resize-none bg-transparent text-sm leading-6 text-[#607265] outline-none placeholder:text-[#7c8d7e]"
     onFocus={()=>{onSelect();onCursor?.();}} onChange={e=>setLocalDescription(e.target.value)} onBlur={commitDescription}/>)}
   </div>
@@ -91,7 +92,7 @@ export function QuestionCard({question,index,selected,onSelect,onUpdate,onMove,o
    {question.type==='long_text'&&<div className="min-h-12 border-b border-dashed border-[#dbe5da] py-2 text-sm text-[#a5b2a8]">Rédigez votre réponse…</div>}
    {choice&&<div className="space-y-1">{question.options.map((o,i)=><div key={o.id} className="flex items-center gap-2 text-sm text-[#63786a]">
     <span aria-hidden="true" className={`h-4 w-4 shrink-0 border border-[#b7cbb9] ${question.type==='multiple_choice'?'rounded':'rounded-full'}`}/>
-    {readOnly||o.value===OTHER_VALUE?<span className="flex-1">{o.label}</span>:<input aria-label={`Choix ${i+1} de la question ${index+1}`} value={choiceLabels[o.id]??o.label} maxLength={180}
+    {readOnly||o.value===OTHER_VALUE?<span className="flex-1">{o.label}</span>:<input aria-label={`Choix ${i+1} de la question ${number}`} value={choiceLabels[o.id]??o.label} maxLength={180}
     className="min-h-10 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 outline-none focus:border-[#a7c8aa]"
     onFocus={()=>{onSelect();onCursor?.();}} onChange={e=>setChoiceLabels(v=>({...v,[o.id]:e.target.value}))} onBlur={()=>commitOption(o.id)}/>}
     {!readOnly&&question.options.length>2&&<button type="button" aria-label={`Retirer le choix ${i+1}`} onClick={()=>onUpdate?.({...question,options:question.options.filter(x=>x.id!==o.id)})} className="p-1 text-[#a67f79] opacity-30 hover:opacity-100"><Trash2 size={14}/></button>}
