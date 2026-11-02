@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
-import { Bold, Italic, Plus, Slash, Type } from 'lucide-react';
+import { Bold, Heading2, Italic, Plus, Quote, Slash, Type } from 'lucide-react';
 import { audioMode } from '../../shared/audio';
 import { OTHER_VALUE } from '../../shared/publicForm';
 import { sanitizeDocumentHtml } from '../../shared/richText';
@@ -294,7 +294,7 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
  function onClick(event:MouseEvent<HTMLDivElement>){
   const target=event.target;if(!(target instanceof Element))return;
   const block=closestQuestion(target),id=block?.dataset.questionId;
-  if(!id)return;
+  if(!id){onSelectRef.current('');return;}
   onSelectRef.current(id);
   const button=target.closest<HTMLButtonElement>('button[data-action]');
   if(!button)return;
@@ -321,7 +321,21 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
    updateQuestion(id,q=>q.options.length>2?{...q,options:q.options.filter(o=>o.id!==button.dataset.optionId)}:q);
   }
  }
- function format(name:'bold'|'italic'){
+ function styleLine(style:'paragraph'|'heading'|'quote'){
+  const editor=root.current;if(!editor)return;
+  const range=savedRange.current??(window.getSelection()?.rangeCount?window.getSelection()!.getRangeAt(0):null);
+  const line=range?closestLine(range.startContainer,editor):null;
+  if(!line||line.dataset.role||line.dataset.questionId)return;
+  const previous=pageRef.current.questions.find(q=>q.id===line.dataset.lineId);
+  const question={...(previous?.type==='statement'?previous:makeQuestion('statement')),
+   id:line.dataset.lineId??crypto.randomUUID(),label:line.textContent?.trim()||placeholderLine,
+   settings:{...(previous?.settings??{}),textStyle:style}};
+  const replacement=makeLine(question);
+  replacement.innerHTML=sanitizeDocumentHtml(line.innerHTML);
+  replacement.dataset.empty=String(!replacement.textContent?.trim());
+  line.replaceWith(replacement);setCaretAtStart(replacement);remember();emit();
+ }
+ function format(name:'bold'|'italic'){ 
   root.current?.focus();
   const selection=window.getSelection();if(savedRange.current&&selection){selection.removeAllRanges();selection.addRange(savedRange.current);}
   if(typeof document.execCommand==='function')document.execCommand(name,false);
@@ -344,6 +358,8 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
    <span className="mr-3 text-xs font-medium text-[#536c59]">Ton document</span>
    <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>format('bold')} aria-label="Mettre en gras" title="Gras (Ctrl+B)" className="flex h-9 w-9 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Bold size={18}/></button>
    <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>format('italic')} aria-label="Mettre en italique" title="Italique (Ctrl+I)" className="flex h-9 w-9 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Italic size={18}/></button>
+   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>styleLine('heading')} title="Titre" aria-label="Titre" className="flex h-9 w-9 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Heading2 size={18}/></button>
+   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>styleLine('quote')} title="Citation" aria-label="Citation" className="flex h-9 w-9 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Quote size={17}/></button>
    <div className="mx-1 h-5 w-px bg-[#dce6db]"/>
    <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>openInsertMenu()} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-medium text-[#2f6c43] hover:bg-[#edf4ea]"><Plus size={17}/> Insérer une question</button>
    <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-[#627967]"><Slash size={13}/> Tape / sur une ligne vide</span>
