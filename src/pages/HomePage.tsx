@@ -34,7 +34,7 @@ export function HomePage() {
             <div>
               <h2 className="font-display text-[clamp(2rem,4vw,3.2rem)] font-extrabold tracking-[-.06em] text-[#203e30]">Simple dans les gestes.<br />Grand dans les idées.</h2>
             </div>
-            <span className="max-w-[330px] text-sm leading-7 text-[#7b8b7f]">Créez et publiez vos formulaires ; consultez ensuite les réponses depuis le Studio.</span>
+            <span className="max-w-[330px] text-sm leading-7 text-[#607265]">Créez et publiez vos formulaires ; consultez ensuite les réponses depuis le Studio.</span>
           </div>
           <div className="grid gap-5 border-t border-[#d8e4d6] pt-6 md:grid-cols-3">
             {features.map(({ title, description, icon: Icon }, index) => (
