@@ -1,8 +1,9 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
-import { Bold, Heading2, Italic, Plus, Quote, Slash, Type } from 'lucide-react';
+import { Bold, Heading2, Highlighter, ImagePlus, Italic, Palette, Quote, Strikethrough, Type, Underline, Undo2, Redo2 } from 'lucide-react';
 import { audioMode } from '../../shared/audio';
 import { OTHER_VALUE } from '../../shared/publicForm';
-import { sanitizeDocumentHtml } from '../../shared/richText';
+import { allowedInlineImage, sanitizeDocumentHtml } from '../../shared/richText';
+import { clipboardImageToDataUrl } from '../../shared/clipboardImage';
 import { duplicateQuestion, makeQuestion, questionTypeNames, questionTypes, type QuestionType, type StudioPageData, type StudioQuestion } from '../../shared/studio';
 
 type Props = {
@@ -37,8 +38,7 @@ function makeLine(question?:StudioQuestion):HTMLElement {
   if(typeof saved==='string')line.innerHTML=sanitizeDocumentHtml(saved);
   else line.textContent=question.label;
  }
- line.dataset.placeholder=tag==='p'?'Écris ici…':'';
- line.dataset.empty=String(!line.textContent?.trim());
+ line.dataset.empty=String(!line.textContent?.trim()&&!line.querySelector('img'));
  return line;
 }
 function textField(kind:string,value:string,placeholder:string,classes:string):HTMLInputElement{
@@ -59,26 +59,39 @@ function questionNode(q:StudioQuestion,index:number):HTMLElement {
  const meta=el('div','mb-1 flex items-center justify-between gap-3');
  meta.appendChild(el('span','text-xs font-semibold text-[#617866]',String(index+1).padStart(2,'0')+' · '+questionTypeNames[q.type]));
  const actionBar=el('div','flex items-center gap-1 opacity-60 transition group-hover:opacity-100 group-focus-within:opacity-100');
- actionBar.append(action('Options','settings'),action('↑','move-up'),action('↓','move-down'),action('Dupliquer','duplicate'),action('Supprimer','delete'));
+ actionBar.append(action('Options','settings'),action('Dupliquer','duplicate'),action('Supprimer','delete'));
  meta.appendChild(actionBar);block.appendChild(meta);
  block.appendChild(textField('label',q.label==='Votre question'?'':q.label,'Écris ta question…','block h-auto min-h-10 w-full rounded-md border-0 bg-transparent p-1 text-lg font-semibold text-[#294b36] outline-none placeholder:text-[#738b78] focus:bg-[#f6faf5]'));
  block.appendChild(textField('description',q.description??'','Ajouter une indication (facultatif)','block min-h-9 w-full rounded-md border-0 bg-transparent p-1 text-sm text-[#617668] outline-none placeholder:text-[#819484] focus:bg-[#f6faf5]'));
  const answer=el('div','mt-1 px-1 pb-2 text-sm text-[#6e8373]');
  if(['short_text','long_text','number','date'].includes(q.type))answer.appendChild(el('p','border-b border-dashed border-[#b9cdbb] py-2',q.type==='number'?'0':q.type==='date'?'JJ / MM / AAAA':'Réponse du participant…'));
  if(q.type==='audio'||audioMode(q.type,q.settings)!=='text')answer.appendChild(el('p','py-2 text-[#427453]','🎙 Réponse vocale'));
- if(q.type==='select')answer.appendChild(el('p','rounded-md border border-[#d8e5d9] px-3 py-2','Choisir une option…'));
+ if(q.type==='select'){
+  const preview=el('select','min-h-10 w-full max-w-xs rounded-lg border border-[#d8e5d9] bg-[#f8faf7] px-3 text-sm text-[#45634b]') as HTMLSelectElement;
+  preview.setAttribute('aria-label','Aperçu de la liste déroulante');
+  const empty=el('option','', 'Choisir une réponse…') as HTMLOptionElement;
+  empty.value='';preview.append(empty);
+  for(const item of q.options){const opt=el('option','',item.label) as HTMLOptionElement;opt.value=item.value;preview.append(opt);}
+  answer.appendChild(preview);
+ }
  if(['single_choice','multiple_choice','select'].includes(q.type)){
+  const choices=q.type==='select'?el('details','mt-2 rounded-lg border border-[#e2ebe2] bg-[#fcfdfb] px-3 py-2'):answer;
+  if(q.type==='select'){
+   const summary=el('summary','cursor-pointer py-1 text-sm font-medium text-[#477153]','Modifier les choix');
+   choices.appendChild(summary);
+  }
   for(const [i,opt] of q.options.entries()){
    const row=el('div','flex min-h-9 items-center gap-2');
-   row.appendChild(el('span','text-[#7f9b85]',q.type==='multiple_choice'?'☐':'◯'));
+   if(q.type!=='select')row.appendChild(el('span','text-[#7f9b85]',q.type==='multiple_choice'?'☐':'◯'));
    const option=textField('option',opt.label,'Option '+(i+1),'min-h-9 min-w-0 flex-1 rounded-md bg-transparent px-1 text-sm text-[#44674e] outline-none focus:bg-[#f1f7ee]');
    option.dataset.optionId=opt.id;option.setAttribute('aria-label','Choix '+(i+1));
    row.appendChild(option);
    if(q.options.length>2&&opt.value!==OTHER_VALUE){const del=action('×','remove-option');del.dataset.optionId=opt.id;row.appendChild(del);}
-   answer.appendChild(row);
+   choices.appendChild(row);
   }
-  const add=action('+ Ajouter un choix','add-option');add.className+=' mt-1';answer.appendChild(add);
-  if(!q.options.some(o=>o.value===OTHER_VALUE))answer.appendChild(action('+ Autre','add-other'));
+  const add=action('+ Ajouter un choix','add-option');add.className+=' mt-1';choices.appendChild(add);
+  if(!q.options.some(o=>o.value===OTHER_VALUE))choices.appendChild(action('+ Autre','add-other'));
+  if(q.type==='select')answer.appendChild(choices);
  }
  block.appendChild(answer);
  return block;
@@ -110,6 +123,10 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
  const [menu,setMenu]=useState<{top:number;left:number}|null>(null);
  const [filter,setFilter]=useState('');
  const menuInput=useRef<HTMLInputElement>(null);
+ const fileInput=useRef<HTMLInputElement>(null);
+ const [textColor,setTextColor]=useState('#285a3d');
+ const [highlightColor,setHighlightColor]=useState('#fff0a8');
+ const [imageFeedback,setImageFeedback]=useState('');
  onChangeRef.current=onChange;onSelectRef.current=onSelectQuestion;
  onSettingsRef.current=onOpenSettings;onDeleteRef.current=onDeleteQuestion;
 
@@ -162,7 +179,9 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
     const options=original.options.map(o=>({...o,label:optionFields.find(f=>f.dataset.optionId===o.id)?.value.trim()||o.label}));
     questions.push({...original,label,description,options});
    }else if(textTypes.includes(child.tagName)||child.dataset.lineId){
-    const label=(child.textContent??'').trim();
+    const text=(child.textContent??'').trim();
+    const hasImage=Array.from(child.querySelectorAll('img')).some(img=>allowedInlineImage(img.getAttribute('src')??''));
+    const label=text||(hasImage?'Image intégrée':'');
     child.dataset.empty=String(!label);
     if(!label)continue;
     const original=map.get(child.dataset.lineId??'');
@@ -283,14 +302,6 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
   if(existing)existing.replaceWith(questionNode(updated,pageRef.current.questions.filter(q=>q.type!=='statement').findIndex(q=>q.id===id)));
   emit();
  }
- function moveQuestion(id:string,delta:number){
-  const editor=root.current;if(!editor)return;
-  const nodes=Array.from(editor.children).filter((n):n is HTMLElement=>n instanceof HTMLElement&&!!n.dataset.questionId);
-  const index=nodes.findIndex(n=>n.dataset.questionId===id),node=nodes[index],other=nodes[index+delta];
-  if(!node||!other)return;
-  if(delta<0)other.before(node);else other.after(node);
-  emit();
- }
  function onClick(event:MouseEvent<HTMLDivElement>){
   const target=event.target;if(!(target instanceof Element))return;
   const block=closestQuestion(target),id=block?.dataset.questionId;
@@ -307,8 +318,6 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
    pageRef.current={...pageRef.current,questions:[...pageRef.current.questions,copy]};
    block?.after(questionNode(copy,0));ensureEnd();emit();
   }
-  if(command==='move-up')moveQuestion(id,-1);
-  if(command==='move-down')moveQuestion(id,1);
   if(command==='add-option'||command==='add-other'){
    updateQuestion(id,q=>{
     if(q.options.length>=100)return q;
@@ -332,42 +341,118 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
    settings:{...(previous?.settings??{}),textStyle:style}};
   const replacement=makeLine(question);
   replacement.innerHTML=sanitizeDocumentHtml(line.innerHTML);
-  replacement.dataset.empty=String(!replacement.textContent?.trim());
+  replacement.dataset.empty=String(!replacement.textContent?.trim()&&!replacement.querySelector('img'));
   line.replaceWith(replacement);setCaretAtStart(replacement);remember();emit();
  }
- function format(name:'bold'|'italic'){ 
+ function format(name:string,value?:string){ 
   root.current?.focus();
   const selection=window.getSelection();if(savedRange.current&&selection){selection.removeAllRanges();selection.addRange(savedRange.current);}
-  if(typeof document.execCommand==='function')document.execCommand(name,false);
+  if(typeof document.execCommand==='function')document.execCommand(name,false,value);
   remember();emit();
  }
+ function clipboardRange():Range|null{
+  const selection=window.getSelection();
+  const current=savedRange.current??(selection?.rangeCount?selection.getRangeAt(0):null);
+  return current?.cloneRange()??null;
+ }
+ function pasteInlineImage(src:string,originalRange:Range|null){
+  const editor=root.current;if(!editor)return;
+  const target=originalRange?.startContainer??null;
+  const line=target?closestLine(target,editor):null;
+  if(line&&(line.dataset.questionId||line.dataset.role)){
+   setImageFeedback('Clique dans un paragraphe pour y placer l’image.');return;
+  }
+  if(editor.querySelectorAll('img[src^="data:image/"]').length>=8){
+   setImageFeedback('Limite de 8 images par page atteinte.');return;
+  }
+  const existing=Array.from(editor.querySelectorAll<HTMLImageElement>('img[src^="data:image/"]')).reduce((sum,img)=>sum+(img.getAttribute('src')?.length??0),0);
+  if(existing+src.length>1100000){setImageFeedback('La page contient déjà trop d’images ; compressez-en une.');return;}
+  const image=document.createElement('img');
+  image.src=src;image.alt='Image du formulaire';
+  image.className='my-3 max-w-full h-auto rounded-lg';
+  if(line&&originalRange&&editor.contains(line)){
+   originalRange.deleteContents();
+   originalRange.insertNode(image);
+   originalRange.setStartAfter(image);
+   originalRange.collapse(true);
+  }else{
+   let paragraph=Array.from(editor.children).reverse().find(node=>node instanceof HTMLElement&&node.dataset.lineId) as HTMLElement|undefined;
+   if(!paragraph){paragraph=createEmptyParagraph();editor.appendChild(paragraph);}
+   paragraph.append(image);
+  }
+  const selection=window.getSelection();
+  if(selection&&originalRange){selection.removeAllRanges();selection.addRange(originalRange);savedRange.current=originalRange.cloneRange();}
+  ensureEnd();setImageFeedback('');emit();
+ }
+ async function pasteImageFile(file:File,range:Range|null){
+  if(!editable)return;
+  setImageFeedback('Insertion de l’image…');
+  try{
+   const url=await clipboardImageToDataUrl(file);
+   pasteInlineImage(url,range);
+  }catch(error){setImageFeedback(error instanceof Error?error.message:'Impossible de coller cette image.');}
+ }
  function onPaste(event:ClipboardEvent<HTMLDivElement>){
-  if(closestQuestion(event.target))return;
+  if(!editable||closestQuestion(event.target))return;
   event.preventDefault();
+  const range=clipboardRange();
+  const image=Array.from(event.clipboardData.items??[]).find(item=>item.kind==='file'&&item.type.startsWith('image/'))?.getAsFile()
+   ??Array.from(event.clipboardData.files??[]).find(file=>file.type.startsWith('image/'));
+  if(image){void pasteImageFile(image,range);return;}
+  const html=event.clipboardData.getData('text/html');
+  if(html){
+   const template=document.createElement('template');template.innerHTML=html;
+   const embedded=Array.from(template.content.querySelectorAll('img')).find(img=>allowedInlineImage(img.getAttribute('src')??''));
+   if(embedded){pasteInlineImage(embedded.getAttribute('src')!,range);return;}
+  }
   const plain=event.clipboardData.getData('text/plain');
   if(typeof document.execCommand==='function')document.execCommand('insertText',false,plain);
-  else {
-   const range=window.getSelection()?.getRangeAt(0);
-   if(range){range.deleteContents();range.insertNode(document.createTextNode(plain));range.collapse(false);}
+  else if(range){
+   range.deleteContents();const node=document.createTextNode(plain);range.insertNode(node);
+   range.setStartAfter(node);range.collapse(true);
   }
   emit();
  }
  const available=questionTypes.filter(type=>type!=='statement'&&(questionTypeNames[type].toLowerCase().includes(filter.toLowerCase())||type.includes(filter.toLowerCase())));
  return <section className="relative mx-auto w-full max-w-[900px]" aria-label="Document du formulaire">
-  {editable&&<div className="mb-7 flex flex-wrap items-center gap-2 border-b border-[#e7eee5] pb-4">
-   <span className="mr-3 text-xs font-medium text-[#536c59]">Ton document</span>
-   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>format('bold')} aria-label="Mettre en gras" title="Gras (Ctrl+B)" className="flex h-9 w-9 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Bold size={18}/></button>
-   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>format('italic')} aria-label="Mettre en italique" title="Italique (Ctrl+I)" className="flex h-9 w-9 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Italic size={18}/></button>
-   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>styleLine('heading')} title="Titre" aria-label="Titre" className="flex h-9 w-9 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Heading2 size={18}/></button>
-   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>styleLine('quote')} title="Citation" aria-label="Citation" className="flex h-9 w-9 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Quote size={17}/></button>
+  {editable&&<div role="toolbar" aria-label="Mise en forme" className="mb-6 flex flex-wrap items-center gap-1 border-b border-[#e7eee5] pb-3">
+   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>format('undo')} aria-label="Annuler" title="Annuler" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Undo2 size={17}/></button>
+   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>format('redo')} aria-label="Rétablir" title="Rétablir" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Redo2 size={17}/></button>
    <div className="mx-1 h-5 w-px bg-[#dce6db]"/>
-   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>openInsertMenu()} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-medium text-[#2f6c43] hover:bg-[#edf4ea]"><Plus size={17}/> Insérer une question</button>
-   <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-[#627967]"><Slash size={13}/> Tape / sur une ligne vide</span>
+   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>format('bold')} aria-label="Gras" title="Gras (Ctrl+B)" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Bold size={18}/></button>
+   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>format('italic')} aria-label="Italique" title="Italique (Ctrl+I)" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Italic size={18}/></button>
+   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>format('underline')} aria-label="Souligner" title="Souligner" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Underline size={18}/></button>
+   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>format('strikeThrough')} aria-label="Barrer" title="Barrer" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Strikethrough size={18}/></button>
+   <div className="mx-1 h-5 w-px bg-[#dce6db]"/>
+   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>styleLine('paragraph')} aria-label="Paragraphe" title="Paragraphe" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Type size={18}/></button>
+   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>styleLine('heading')} title="Titre" aria-label="Titre" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Heading2 size={18}/></button>
+   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>styleLine('quote')} title="Citation" aria-label="Citation" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Quote size={17}/></button>
+   <div className="mx-1 h-5 w-px bg-[#dce6db]"/>
+   <label className="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]" title="Couleur du texte">
+    <Palette size={19}/><span className="absolute bottom-1.5 h-0.5 w-5 rounded" style={{backgroundColor:textColor}}/>
+    <input aria-label="Couleur du texte" type="color" value={textColor} onChange={e=>{setTextColor(e.target.value);format('foreColor',e.target.value);}}
+     className="absolute inset-0 h-full w-full cursor-pointer opacity-0"/>
+   </label>
+   <label className="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]" title="Surligner le texte">
+    <Highlighter size={19}/><span className="absolute bottom-1.5 h-0.5 w-5 rounded" style={{backgroundColor:highlightColor}}/>
+    <input aria-label="Couleur de surlignage" type="color" value={highlightColor} onChange={e=>{setHighlightColor(e.target.value);format('hiliteColor',e.target.value);}}
+     className="absolute inset-0 h-full w-full cursor-pointer opacity-0"/>
+   </label>
+   <select aria-label="Taille des caractères" title="Taille des caractères" defaultValue="3" onChange={e=>format('fontSize',e.target.value)}
+    className="h-10 w-[68px] rounded-lg border border-[#dce6db] bg-white px-1 text-sm text-[#41644a] outline-none">
+    <option value="2">Petit</option><option value="3">16</option><option value="4">18</option><option value="5">24</option><option value="6">30</option>
+   </select>
+   <div className="mx-1 h-5 w-px bg-[#dce6db]"/>
+   <button type="button" aria-label="Ajouter une image" title="Coller ou importer une image" onClick={()=>fileInput.current?.click()}
+    className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><ImagePlus size={19}/></button>
+   <input ref={fileInput} type="file" className="sr-only" tabIndex={-1} accept="image/png,image/jpeg,image/webp,image/gif"
+    onChange={e=>{const file=e.target.files?.[0];const range=clipboardRange();if(file)void pasteImageFile(file,range);e.target.value='';}} aria-label="Choisir une image"/>
   </div>}
+  {imageFeedback&&<p role="status" aria-live="polite" className="mb-3 text-sm text-[#6d5a36]">{imageFeedback}</p>}
   <div ref={root} role="textbox" aria-label="Éditeur de document" aria-multiline="true"
    contentEditable={editable} suppressContentEditableWarning spellCheck
    onInput={onInput} onKeyDown={onKeyDown} onClick={onClick} onKeyUp={remember} onMouseUp={remember} onPaste={onPaste}
-   className="min-h-[450px] w-full cursor-text space-y-1 pb-24 text-[#2c4535] outline-none [&_[data-empty='true']]:relative [&_[data-empty='true']]:before:pointer-events-none [&_[data-empty='true']]:before:text-[#8b9e90] [&_[data-empty='true']]:before:content-[attr(data-placeholder)] [&_p]:outline-none [&_h1]:outline-none [&_h2]:outline-none"/>
+   className="min-h-[450px] w-full cursor-text space-y-1 pb-24 text-[#2c4535] outline-none [&_img]:my-3 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_[data-empty='true']]:relative [&_[data-empty='true']]:before:pointer-events-none [&_[data-empty='true']]:before:text-[#8b9e90] [&_[data-empty='true']]:before:content-[attr(data-placeholder)] [&_p]:outline-none [&_h1]:outline-none [&_h2]:outline-none"/>
   {menu&&editable&&<div className="absolute z-50 w-[min(310px,calc(100vw-3rem))] rounded-2xl border border-[#d6e4d5] bg-white p-2 shadow-2xl"
     style={{top:menu.top+55,left:menu.left}} role="dialog" aria-label="Insérer dans le document">
     <input ref={menuInput} autoFocus type="search" value={filter} onChange={e=>setFilter(e.target.value)}

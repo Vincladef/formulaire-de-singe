@@ -131,7 +131,7 @@ export function StudioPage(){
   setSaveState('pending');
   setPages(prev=>prev.map((p,i)=>i===pageIndex?{...p,questions:p.questions.map(q=>q.id===question.id?question:q)}:p));
  }
- async function deleteQuestion(id:string){if(!page||!(await askDialog({kind:'confirm',title:'Supprimer cette question ?',description:'La question sera retirée du brouillon ; les versions déjà publiées resteront intactes.',confirmLabel:'Supprimer',danger:true})))return;
+ function deleteQuestion(id:string){if(!page)return;
    setSaveState('pending');setPages(prev=>prev.map((p,i)=>i===pageIndex?{...p,questions:p.questions.filter(q=>q.id!==id)}:p));if(questionId===id)setQuestionId(null);}
  function addPage(){setSaveState('pending');setPages(p=>[...p,makePage()]);setPageIndex(pages.length);setQuestionId(null);}
  async function deletePage(){if(pages.length<2||!(await askDialog({kind:'confirm',title:'Supprimer cette page ?',description:'La page et toutes ses questions seront retirées du brouillon.',confirmLabel:'Supprimer la page',danger:true})))return;

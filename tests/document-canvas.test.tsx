@@ -1,9 +1,11 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { DocumentCanvas } from '../src/components/studio/DocumentCanvas';
 import { sanitizeDocumentHtml } from '../src/shared/richText';
 import { makePage, makeQuestion } from '../src/shared/studio';
+
+vi.mock('../src/shared/clipboardImage',()=>({clipboardImageToDataUrl:vi.fn(async()=> 'data:image/png;base64,'+'A'.repeat(80))}));
 
 afterEach(()=>cleanup());
 function setup(withText=true){
@@ -70,11 +72,74 @@ describe('éditeur documentaire unique',()=>{
   expect(doc.textContent).not.toContain('Votre texte ici…');
  });
 });
+describe('édition épurée et images',()=>{
+ it('ne répète aucun texte Écris ici sur les lignes vides',()=>{
+  const {documentEditor}=setup(false);
+  const lines=documentEditor.querySelectorAll<HTMLElement>('[data-line-id]');
+  expect(lines.length).toBeGreaterThan(0);
+  expect(Array.from(lines).every(line=>!line.dataset.placeholder)).toBe(true);
+  expect(documentEditor.textContent).not.toContain('Écris ici');
+ });
+ it('ne montre plus de flèches haut/bas ni la commande Insérer une question dans la barre',()=>{
+  setup();
+  expect(screen.queryByRole('button',{name:'↑'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'↓'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'Insérer une question'})).not.toBeInTheDocument();
+  expect(screen.getByRole('toolbar',{name:'Mise en forme'})).toBeInTheDocument();
+  expect(screen.getByLabelText('Couleur du texte')).toBeInTheDocument();
+  expect(screen.getByLabelText('Couleur de surlignage')).toBeInTheDocument();
+  expect(screen.getByLabelText('Ajouter une image')).toBeInTheDocument();
+ });
+ it('insère une image de presse-papiers au niveau du curseur et persiste son HTML sécurisé',()=>{
+  const {documentEditor,onChange}=setup(false);
+  const paragraph=documentEditor.querySelector<HTMLElement>('[data-line-id]')!;
+  cursor(paragraph,0);
+  const src='data:image/png;base64,'+'A'.repeat(80);
+  fireEvent.paste(documentEditor,{clipboardData:{
+   items:[],files:[],getData:(type:string)=>type==='text/html'?'<img src="'+src+'" onerror="alert(1)">':''
+  }});
+  expect(documentEditor.querySelector('img')?.getAttribute('src')).toBe(src);
+  const next=onChange.mock.lastCall![0];
+  expect(next.questions[0].type).toBe('statement');
+  expect(next.questions[0].label).toBe('Image intégrée');
+  expect(next.questions[0].settings.richHtml).toContain('<img src="'+src+'"');
+  expect(next.questions[0].settings.richHtml).not.toContain('onerror');
+ });
+ it('colle également un fichier image du presse-papiers dans le document',async()=>{
+  const {documentEditor,onChange}=setup(false);
+  const paragraph=documentEditor.querySelector<HTMLElement>('[data-line-id]')!;
+  cursor(paragraph,0);
+  const file=new File(['image'],'copie.png',{type:'image/png'});
+  fireEvent.paste(documentEditor,{clipboardData:{
+   items:[{kind:'file',type:'image/png',getAsFile:()=>file}],
+   files:[],getData:()=>''}
+  });
+  await waitFor(()=>expect(documentEditor.querySelector('img')).toBeInTheDocument());
+  expect(onChange.mock.lastCall![0].questions[0].settings.richHtml).toContain('data:image/png;base64,');
+ });
+ it('montre un vrai aperçu de liste déroulante',()=>{
+  const page=makePage();const q=makeQuestion('select');
+  page.questions=[q];
+  render(<DocumentCanvas page={page} editable onChange={vi.fn()} onSelectQuestion={vi.fn()} onOpenSettings={vi.fn()} onDeleteQuestion={vi.fn()}/>);
+  expect(screen.getByLabelText('Aperçu de la liste déroulante')).toBeInTheDocument();
+  expect(screen.getByLabelText('Aperçu de la liste déroulante')).toBeEnabled();
+  expect(screen.getByText('Modifier les choix')).toBeInTheDocument();
+ });
+});
 describe('sécurité de la mise en forme',()=>{
  it('supprime scripts, événements HTML et liens non sécurisés',()=>{
   const html=sanitizeDocumentHtml('<strong>Bonjour</strong><img src=x onerror=alert(1)><script>alert(1)</script><a href="javascript:alert(1)">mal</a><a href="https://example.com">ok</a>');
   expect(html).toContain('<strong>Bonjour</strong>');
   expect(html).not.toMatch(/script|onerror|javascript:|<img/i);
   expect(html).toContain('href="https://example.com"');
+ });
+ it('conserve les couleurs hexadécimales et les images intégrées, pas les images distantes',()=>{
+  const src='data:image/png;base64,'+'A'.repeat(80);
+  const safe=sanitizeDocumentHtml('<span style="color:#ff0000;background-color:rgb(255, 255, 0)">Bonjour</span><img src="'+src+'" onerror="alert(1)"><img src="https://tracker.example/pixel.png">');
+  expect(safe).toContain('color:#ff0000');
+  expect(safe).toContain('background-color:#ffff00');
+  expect(safe).toContain('<img src="'+src+'"');
+  expect(safe).not.toContain('https://tracker');
+  expect(safe).not.toContain('onerror');
  });
 });
