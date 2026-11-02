@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { getDb } from './db/client';
 import { forms, formVersions, pages, questions, questionOptions } from './db/schema';
 import { getQuestionType, publicSubmitSchema, type PublicForm, type PublicSubmissionInput, validateAnswers } from '../shared/publicForm';
+import { audioMode,audioLimits } from '../shared/audio';
 
 export class PublicFormFault extends Error {
   constructor(public status:number,public code:'NOT_FOUND'|'VALIDATION_ERROR'|'CONFLICT',message:string){super(message);}
@@ -25,14 +26,15 @@ export class NeonPublicFormService implements PublicFormService {
     const resultPages=[];
     let hasAudio=false;
     for(const p of pageRows){
-      const qs=await db.select({id:questions.id,type:questions.type,label:questions.label,description:questions.description,required:questions.required})
+      const qs=await db.select({id:questions.id,type:questions.type,label:questions.label,description:questions.description,required:questions.required,settings:questions.settings})
         .from(questions).where(eq(questions.pageId,p.id)).orderBy(asc(questions.position));
       const resultQuestions=[];
       for(const q of qs){
         const options=await db.select({value:questionOptions.value,label:questionOptions.label}).from(questionOptions)
           .where(eq(questionOptions.questionId,q.id)).orderBy(asc(questionOptions.position));
-        hasAudio ||=q.type==='audio';
-        resultQuestions.push({...q,type:getQuestionType(q.type),options});
+        hasAudio ||=audioMode(q.type,q.settings)!=='text';
+        const limits=audioLimits(q.settings);
+        resultQuestions.push({id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,options,mode:audioMode(q.type,q.settings),maxAudioSeconds:limits.maxSeconds,maxAudioBytes:limits.maxBytes});
       }
       resultPages.push({...p,questions:resultQuestions});
     }
@@ -70,8 +72,9 @@ async function getPublicVersion(slug:string,versionId:string):Promise<PublicForm
     for(const q of qs){
       const opts=await db.select({value:questionOptions.value,label:questionOptions.label}).from(questionOptions)
         .where(eq(questionOptions.questionId,q.id)).orderBy(asc(questionOptions.position));
-      hasAudio ||=q.type==='audio';
-      resultQuestions.push({id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,options:opts});
+      hasAudio ||=audioMode(q.type,q.settings)!=='text';
+      const limits=audioLimits(q.settings);
+      resultQuestions.push({id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,options:opts,mode:audioMode(q.type,q.settings),maxAudioSeconds:limits.maxSeconds,maxAudioBytes:limits.maxBytes});
     }
     resultPages.push({id:p.id,title:p.title,description:p.description,questions:resultQuestions});
   }

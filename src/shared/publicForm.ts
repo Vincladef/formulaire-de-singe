@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { questionTypes, type QuestionType } from './studio';
+import { audioMode, uploadedAudioSchema, type AudioDraft, type UploadedAudio, type AnswerMode } from './audio';
 
 export const publicAnswerSchema = z.object({
   questionId: z.string().uuid(),
-  value: z.union([z.string().max(10000), z.number().finite(), z.array(z.string().max(300)).max(100)]),
+  value: z.union([z.string().max(10000), z.number().finite(), z.array(z.string().max(300)).max(100), uploadedAudioSchema]),
 }).strict();
 export const publicSubmitSchema = z.object({
   versionId: z.string().uuid(),
@@ -16,7 +17,7 @@ export type PublicSubmissionInput = z.infer<typeof publicSubmitSchema>;
 export type PublicAnswer = z.infer<typeof publicAnswerSchema>;
 export type PublicQuestion = {
   id: string; type: QuestionType; label: string; description: string | null; required: boolean;
-  options: Array<{value:string;label:string}>;
+  options: Array<{value:string;label:string}>; mode?:AnswerMode; maxAudioSeconds?:number; maxAudioBytes?:number;
 };
 export type PublicPage = { id: string; title:string; description:string|null; questions:PublicQuestion[] };
 export type PublicForm = {
@@ -24,10 +25,10 @@ export type PublicForm = {
   versionId:string; versionNumber:number; requireConsent:boolean;
   pages:PublicPage[];
 };
-export type AnswerValues = Record<string, string | number | string[] | undefined>;
+export type AnswerValues = Record<string, string | number | string[] | AudioDraft | UploadedAudio | undefined>;
 
 export function isAnswered(value: AnswerValues[string]): boolean {
-  return typeof value === 'string' ? value.trim().length > 0
+  return value!==null&&typeof value==='object'&&!Array.isArray(value)?value.kind==='audio'||value.kind==='audio-draft':typeof value === 'string' ? value.trim().length > 0
     : typeof value === 'number' ? Number.isFinite(value)
     : Array.isArray(value) ? value.length > 0 : false;
 }
@@ -40,7 +41,13 @@ export function validateAnswers(form: PublicForm, values: AnswerValues): Record<
       if (q.required) errors[q.id] = 'Cette réponse est obligatoire.';
       continue;
     }
-    if (q.type==='audio') { errors[q.id]='L’enregistrement vocal sera bientôt disponible. Cette question ne peut pas encore recevoir de réponse.';continue; }
+    const mode=q.mode??audioMode(q.type);
+    if(value!==null&&typeof value==='object'&&!Array.isArray(value)){
+      if(mode==='text'||(value.kind!=='audio'&&value.kind!=='audio-draft'))
+        errors[q.id]='Ce champ ne permet pas la réponse vocale.';
+      continue;
+    }
+    if(mode==='audio'){errors[q.id]='Enregistrez une réponse vocale.';continue;}
     if (q.type==='short_text' || q.type==='long_text') {
       if(typeof value!=='string') errors[q.id]='Saisissez un texte.';
       else if(value.length>(q.type==='short_text'?500:10000)) errors[q.id]='Votre réponse est trop longue.';
@@ -57,8 +64,9 @@ export function validateAnswers(form: PublicForm, values: AnswerValues): Record<
   return errors;
 }
 export function toSubmissionAnswers(form:PublicForm,values:AnswerValues):PublicAnswer[]{
-  return form.pages.flatMap(p=>p.questions.filter(q=>q.type!=='statement'&&q.type!=='audio'&&isAnswered(values[q.id]))
-    .map(q=>({questionId:q.id,value:values[q.id]! as string|number|string[]})));
+  return form.pages.flatMap(p=>p.questions.filter(q=>q.type!=='statement'&&isAnswered(values[q.id])&&
+    (typeof values[q.id]!=='object'||Array.isArray(values[q.id])||(values[q.id] as AudioDraft|UploadedAudio)?.kind!=='audio-draft'))
+    .map(q=>({questionId:q.id,value:values[q.id]! as string|number|string[]|UploadedAudio})));
 }
 export function getQuestionType(type:string):QuestionType {
   const result=questionTypes.find(t=>t===type);
