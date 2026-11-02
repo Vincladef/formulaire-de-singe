@@ -33,7 +33,7 @@ export function QuestionCard({question,index,selected,onSelect,onUpdate,onMove,o
   const offset=prose?caretRef.current:undefined;
   skipBlurRef.current=true;
   setMenu(false);setSearch('');
-  onInsert?.(type,offset,prose?localTitle:undefined);
+  onInsert?.(type,offset,prose?(localTitle==='Votre texte ici…'?'':localTitle):undefined);
   requestAnimationFrame(()=>{skipBlurRef.current=false;});
  }
  function commitOption(id:string){
