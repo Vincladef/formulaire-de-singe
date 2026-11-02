@@ -7,7 +7,6 @@ import { DocumentCanvas, type DocumentCanvasHandle } from '../components/studio/
 import { StudioSidebar, type SidebarMode } from '../components/studio/StudioSidebar';
 import { ResultsPanel } from '../components/studio/ResultsPanel';
 import { StudioPreview } from '../components/studio/StudioPreview';
-import { GoogleSheetsPanel } from '../components/studio/GoogleSheetsPanel';
 import { FormItemMenu } from '../components/studio/FormItemMenu';
 import { StudioDialog, type StudioDialogIntent } from '../components/studio/StudioDialog';
 
@@ -32,7 +31,7 @@ export function StudioPage(){
  const [pageIndex,setPageIndex]=useState(0);
  const [questionId,setQuestionId]=useState<string|null>(null);
  const [preview,setPreview]=useState(false);
- const [activeTab,setActiveTab]=useState<'questions'|'results'|'integrations'|'settings'>('questions');
+ const [activeTab,setActiveTab]=useState<'questions'|'results'|'settings'>('questions');
  const [sideMode,setSideMode]=useState<SidebarMode>('add');
  const [sidebarOpen,setSidebarOpen]=useState(false);
  const [saveState,setSaveState]=useState<SaveState>('saved');
@@ -143,8 +142,6 @@ export function StudioPage(){
     <h1 className="font-display text-3xl font-bold tracking-tight text-[#244835] sm:text-4xl">Mes formulaires</h1>
     <button className={cta} disabled={operation} onClick={()=>void createForm()}><Plus size={17}/> Nouveau formulaire</button>
    </div>}
-   {new URLSearchParams(window.location.search).get('google')==='connected'&&<p className="mb-4 rounded-xl bg-[#e8f5e8] p-3 text-sm text-[#31764b]">Compte Google connecté. Ouvre ton formulaire, puis son onglet Intégrations pour consulter la feuille.</p>}
-   {new URLSearchParams(window.location.search).get('google')==='error'&&<p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">La connexion Google n’a pas abouti. Réessaie depuis l’onglet Intégrations.</p>}
    {error&&<div role="alert" className="mb-5 flex items-start justify-between gap-2 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button title="Fermer le message" onClick={()=>setError('')}><X size={16}/></button></div>}
    {operation&&<p className="mb-3 text-xs text-[#607265]" role="status">Opération en cours…</p>}
    {!detail ? <section aria-label="Mes formulaires" className="rounded-2xl border border-[#e1e9de] bg-white px-4 py-3 sm:px-6">
@@ -174,16 +171,15 @@ export function StudioPage(){
          {{saved:'Enregistré',saving:'Enregistrement…',pending:'Non enregistré',error:'Sauvegarde échouée'}[saveState]}
        </span>}{published&&<><a className={light} target="_blank" rel="noopener noreferrer" href={`/f/${encodeURIComponent(detail.slug)}`}><Eye size={16}/> Voir le lien public</a><button className={light} onClick={()=>{void (async()=>{try{await navigator.clipboard.writeText(`${window.location.origin}/f/${encodeURIComponent(detail.slug)}`);}catch{setError("Copie impossible. Utilise le lien public.");}})();}}><Copy size={15}/> Copier le lien</button></>}<button className={light} onClick={()=>{setActiveTab('questions');setPreview(v=>!v);}}><Eye size={16}/>{preview?'Éditer':'Aperçu'}</button><button className={cta} disabled={!editable||operation||saveState==='saving'||saveState==='error'} onClick={()=>void publishForm()}><Send size={15}/> Publier</button></div>
       </div>
-      <nav aria-label="Sections du formulaire" className="mb-5 flex gap-2 border-b border-[#dfe8dc] pb-2">
-        {(['questions','results','integrations','settings'] as const).map(tab=><button key={tab} type="button"
+      <nav aria-label="Sections du formulaire" className="mb-5 flex gap-1.5 overflow-x-auto border-b border-[#dfe8dc] pb-2 sm:gap-2">
+        {(['questions','results','settings'] as const).map(tab=><button key={tab} type="button"
          aria-current={activeTab===tab?'page':undefined} onClick={()=>{setPreview(false);setActiveTab(tab);}}
-         className={`rounded-lg px-4 py-2.5 text-sm font-semibold transition ${activeTab===tab?'bg-[#e2f0e0] text-[#2d7246]':'text-[#47674e] hover:bg-[#eef5ed]'}`}>
-          {{questions:'Éditeur',results:'Résultats',integrations:'Intégrations',settings:'Paramètres'}[tab]}
+         className={`shrink-0 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${activeTab===tab?'bg-[#e2f0e0] text-[#2d7246]':'text-[#47674e] hover:bg-[#eef5ed]'}`}>
+          {{questions:'Éditeur',results:'Résultats',settings:'Paramètres'}[tab]}
         </button>)}
        </nav>
        {detail.archivedAt&&<p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Ce formulaire est archivé ; son contenu ne peut pas être modifié.</p>}
       {activeTab==='results'?<ResultsPanel formId={detail.id}/>:
-       activeTab==='integrations'?<GoogleSheetsPanel formId={detail.id} owner={detail.role==='owner'}/>:
        activeTab==='settings'?<section className="max-w-xl space-y-4 rounded-2xl border border-[#e2eade] bg-white p-6">
         <h2 className="text-xl font-bold text-[#31553c]">Paramètres du formulaire</h2>
         <p className="text-sm text-[#607265]">Nom : {detail.title}</p>
