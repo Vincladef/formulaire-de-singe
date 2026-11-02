@@ -29,8 +29,8 @@ Le frontend utilise séparément `VITE_NEON_AUTH_URL`. Les secrets ne doivent ja
 
 ### Activation de Neon Auth OAuth
 
-1. L'application dispose d'une page `/connexion`, mais **aucune page de consentement OAuth dédiée, fonctionnelle et testée** n'existe encore. Implémenter et vérifier la page d'autorisation en utilisant le SDK Neon Auth et le consentement Better Auth avant toute activation.
-2. Dans Neon, activer OAuth Provider géré avec `login_page` pointant vers la page de connexion et `consent_page` vers la page d'autorisation fonctionnelle ; configurer `mcp.resource` exactement sur l'URL `/mcp` (ressource HTTPS).
+1. Le code inclut `/connexion`, qui reprend les demandes OAuth gérées, et `/consentement`, qui utilise le SDK Neon Auth. Les deux pages doivent encore être déployées puis testées en conditions réelles avant toute activation du fournisseur.
+2. Après validation des pages sur Netlify, dans Neon, activer OAuth Provider géré avec `login_page` pointant vers la page de connexion et `consent_page` vers la page d'autorisation fonctionnelle ; configurer `mcp.resource` exactement sur l'URL `/mcp` (ressource HTTPS).
 3. Préférer `client_id_metadata_documents=true` ; ne pas activer l'enregistrement dynamique non contrôlé ni contourner le consentement.
 4. Tester le serveur avec MCP Inspector : découverte OAuth, connexion, consentement, accès à `tools/list`, création de brouillon fictif et lecture ; tester aussi refus d'un jeton destiné à une autre audience.
 5. Connecter ensuite le serveur depuis ChatGPT si **le compte et la surface** autorisent un serveur MCP externe. Sur compte personnel, la voie de plugin hébergé par ChatGPT Sites peut nécessiter un quota Sites/Codex distinct. Ne pas confondre un plugin de consignes avec une application MCP connectée.
@@ -64,3 +64,7 @@ Tester `initialize`, `tools/list`, puis `tools/call` depuis MCP Inspector avec u
 ## Limites des étapes précédentes
 
 La configuration Netlify et Cloudflare R2, ainsi que la migration audio `0003_audio.sql`, restent à valider si elles ne l'ont pas déjà été. La présence du code source ne suffit pas à démontrer que l'enregistrement et les exports fonctionnent en production.
+
+### Validation des pages de consentement
+
+Confirmer les paramètres OAuth signés, l'affichage de l'identité du client, l'accord et le refus, l'en-tête CSP `frame-ancestors 'none'`, puis une révocation. Ne pas activer OAuth ni installer un plugin prétendument fonctionnel sans ces contrôles. ChatGPT Plus et l'accès direct à un serveur MCP personnalisé n'offrent pas toujours les mêmes permissions que les plugins hébergés par ChatGPT Sites.
