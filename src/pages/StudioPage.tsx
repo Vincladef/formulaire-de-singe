@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Archive, ArrowLeft, CheckCircle2, CircleAlert, Clock3, Copy, Eye, Files, LoaderCircle, Plus, Save, Send, X } from 'lucide-react';
 import { getAccessToken } from '../authClient';
 import type { FormDetail, FormSummary } from '../shared/formApi';
-import { draftPayloadSchema, makePage, type StudioPageData, type StudioQuestion } from '../shared/studio';
+import { draftPayloadSchema, makePage, type QuestionType, type StudioPageData, type StudioQuestion } from '../shared/studio';
 import { DocumentCanvas, type DocumentCanvasHandle } from '../components/studio/DocumentCanvas';
 import { StudioSidebar, type SidebarMode } from '../components/studio/StudioSidebar';
 import { ResultsPanel } from '../components/studio/ResultsPanel';
