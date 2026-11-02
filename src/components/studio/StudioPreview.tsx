@@ -1,13 +1,28 @@
+import { audioLimits,audioMode } from '../../shared/audio';
+import { QuestionField } from '../../pages/PublicFormPage';
 import type { StudioPageData } from '../../shared/studio';
-import { QuestionCard } from './QuestionCard';
-export function StudioPreview({pages}:{pages:StudioPageData[]}){
- return <div className="mx-auto max-w-[620px] space-y-7 rounded-[30px] bg-white px-7 py-10 shadow-sm sm:px-12">
-   <p className="text-xs font-semibold uppercase tracking-[.18em] text-[#6a996f]">Aperçu du questionnaire</p>
-   {pages.map((page,index)=><section key={page.id} className="space-y-5">
-     <div><p className="text-xs text-[#91a493]">Page {index+1}/{pages.length}</p><h2 className="mt-2 text-2xl font-bold text-[#2c4937]">{page.title||'Sans titre'}</h2>{page.description&&<p className="mt-2 text-sm text-[#809283]">{page.description}</p>}</div>
-     {page.questions.length===0&&<p className="rounded-xl border border-dashed p-4 text-sm text-[#99a99b]">Aucune question sur cette page.</p>}
-     {page.questions.map((q,i)=><QuestionCard key={q.id} question={q} index={i} selected={false} onSelect={()=>{}} onMove={()=>{}} onDuplicate={()=>{}} onDelete={()=>{}} onDrop={()=>{}} readOnly/>)}
-   </section>)}
-   <p className="text-center text-xs text-[#9caaa0]">Prévisualisation uniquement · aucune réponse n'est collectée</p>
+export function StudioPreview({pages,title}:{pages:StudioPageData[];title?:string}){
+ return <div className="mx-auto max-w-[740px] space-y-4 rounded-[25px] bg-[#fafcf8] px-4 py-8 sm:px-8">
+  <p className="mb-6 rounded-lg bg-[#edf6ec] p-3 text-center text-xs font-semibold text-[#4b7554]">APERÇU · AUCUNE RÉPONSE N’EST ENREGISTRÉE</p>
+  <div className="mb-8 flex items-center justify-between text-xs font-semibold uppercase tracking-[.12em] text-[#8da18f]">
+   <span>Questionnaire</span><span>{pages.length} page(s)</span>
+  </div>
+  {pages.map((page,index)=><section key={page.id} className="space-y-4">
+    {index===0&&<h1 className="font-display text-4xl font-extrabold text-[#254632]">{title||'Votre questionnaire'}</h1>}
+    <header className="pb-5 pt-5">
+      <h2 className="font-display text-2xl font-bold text-[#35583f]">{page.title||`Page ${index+1}`}</h2>
+      {page.description&&<p className="mt-3 whitespace-pre-line text-sm leading-7 text-[#819385]">{page.description}</p>}
+    </header>
+    <fieldset disabled aria-label={`Aperçu de la page ${index+1}`} className="space-y-4">
+      {page.questions.map(q=>{
+       const limits=audioLimits(q.settings);
+       return <QuestionField key={q.id} question={{id:q.id,type:q.type,label:q.label,description:q.description,
+         required:q.required,options:q.options.map(o=>({value:o.value,label:o.label})),
+         mode:audioMode(q.type,q.settings),maxAudioSeconds:limits.maxSeconds,maxAudioBytes:limits.maxBytes}}
+         value={undefined} onChange={()=>{}}/>;
+      })}
+    </fieldset>
+  </section>)}
+  <p className="pt-6 text-center text-xs text-[#9caaa0]">La présentation reprend les champs du formulaire public ; les commandes sont désactivées dans cet aperçu.</p>
  </div>;
 }

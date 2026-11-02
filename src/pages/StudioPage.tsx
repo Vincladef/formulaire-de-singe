@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Archive, ArrowLeft, CheckCircle2, ChevronRight, CircleAlert, Copy, Eye, FilePlus2, Files, LoaderCircle, MoreHorizontal, Plus, Save, Send, Settings2, Trash2, X } from 'lucide-react';
+import { Archive, ArrowLeft, CheckCircle2, ChevronRight, CircleAlert, Copy, Eye, FilePlus2, Files, LoaderCircle, Plus, Save, Send, Settings2, Trash2, X } from 'lucide-react';
 import { getAccessToken } from '../authClient';
 import type { FormDetail, FormSummary } from '../shared/formApi';
 import { draftPayloadSchema, duplicateQuestion, makePage, makeQuestion, moveQuestionAt, questionTypes, questionTypeNames, type QuestionType, type StudioPageData, type StudioQuestion } from '../shared/studio';
@@ -155,16 +155,18 @@ export function StudioPage(){
         <div className="flex flex-wrap items-center gap-2">{published&&<><a className={light} target="_blank" rel="noopener noreferrer" href={`/f/${encodeURIComponent(detail.slug)}`}><Eye size={16}/> Voir le lien public</a><button className={light} onClick={()=>{void (async()=>{try{await navigator.clipboard.writeText(`${window.location.origin}/f/${encodeURIComponent(detail.slug)}`);}catch{setError("Copie impossible. Utilise le lien public.");}})();}}><Copy size={15}/> Copier le lien</button></>}<button className={light} onClick={()=>setPreview(v=>!v)}><Eye size={16}/>{preview?'Éditer':'Aperçu'}</button><button className={light} disabled={!editable} onClick={()=>void renameForm()}>Renommer</button><button className={light} onClick={()=>void duplicateForm()}><Copy size={15}/> Dupliquer</button><button className={cta} disabled={!editable||operation||saveState==='saving'||saveState==='error'} onClick={()=>void publishForm()}><Send size={15}/> Publier</button></div>
       </div>
       {detail.archivedAt&&<p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Ce formulaire est archivé ; son contenu ne peut pas être modifié.</p>}
-      {preview?<StudioPreview pages={pages}/>:<div className="grid items-start gap-4 lg:grid-cols-[225px_minmax(0,1fr)_285px] xl:grid-cols-[250px_minmax(0,1fr)_315px]">
-        <aside aria-label="Pages du formulaire" className="rounded-[22px] border border-[#e4eae1] bg-white p-4 lg:sticky lg:top-5">
+      {preview?<StudioPreview pages={pages} title={detail.title}/>:<div className={`grid items-start gap-4 ${pages.length>1&&selected&&editable?'lg:grid-cols-[190px_minmax(0,1fr)_260px] xl:grid-cols-[220px_minmax(0,1fr)_315px]':pages.length>1?'lg:grid-cols-[220px_minmax(0,1fr)]':selected&&editable?'lg:grid-cols-[minmax(0,1fr)_315px]':'grid-cols-1'}`}>
+        {pages.length>1&&<aside aria-label="Pages du formulaire" className="rounded-[22px] border border-[#e4eae1] bg-white p-4 lg:sticky lg:top-5">
           <p className="mb-4 px-2 text-[11px] font-bold uppercase tracking-[.14em] text-[#98a899]">Navigation</p>
           <div className="space-y-1.5">{pages.map((p,i)=><button type="button" key={p.id} onClick={()=>{setPageIndex(i);setQuestionId(null);}} className={`flex w-full items-center gap-3 rounded-xl p-3 text-left transition ${pageIndex===i?'bg-[#eaf3e9] text-[#366b49]':'text-[#738a78] hover:bg-[#f5f8f3]'}`}><span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-xs font-bold ${pageIndex===i?'bg-[#d7e7d5]':'bg-[#f0f4ed]'}`}>{i+1}</span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{p.title||'Sans titre'}</span><span className="text-[11px] opacity-65">{p.questions.length} question(s)</span></span></button>)}</div>
           <button disabled={!editable} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#c8dbcb] px-3 py-3 text-sm font-semibold text-[#5d8c69] hover:bg-[#f5faf4] disabled:opacity-35" onClick={addPage}><Plus size={16}/> Ajouter une page</button>
           <div className="mt-6 border-t border-[#eef2eb] pt-5 text-xs text-[#9aaa9b]">{pages.length} page(s)<br/>{countQuestions(pages)} question(s)</div>
-        </aside>
+        </aside>}
         <section aria-label="Éditeur de page" className="min-w-0 space-y-4">
           {page&&<>
-            <div className="rounded-[22px] border border-[#e4eae1] bg-white p-5 sm:p-7"><p className="text-[11px] font-bold uppercase tracking-[.16em] text-[#83a18b]">PAGE {pageIndex+1}</p>
+            <div className="rounded-[22px] border border-[#e4eae1] bg-white p-5 sm:p-7"><div className="flex items-center justify-between gap-2"><p className="text-[11px] font-bold uppercase tracking-[.16em] text-[#83a18b]">PAGE {pageIndex+1}</p>
+                {pages.length===1&&editable&&<button type="button" onClick={addPage} className="inline-flex items-center gap-1 rounded-lg border border-[#d7e6d7] px-3 py-2 text-xs font-semibold text-[#417353] hover:bg-[#edf5ec]"><Plus size={14}/> Ajouter une page</button>}
+              </div>
               <input aria-label="Titre de la page" className="mt-3 w-full bg-transparent text-2xl font-extrabold tracking-tight text-[#314a37] outline-none placeholder:text-[#aabbac]" placeholder="Titre de la page" value={page.title} disabled={!editable} onChange={e=>updatePage({...page,title:e.target.value})}/>
               <textarea aria-label="Description de la page" className="mt-3 w-full resize-y bg-transparent text-sm text-[#899b8d] outline-none placeholder:text-[#b2bdb2]" rows={2} placeholder="Une courte introduction (facultative)…" value={page.description??''} disabled={!editable} onChange={e=>updatePage({...page,description:e.target.value||null})}/>
               {pages.length>1&&<button disabled={!editable} className="text-xs font-semibold text-[#ba7c75]" onClick={deletePage}>Supprimer cette page</button>}
@@ -174,12 +176,12 @@ export function StudioPage(){
             {editable&&<div className="rounded-[22px] border border-dashed border-[#cbdcc9] bg-white p-4"><p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#8ba28d]">Ajouter une question</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{questionTypes.map(type=><button key={type} onClick={()=>addQuestion(type)} className="flex items-center gap-2 rounded-xl bg-[#f4f8f2] px-3 py-3 text-left text-xs font-semibold text-[#578064] transition hover:bg-[#e7f1e5]"><Plus size={14}/>{questionTypeNames[type]}</button>)}</div></div>}
           </>}
         </section>
-        <aside className="rounded-[22px] border border-[#e4eae1] bg-white p-5 lg:sticky lg:top-5"><div className="mb-5 flex items-center gap-2"><Settings2 size={18} className="text-[#648b6d]"/><h2 className="font-bold">Réglages</h2></div>
-          {selected&&editable?<QuestionSettings question={selected} onUpdate={updateQuestion}/>:<div className="space-y-3 rounded-xl bg-[#f6f9f5] p-5 text-sm leading-6 text-[#8b9c8e]"><MoreHorizontal size={22} className="text-[#94b29b]"/><p>Sélectionne une question pour personnaliser son contenu et ses options.</p></div>}
+        {selected&&editable&&<aside className="rounded-[22px] border border-[#e4eae1] bg-white p-5 lg:sticky lg:top-5"><div className="mb-5 flex items-center gap-2"><Settings2 size={18} className="text-[#648b6d]"/><h2 className="font-bold">Réglages</h2></div>
+          <QuestionSettings question={selected} onUpdate={updateQuestion}/>
           <div className="mt-7 border-t border-[#eaf0e9] pt-5"><button className={light+' w-full'} disabled={!editable||saveState==='saving'} onClick={()=>void saveNow()}><Save size={15}/> Enregistrer maintenant</button>
           <button className="mt-3 inline-flex w-full items-center justify-center gap-2 text-xs font-semibold text-[#9b7b72]" onClick={()=>void performState('archive')}><Archive size={13}/> Archiver le formulaire</button>
           </div>
-        </aside>
+        </aside>}
       </div>}
     </>}
   </div>

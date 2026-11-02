@@ -15,7 +15,7 @@ async function getPublic(slug:string,signal:AbortSignal):Promise<PublicForm>{
  if(!payload.ok)throw new Error(payload.error.message);
  return payload.data;
 }
-function QuestionField({question,value,onChange,error}: {question:PublicQuestion;value:AnswerValues[string];onChange:(value:AnswerValues[string])=>void;error?:string}){
+export function QuestionField({question,value,onChange,error}: {question:PublicQuestion;value:AnswerValues[string];onChange:(value:AnswerValues[string])=>void;error?:string}){
  const describedBy=`description-${question.id}`;
  const errorId=`error-${question.id}`;
  const ariaDesc=[question.description?describedBy:null,error?errorId:null].filter(Boolean).join(' ')||undefined;
@@ -72,7 +72,14 @@ export function PublicFormPage(){
  const {slug=''}=useParams<{slug:string}>();
  const [form,setForm]=useState<PublicForm|null>(null);
  const [loading,setLoading]=useState(true);
- useEffect(()=>{if(!form)return;const previous=document.title;document.title=`${form.title} | Questionnaire`;return()=>{document.title=previous;};},[form]);
+ useEffect(()=>{if(!form)return;
+  const previous=document.title;
+  const description=document.querySelector('meta[name="description"]');
+  const oldDescription=description?.getAttribute('content')??null;
+  document.title=`${form.title} | Questionnaire`;
+  description?.setAttribute('content',form.description||`Répondre au questionnaire : ${form.title}`);
+  return()=>{document.title=previous;if(description&&oldDescription!==null)description.setAttribute('content',oldDescription);};
+ },[form]);
  const [error,setError]=useState('');
  const [pageIndex,setPageIndex]=useState(0);
  const [answers,setAnswers]=useState<AnswerValues>({});
