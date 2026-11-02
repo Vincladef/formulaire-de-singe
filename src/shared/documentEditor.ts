@@ -7,8 +7,9 @@ export type InsertResult = { questions: StudioQuestion[]; insertedId: string };
 /** Inserts at the last textual caret, splitting an explanatory paragraph if necessary.
  * Existing question ids never change, so collected answers remain associated with their fields.
  */
-export function insertAtAnchor(questions: readonly StudioQuestion[], type: QuestionType, anchor?: EditorAnchor | null): InsertResult {
+export function insertAtAnchor(questions: readonly StudioQuestion[], type: QuestionType, anchor?: EditorAnchor | null, insertedId?:string): InsertResult {
  const inserted = makeQuestion(type);
+ if(insertedId) inserted.id=insertedId;
  if(type === 'statement') inserted.label = 'Votre texte ici…';
  if(!anchor) return {questions: [...questions, inserted], insertedId: inserted.id};
  const index = questions.findIndex(q => q.id === anchor.questionId);
