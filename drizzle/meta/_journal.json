@@ -43,6 +43,13 @@
       "when": 1793625003000,
       "tag": "0005_long_audio",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793625004000,
+      "tag": "0006_simplified_submissions",
+      "breakpoints": true
     }
   ]
 }
