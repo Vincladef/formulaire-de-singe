@@ -108,7 +108,8 @@ describe('édition épurée et images',()=>{
   page.questions=[q];
   render(<DocumentCanvas page={page} editable onChange={vi.fn()} onSelectQuestion={vi.fn()} onOpenSettings={vi.fn()} onDeleteQuestion={vi.fn()}/>);
   expect(screen.getByLabelText('Aperçu de la liste déroulante')).toBeInTheDocument();
-  expect(screen.getByLabelText('Aperçu de la liste déroulante')).toHaveAttribute('disabled');
+  expect(screen.getByLabelText('Aperçu de la liste déroulante')).toBeEnabled();
+  expect(screen.getByText('Modifier les choix')).toBeInTheDocument();
  });
 });
 describe('sécurité de la mise en forme',()=>{
