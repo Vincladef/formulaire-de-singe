@@ -165,7 +165,7 @@ export function StudioPage(){
       <Archive size={16}/>{showArchived?'Revenir aux formulaires':'Archives'}
      </button></div>
      {listBusy?<p role="status" className="py-12 text-center text-[#607265]">Chargement des formulaires…</p>:
-       activeItems.length===0?<div className="py-14 text-center"><Files className="mx-auto text-[#638d6e]" size={34}/><p className="mt-3 font-semibold text-[#36583e]">{showArchived?'Aucune archive':'Aucun formulaire pour le moment'}</p><p className="mt-2 text-sm text-[#607265]">{showArchived?'Les formulaires archivés apparaîtront ici.':'Crée ton premier questionnaire avec le bouton en haut.'}</p></div>:
+       activeItems.length===0?<div className="py-14 text-center"><Files className="mx-auto text-[#536f5b]" size={34}/><p className="mt-3 font-semibold text-[#36583e]">{showArchived?'Aucune archive':'Aucun formulaire pour le moment'}</p><p className="mt-2 text-sm text-[#607265]">{showArchived?'Les formulaires archivés apparaîtront ici.':'Crée ton premier questionnaire avec le bouton en haut.'}</p></div>:
        <div className="divide-y divide-[#e5ece3]">{activeItems.map(item=>
         <div key={item.id} className="flex items-center gap-2 py-1">
          <button type="button" onClick={()=>void openForm(item.id)} className="flex min-h-20 min-w-0 flex-1 items-center gap-3 rounded-xl px-2 text-left hover:bg-[#f3f8f2] focus-visible:outline-2 focus-visible:outline-[#37784b] sm:px-4">
@@ -220,7 +220,7 @@ export function StudioPage(){
               </div>
               <input aria-label="Titre de la page" className="mt-3 w-full bg-transparent text-3xl font-extrabold tracking-tight text-[#314a37] outline-none placeholder:text-[#607265]" placeholder="Titre de la page" value={page.title} disabled={!editable} onChange={e=>updatePage({...page,title:e.target.value})}/>
               <textarea aria-label="Description de la page" className="mt-3 w-full resize-y bg-transparent text-sm text-[#607265] outline-none placeholder:text-[#607265]" rows={2} placeholder="Une courte introduction (facultative)…" value={page.description??''} disabled={!editable} onChange={e=>updatePage({...page,description:e.target.value||null})}/>
-              {pages.length>1&&<button disabled={!editable} className="text-xs font-semibold text-[#ba7c75]" onClick={()=>void deletePage()}>Supprimer cette page</button>}
+              {pages.length>1&&<button disabled={!editable} className="text-xs font-semibold text-[#98483f]" onClick={()=>void deletePage()}>Supprimer cette page</button>}
             </div>
             {page.questions.map((q,i)=><QuestionCard key={q.id} index={i} questionNumber={page.questions.slice(0,i+1).filter(item=>item.type!=='statement').length} question={q} selected={questionId===q.id}
  onSelect={()=>{setQuestionId(q.id);setSideMode('settings');cursorRef.current={questionId:q.id};}}
