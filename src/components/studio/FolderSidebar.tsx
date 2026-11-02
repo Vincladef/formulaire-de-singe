@@ -1,4 +1,5 @@
 import { Folder, FolderOpen, FolderPlus, MoreHorizontal, Pencil, Trash2, Layers3 } from 'lucide-react';
+import type { ReactNode } from 'react';
 export type FolderInfo={id:string;name:string;createdAt:string};
 type Props={
  folders:FolderInfo[];
@@ -11,7 +12,7 @@ type Props={
  onDelete:(folder:FolderInfo)=>void;
 };
 export function FolderSidebar({folders,selected,formCounts,allCount,onSelect,onCreate,onRename,onDelete}:Props){
- const tab=(id:string,label:string,count:number,icon:React.ReactNode)=>(
+ const tab=(id:string,label:string,count:number,icon:ReactNode)=>(
   <button type="button" aria-pressed={selected===id} onClick={()=>onSelect(id)}
    className={`flex min-h-11 w-full min-w-0 items-center gap-2 rounded-xl px-3 text-left text-sm transition ${selected===id?'bg-[#e6f2e4] font-semibold text-[#2b7145]':'text-[#46624d] hover:bg-[#f1f6ef]'}`}>
    {icon}<span className="min-w-0 flex-1 truncate">{label}</span>
