@@ -3,7 +3,7 @@ import { MemoryRouter,Route,Routes } from 'react-router-dom';
 import { beforeEach,describe,expect,it,vi } from 'vitest';
 import { PublicFormPage } from './PublicFormPage';
 import type { PublicForm } from '../shared/publicForm';
-const form:PublicForm={id:'form',title:'Mon enquête',slug:'demo',description:'Bonjour',versionId:crypto.randomUUID(),versionNumber:1,requireConsent:true,pages:[
+const form:PublicForm={id:'form',title:'Mon enquête',slug:'demo',description:'Bonjour',versionId:crypto.randomUUID(),versionNumber:1,requireConsent:false,pages:[
 {id:'p1',title:'Première page',description:null,questions:[{id:crypto.randomUUID(),type:'short_text',label:'Votre couleur ?',description:null,required:true,options:[]}]},
 {id:'p2',title:'Deuxième page',description:null,questions:[{id:crypto.randomUUID(),type:'single_choice',label:'Votre choix ?',description:null,required:true,options:[{value:'a',label:'Oui'},{value:'b',label:'Non'}]}]},
 ]};
@@ -23,21 +23,12 @@ describe('Parcours répondant',()=>{
   fireEvent.click(screen.getByRole('button',{name:/retour/i}));
   expect((screen.getByLabelText(/Votre couleur/i) as HTMLInputElement).value).toBe('Vert');
  });
- it('n’envoie aucune réponse lors du refus de consentement',async()=>{
+ it('envoie une seule fois sans case de consentement',async()=>{
   renderForm();await screen.findByText('Mon enquête');
   fireEvent.change(screen.getByLabelText(/Votre couleur/i),{target:{value:'Vert'}});
   fireEvent.click(screen.getByRole('button',{name:/continuer/i}));
   fireEvent.click(within(screen.getByRole('group',{name:/Votre choix/i})).getByLabelText('Oui'));
-  fireEvent.click(screen.getByRole('button',{name:/Je ne souhaite pas participer/i}));
-  expect(screen.getByText('Choix respecté')).toBeInTheDocument();
-  expect(fetchMock.mock.calls.filter((c:unknown[])=>(c[1] as RequestInit|undefined)?.method==='POST')).toHaveLength(0);
- });
- it('envoie une seule fois après consentement',async()=>{
-  renderForm();await screen.findByText('Mon enquête');
-  fireEvent.change(screen.getByLabelText(/Votre couleur/i),{target:{value:'Vert'}});
-  fireEvent.click(screen.getByRole('button',{name:/continuer/i}));
-  fireEvent.click(within(screen.getByRole('group',{name:/Votre choix/i})).getByLabelText('Oui'));
-  fireEvent.click(screen.getByLabelText(/J’accepte de participer/i));
+  expect(screen.queryByLabelText(/J’accepte de participer/i)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button',{name:/Envoyer mes réponses/i}));
   await waitFor(()=>expect(screen.getByText(/Merci pour votre participation/i)).toBeInTheDocument());
   expect(fetchMock.mock.calls.filter((c:unknown[])=>(c[1] as RequestInit|undefined)?.method==='POST')).toHaveLength(1);

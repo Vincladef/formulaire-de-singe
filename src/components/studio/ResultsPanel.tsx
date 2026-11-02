@@ -1,6 +1,6 @@
 import { useEffect,useMemo,useState } from 'react';
 import { zipSync,strToU8 } from 'fflate';
-import { BarChart3,Download,FileSpreadsheet,Headphones,LoaderCircle,RefreshCw } from 'lucide-react';
+import { BarChart3,Download,FileSpreadsheet,Headphones,LoaderCircle } from 'lucide-react';
 import { getAccessToken } from '../../authClient';
 import type { FormResults,ResultAnswer,ResultSubmission } from '../../server/resultsService';
 type Result<T>={ok:true;data:T}|{ok:false;error:{message:string}};
