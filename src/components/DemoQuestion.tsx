@@ -19,12 +19,12 @@ export function DemoQuestion() {
           <section className="flex min-h-[300px] flex-col items-center justify-center gap-4 text-center" aria-live="polite">
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e6f4e7] text-[#377d55]"><Check size={28} /></span>
             <h2 className="font-display text-2xl font-bold text-[#203d30]">Merci pour la réponse !</h2>
-            <p className="text-sm text-[#75877b]">C'était une démonstration locale. Rien n'a été envoyé ni enregistré.</p>
+            <p className="text-sm text-[#607265]">C'était une démonstration locale. Rien n'a été envoyé ni enregistré.</p>
             <Button variant="secondary" onClick={() => setSubmitted(false)}>Recommencer</Button>
           </section>
         ) : (
           <>
-            <p className="mt-8 text-[11px] font-bold uppercase tracking-[.17em] text-[#679077]">Habitudes & quotidien</p>
+            <p className="mt-8 text-[11px] font-bold uppercase tracking-[.17em] text-[#607265]">Habitudes & quotidien</p>
             <h2 className="font-display mt-3 mb-3 text-[25px] font-extrabold leading-[1.33] tracking-[-.045em] text-[#203d30]">Qu'est-ce qui compte le plus pendant vos courses ?</h2>
             <p className="mb-6 text-[13px] leading-6 text-[#617267]">Choisissez la réponse qui vous correspond le mieux.</p>
             <fieldset className="space-y-2.5">
