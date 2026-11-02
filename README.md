@@ -170,3 +170,24 @@ La suppression est **logique**, elle ne détruit pas les versions publiées ou r
 - Tests : `tests/public-api.test.ts`, `src/pages/PublicFormPage.test.tsx`. Le test SQL de création, envoi, répétition et consentement a été exécuté sur Neon dans une transaction annulée volontairement.
 
 **Production** : une configuration manuelle des variables d'environnement reste nécessaire dans Netlify. Tant que l'intégration authentifiée à Neon n'est pas opérationnelle, le Studio et la collecte ne doivent pas être annoncés comme utilisables en production. Ne pas passer à l'étape 6 sans vérifier le déploiement et le build.
+## Éditeur-document et intégration Google Sheets
+
+Le Studio permet de composer des paragraphes, titres et citations parmi les questions. Dans un bloc de texte, taper `/` pour ouvrir le menu des éléments ; `Entrée` crée un nouveau paragraphe. Les boutons `+` et les outils latéraux insèrent une question à la dernière position du curseur. Si l'insertion intervient au milieu d'un texte, les deux fragments sont conservés de part et d'autre du nouveau champ. Les identifiants des questions existantes ne sont pas modifiés.
+
+### Activer Google Sheets
+
+1. Appliquer la migration `drizzle/0007_google_sheets.sql` sur la base Neon utilisée par l'application ; vérifier l'historique Drizzle.
+2. Dans Google Cloud, activer **Google Sheets API**, configurer l'écran de consentement OAuth et créer un client OAuth **Application Web**. Ajouter à ses URI de redirection autorisées `https://monk-form.netlify.app/api/integrations/google/callback` (adapter si domaine personnalisé).
+3. Définir dans Netlify, côté **Functions** uniquement : `GOOGLE_SHEETS_CLIENT_ID`, `GOOGLE_SHEETS_CLIENT_SECRET`, `GOOGLE_SHEETS_REDIRECT_URI`, `GOOGLE_SHEETS_TOKEN_KEY` (32 octets encodés en base64) et `GOOGLE_SHEETS_STATE_SECRET` (au moins 32 caractères aléatoires). Ne jamais ajouter ces secrets à Git.
+4. Redéployer le site ; ouvrir un formulaire > **Intégrations** > **Connecter mon compte Google**. Après autorisation, l'application crée une feuille privée `Monk Form · ...` dans le Drive de l'utilisateur et y synchronise les réponses.
+5. La synchronisation lance un premier passage après chaque soumission (sans ralentir la confirmation au répondant), puis un rattrapage toutes les 2 minutes. La table `fs_sheet_deliveries` conserve les reprises et les erreurs ; chaque ligne est identifiée par l'UUID de soumission pour éviter les doubles lignes au réessai.
+
+**Limites et garde-fous :** cette intégration est impossible tant que les variables OAuth ne sont pas installées ; l'interface l'indique explicitement. Le connecteur crée une nouvelle feuille par formulaire ; la sélection d'une feuille existante n'est pas encore proposée. Les fichiers audio ne sont pas exposés dans Sheets ; une mention signale leur présence. Un propriétaire peut arrêter la synchronisation sans supprimer son tableur, et relancer les soumissions en erreur. Le scope Google demandé se limite aux feuilles de calcul.
+
+### Contrôles de non-régression
+
+```sh
+npm run check
+```
+
+Vérifier aussi manuellement : insertion avant/après un paragraphe, insertion au milieu d'un texte, saisie au clavier, conservation des choix et enregistrements audio, aperçu, publication, soumission publique puis apparition de la réponse dans Google Sheets après activation OAuth.
