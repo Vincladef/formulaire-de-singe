@@ -3,6 +3,7 @@ import { getDb } from './db/client';
 import { forms } from './db/schema';
 import { formRepository } from './formRepository';
 import type { DraftPayload, StudioPageData } from '../shared/studio';
+import type { FormTheme } from '../shared/theme';
 
 export class ConflictFault extends Error {status=409;code='CONFLICT' as const;}
 export class PermissionFault extends Error {status=403;code='FORBIDDEN' as const;}
@@ -46,6 +47,7 @@ export async function duplicateForm(userId:string,id:string){
   if(!original) return null;
   const source=original.versions.find(v=>v.status==='draft') ?? original.versions.find(v=>v.status==='published');
   const created=await formRepository.create(userId,`Copie de ${original.title}`.slice(0,200));
+  if(original.theme) await saveFormTheme(userId,created.id,original.theme);
   if(!source || source.pages.length===0) return created;
   const pages:StudioPageData[]=source.pages.map(p=>({
     id:crypto.randomUUID(),title:p.title,description:p.description,
@@ -58,4 +60,15 @@ export async function duplicateForm(userId:string,id:string){
   try{await saveDraft(userId,created.id,{versionId:created.draftId,expectedRevision:0,pages});}
   catch(error){await setFormState(userId,created.id,'delete');throw error;}
   return created;
+}
+
+/** Appearance is form-wide metadata, never part of a published question snapshot. */
+export async function saveFormTheme(userId:string,id:string,theme:FormTheme){
+  const db=getDb();
+  const [result]=await db.update(forms).set({
+    settings:sql`jsonb_set(${forms.settings}, '{theme}', ${JSON.stringify(theme)}::jsonb, true)`,
+    updatedAt:sql`now()`,
+  }).where(and(eq(forms.id,id),isNull(forms.deletedAt),isNull(forms.archivedAt),writable(userId)))
+    .returning({id:forms.id});
+  return result ? {id:result.id,theme} : null;
 }

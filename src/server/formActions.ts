@@ -1,5 +1,6 @@
 import { draftPayloadSchema, publishInputSchema, statusActionSchema } from '../shared/studio';
-import { duplicateForm, publish, saveDraft, setFormState } from './studioRepository';
+import { duplicateForm, publish, saveDraft, saveFormTheme, setFormState } from './studioRepository';
+import { formThemeSchema } from '../shared/theme';
 import { createFormInput, formParams, listFormsQuery, renameFormInput, type FormRepository } from '../shared/formApi';
 import { formRepository } from './formRepository';
 
@@ -48,6 +49,13 @@ export class FormActions {
     const params=formParams.safeParse({id});const body=statusActionSchema.safeParse(input);
     if(!params.success||!body.success)throw new ValidationFault('Action incorrecte');
     const result=await setFormState(userId,params.data.id,body.data.action);
+    if(!result)throw new NotFoundFault('Formulaire introuvable ou accès interdit');
+    return result;
+  }
+  async theme(userId:string,id:unknown,input:unknown){
+    const params=formParams.safeParse({id}); const parsed=formThemeSchema.safeParse(input);
+    if(!params.success||!parsed.success)throw new ValidationFault('Apparence invalide');
+    const result=await saveFormTheme(userId,params.data.id,parsed.data);
     if(!result)throw new NotFoundFault('Formulaire introuvable ou accès interdit');
     return result;
   }

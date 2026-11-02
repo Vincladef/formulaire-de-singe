@@ -2,7 +2,9 @@ import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { getDb } from './db/client';
 import { forms, formVersions, pages, questions, questionOptions } from './db/schema';
+import { audioMode, audioLimits } from '../shared/audio';
 import { getQuestionType, publicSubmitSchema, type PublicForm, type PublicSubmissionInput, validateAnswers } from '../shared/publicForm';
+import { readFormTheme } from '../shared/theme';
 
 export class PublicFormFault extends Error {
   constructor(public status:number,public code:'NOT_FOUND'|'VALIDATION_ERROR'|'CONFLICT',message:string){super(message);}
@@ -25,19 +27,19 @@ export class NeonPublicFormService implements PublicFormService {
     const resultPages=[];
     let hasAudio=false;
     for(const p of pageRows){
-      const qs=await db.select({id:questions.id,type:questions.type,label:questions.label,description:questions.description,required:questions.required})
+      const qs=await db.select({id:questions.id,type:questions.type,label:questions.label,description:questions.description,required:questions.required,settings:questions.settings})
         .from(questions).where(eq(questions.pageId,p.id)).orderBy(asc(questions.position));
       const resultQuestions=[];
       for(const q of qs){
         const options=await db.select({value:questionOptions.value,label:questionOptions.label}).from(questionOptions)
           .where(eq(questionOptions.questionId,q.id)).orderBy(asc(questionOptions.position));
-        hasAudio ||=q.type==='audio';
-        resultQuestions.push({...q,type:getQuestionType(q.type),options});
+        hasAudio ||=audioMode(q.type,q.settings)!=='text';
+        resultQuestions.push({id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,options,mode:audioMode(q.type,q.settings),...audioLimits(q.settings)});
       }
       resultPages.push({...p,questions:resultQuestions});
     }
     return {id:row.id,slug:row.slug,title:row.title,description:row.description,versionId:row.versionId,versionNumber:row.number,
-      requireConsent:row.settings?.requireConsent===true||hasAudio,pages:resultPages};
+      requireConsent:row.settings?.requireConsent===true||hasAudio,theme:readFormTheme(row.settings?.theme),pages:resultPages};
   }
 
   async submit(slug:string,input:PublicSubmissionInput):Promise<{id:string;alreadySubmitted:boolean}>{
@@ -70,12 +72,12 @@ async function getPublicVersion(slug:string,versionId:string):Promise<PublicForm
     for(const q of qs){
       const opts=await db.select({value:questionOptions.value,label:questionOptions.label}).from(questionOptions)
         .where(eq(questionOptions.questionId,q.id)).orderBy(asc(questionOptions.position));
-      hasAudio ||=q.type==='audio';
-      resultQuestions.push({id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,options:opts});
+      hasAudio ||=audioMode(q.type,q.settings)!=='text';
+      resultQuestions.push({id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,options:opts,mode:audioMode(q.type,q.settings),...audioLimits(q.settings)});
     }
     resultPages.push({id:p.id,title:p.title,description:p.description,questions:resultQuestions});
   }
-  return {id:row.id,slug,title:row.title,description:row.description,versionId:row.versionId,versionNumber:row.number,requireConsent:row.settings?.requireConsent===true||hasAudio,pages:resultPages};
+  return {id:row.id,slug,title:row.title,description:row.description,versionId:row.versionId,versionNumber:row.number,requireConsent:row.settings?.requireConsent===true||hasAudio,theme:readFormTheme(row.settings?.theme),pages:resultPages};
 }
 async function submitValidated(slug:string,form:PublicForm,input:PublicSubmissionInput){
   if(form.requireConsent&&!input.consent)throw new PublicFormFault(400,'VALIDATION_ERROR','Le consentement est nécessaire pour participer.');

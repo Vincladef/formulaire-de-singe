@@ -1,25 +1,33 @@
-import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router-dom';
 import { SiteHeader } from './components/SiteHeader';
 import { HomePage } from './pages/HomePage';
 import { StudioPage } from './pages/StudioPage';
 import { AuthPage } from './pages/AuthPage';
+import { OAuthConsentPage } from './pages/OAuthConsentPage';
 import { PublicFormPage } from './pages/PublicFormPage';
 import { ProtectedStudio } from './pages/ProtectedStudio';
+import { ResultsPage } from './pages/ResultsPage';
 
-export function App() {
+function AppContent(){
+  const {pathname}=useLocation();
+  const isPublic=pathname.startsWith('/f/');
   return (
-    <BrowserRouter>
+    <>
       <div className="min-h-screen bg-[#fbfcfa] text-[#253d30]">
-        <SiteHeader />
+        {!isPublic && <SiteHeader />}
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/connexion" element={<AuthPage />} />
+          <Route path="/consentement" element={<OAuthConsentPage />} />
           <Route path="/f/:slug" element={<PublicFormPage />} />
+          <Route path="/studio/resultats/:formId" element={<ProtectedStudio><ResultsPage /></ProtectedStudio>} />
           <Route path="/studio" element={<ProtectedStudio><StudioPage /></ProtectedStudio>} />
           <Route path="*" element={<main className="mx-auto max-w-3xl px-5 py-28 text-center"><h1 className="font-display text-4xl font-extrabold text-[#254231]">Cette page n'existe pas.</h1><p className="mt-5 text-[#738576]">Peut-être s'est-elle égarée dans la jungle.</p><Link className="mt-6 inline-block font-semibold underline underline-offset-4" to="/">Retour à l'accueil</Link></main>} />
         </Routes>
-        <footer className="border-t border-[#e8ede6] bg-[#fbfcfa] px-5 py-7 text-center text-xs font-medium text-[#9aa99c]">Formulaire de Singe · Une idée qui grandit, question après question.</footer>
+        {!isPublic && <footer className="border-t border-[#e8ede6] bg-[#fbfcfa] px-5 py-7 text-center text-xs font-medium text-[#9aa99c]">Formulaire de Singe · Une idée qui grandit, question après question.</footer>}
       </div>
-    </BrowserRouter>
+    </>
   );
 }
+
+export function App(){return <BrowserRouter><AppContent/></BrowserRouter>;}
