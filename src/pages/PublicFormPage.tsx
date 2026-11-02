@@ -28,10 +28,9 @@ export function QuestionField({question,value,onChange,error}: {question:PublicQ
  const vocal=mode==='audio'||(mode==='either'&&preferAudio);
  const draft=value&&typeof value==='object'&&!Array.isArray(value)&&value.kind==='audio-draft'?value:undefined;
  const common={id:question.id,'aria-invalid':!!error,'aria-describedby':ariaDesc,required:question.required} as const;
- return <div className="rounded-[26px] border border-[#e6eee4] bg-white p-5 shadow-[0_9px_35px_-28px_rgba(29,68,44,.3)] sm:p-7">
+ return <div className={question.type==='statement'?'px-1 py-2 sm:px-3':'rounded-[26px] border border-[#e6eee4] bg-white p-5 shadow-[0_9px_35px_-28px_rgba(29,68,44,.3)] sm:p-7'}>
   {question.type==='statement' ? <>
-   <div className="mb-3 h-1 w-9 rounded-full bg-[#82ad8a]"/>
-   <h3 className="font-display text-xl font-bold leading-snug text-[#294a34]">{question.label}</h3>
+   <h3 className={question.settings?.textStyle==='heading'?'font-display text-2xl font-bold leading-snug text-[#294a34]':question.settings?.textStyle==='quote'?'border-l-[3px] border-[#a8c4aa] pl-4 text-base italic leading-7 text-[#647c69]':'whitespace-pre-line text-[15px] font-normal leading-8 text-[#526c59]'}>{question.label}</h3>
    {question.description&&<p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-[#728678]">{question.description}</p>}
   </> : <>
    <label htmlFor={question.id} className="font-display mb-2 block text-[17px] font-bold leading-snug text-[#294a34]">
