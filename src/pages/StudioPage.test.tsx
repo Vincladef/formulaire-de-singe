@@ -16,7 +16,7 @@ describe('Studio',()=>{
     expect(screen.getByRole('button',{name:/Nouveau formulaire/i})).toBeInTheDocument();
     expect(await screen.findByRole('alert')).toHaveTextContent(/Impossible de récupérer le jeton de connexion/);
   });
-}  it('affiche uniquement Éditeur, Résultats et Paramètres dans un formulaire',async()=>{
+  it('affiche uniquement Éditeur, Résultats et Paramètres dans un formulaire',async()=>{
     vi.mocked(getAccessToken).mockResolvedValue('test-jwt');
     const formId='d8ee0d8b-9d43-4609-8865-fd9b090c7fe9';
     const summary={id:formId,title:'Mon nouveau formulaire',slug:'nouveau',role:'owner',
