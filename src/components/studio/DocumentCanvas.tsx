@@ -68,24 +68,30 @@ function questionNode(q:StudioQuestion,index:number):HTMLElement {
  if(q.type==='audio'||audioMode(q.type,q.settings)!=='text')answer.appendChild(el('p','py-2 text-[#427453]','🎙 Réponse vocale'));
  if(q.type==='select'){
   const preview=el('select','min-h-10 w-full max-w-xs rounded-lg border border-[#d8e5d9] bg-[#f8faf7] px-3 text-sm text-[#45634b]') as HTMLSelectElement;
-  preview.disabled=true;preview.setAttribute('aria-label','Aperçu de la liste déroulante');
+  preview.setAttribute('aria-label','Aperçu de la liste déroulante');
   const empty=el('option','', 'Choisir une réponse…') as HTMLOptionElement;
   empty.value='';preview.append(empty);
   for(const item of q.options){const opt=el('option','',item.label) as HTMLOptionElement;opt.value=item.value;preview.append(opt);}
   answer.appendChild(preview);
  }
  if(['single_choice','multiple_choice','select'].includes(q.type)){
+  const choices=q.type==='select'?el('details','mt-2 rounded-lg border border-[#e2ebe2] bg-[#fcfdfb] px-3 py-2'):answer;
+  if(q.type==='select'){
+   const summary=el('summary','cursor-pointer py-1 text-sm font-medium text-[#477153]','Modifier les choix');
+   choices.appendChild(summary);
+  }
   for(const [i,opt] of q.options.entries()){
    const row=el('div','flex min-h-9 items-center gap-2');
-   row.appendChild(el('span','text-[#7f9b85]',q.type==='multiple_choice'?'☐':'◯'));
+   if(q.type!=='select')row.appendChild(el('span','text-[#7f9b85]',q.type==='multiple_choice'?'☐':'◯'));
    const option=textField('option',opt.label,'Option '+(i+1),'min-h-9 min-w-0 flex-1 rounded-md bg-transparent px-1 text-sm text-[#44674e] outline-none focus:bg-[#f1f7ee]');
    option.dataset.optionId=opt.id;option.setAttribute('aria-label','Choix '+(i+1));
    row.appendChild(option);
    if(q.options.length>2&&opt.value!==OTHER_VALUE){const del=action('×','remove-option');del.dataset.optionId=opt.id;row.appendChild(del);}
-   answer.appendChild(row);
+   choices.appendChild(row);
   }
-  const add=action('+ Ajouter un choix','add-option');add.className+=' mt-1';answer.appendChild(add);
-  if(!q.options.some(o=>o.value===OTHER_VALUE))answer.appendChild(action('+ Autre','add-other'));
+  const add=action('+ Ajouter un choix','add-option');add.className+=' mt-1';choices.appendChild(add);
+  if(!q.options.some(o=>o.value===OTHER_VALUE))choices.appendChild(action('+ Autre','add-other'));
+  if(q.type==='select')answer.appendChild(choices);
  }
  block.appendChild(answer);
  return block;
