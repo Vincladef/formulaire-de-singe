@@ -1,6 +1,6 @@
 import { useEffect,useRef,useState } from 'react';
 import { Mic,StopCircle,RotateCcw,Trash2,UploadCloud,AlertCircle } from 'lucide-react';
-import { audioMimeTypes,MAX_AUDIO_BYTES,MAX_AUDIO_SECONDS,normalizedMime,type AudioDraft } from '../shared/audio';
+import { audioMimeTypes,MAX_AUDIO_BYTES,normalizedMime,type AudioDraft } from '../shared/audio';
 
 const preferred=['audio/webm;codecs=opus','audio/mp4','audio/webm','audio/ogg;codecs=opus','audio/ogg'];
 export function chooseRecorderMime(support:(value:string)=>boolean){return preferred.find(support)??'';}

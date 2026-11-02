@@ -3,7 +3,7 @@ import { ArrowDown,ArrowUp,Copy,GripVertical,Trash2,Check,Mic } from 'lucide-rea
 import { audioMode } from '../../shared/audio';
 import { questionTypeNames, type StudioQuestion } from '../../shared/studio';
 
-type Props={question:StudioQuestion;index:number;selected:boolean;onSelect:()=>void;onUpdate?:(q:StudioQuestion)=>void;onUpdate?:(q:StudioQuestion)=>void;onMove:(delta:number)=>void;onDuplicate:()=>void;onDelete:()=>void;onDrop:(from:number)=>void;readOnly?:boolean};
+type Props={question:StudioQuestion;index:number;selected:boolean;onSelect:()=>void;onUpdate?:(q:StudioQuestion)=>void;onMove:(delta:number)=>void;onDuplicate:()=>void;onDelete:()=>void;onDrop:(from:number)=>void;readOnly?:boolean};
 export function QuestionCard({question,index,selected,onSelect,onUpdate,onMove,onDuplicate,onDelete,onDrop,readOnly=false}:Props){
   const [dragOver,setDragOver]=useState(false);
   const choice=['single_choice','multiple_choice','select'].includes(question.type);
