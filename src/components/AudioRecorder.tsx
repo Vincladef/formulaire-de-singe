@@ -86,10 +86,10 @@ export function AudioRecorder({value,onChange,maxSeconds=600,maxBytes=MAX_AUDIO_
    {value&&!recording&&<button type="button" onClick={()=>{onChange(undefined);setError('');}} className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-3 text-sm"><RotateCcw size={16}/> Recommencer</button>}
   </div>
   {value&&url&&<audio className="mt-4 w-full" controls src={url} preload="metadata" aria-label="Écouter votre réponse"/>}
-  <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-[#316048]"><Upload size={17}/> Importer un fichier audio
+  <label className="mt-4 flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium text-[#316048]"><Upload size={17}/> Importer un fichier audio
    <input aria-label="Importer un audio" className="sr-only" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg" onChange={e=>{void imported(e.target.files?.[0]);e.target.value='';}}/>
   </label>
   {error&&<p role="alert" className="mt-3 flex items-center gap-2 text-sm text-red-700"><AlertCircle size={17}/>{error}</p>}
-  <p className="mt-3 text-xs text-[#58715d]">Maximum {maxSeconds>=60?`${maxSeconds/60} min`:`${maxSeconds} s`} et {Math.round(maxBytes/1048576)} Mio. Le fichier ne quitte pas votre appareil avant l’envoi.</p>
+  <details className="mt-3 text-xs text-[#526957]"><summary className="cursor-pointer py-2 font-medium hover:underline">Informations sur l’enregistrement</summary><p className="mt-1 leading-6">Durée maximale : {maxSeconds>=60?`${maxSeconds/60} min`:`${maxSeconds} s`}. Taille maximale : {Math.round(maxBytes/1048576)} Mio. L’audio reste sur votre appareil jusqu’à l’envoi du formulaire.</p></details>
  </div>;
 }
