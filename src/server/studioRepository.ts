@@ -1,6 +1,6 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { getDb } from './db/client';
-import { forms, formMembers, formVersions } from './db/schema';
+import { forms } from './db/schema';
 import { formRepository } from './formRepository';
 import type { DraftPayload, StudioPageData } from '../shared/studio';
 

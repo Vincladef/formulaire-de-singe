@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, FileQuestion, LoaderCircle, LockKeyhole, Mic2, ShieldCheck } from 'lucide-react';
-import { type AnswerValues, type PublicForm, type PublicQuestion, isAnswered, toSubmissionAnswers, validateAnswers } from '../shared/publicForm';
+import { type AnswerValues, type PublicForm, type PublicQuestion, toSubmissionAnswers, validateAnswers } from '../shared/publicForm';
 
 type ApiResult<T>={ok:true;data:T}|{ok:false;error:{code:string;message:string}};
 const fieldStyle='w-full rounded-2xl border border-[#dce7dc] bg-white px-4 py-3.5 text-[#294735] outline-none transition focus:border-[#5b986e] focus:ring-4 focus:ring-[#e0eee0]';

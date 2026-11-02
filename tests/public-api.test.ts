@@ -1,6 +1,7 @@
 import { describe,expect,it,vi } from 'vitest';
 import { createPublicRestHandler } from '../src/server/publicRestApi';
-import { type PublicForm, type PublicFormService, PublicFormFault } from '../src/server/publicFormService';
+import { type PublicFormService, PublicFormFault } from '../src/server/publicFormService';
+import type { PublicForm } from '../src/shared/publicForm';
 import { toSubmissionAnswers, validateAnswers } from '../src/shared/publicForm';
 
 const ids={version:'db1a59d9-3afd-46ee-8b4e-9f4db743ab1c',question:'c26879c2-b113-40a3-b352-3c3d32b426cc',date:'c6dc05c5-f881-426f-92b3-90e41303c097',nonce:'69a46f99-f1e6-45b5-944d-c07a3c13672b'};
