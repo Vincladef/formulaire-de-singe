@@ -2,6 +2,7 @@ import { draftPayloadSchema, publishInputSchema, statusActionSchema } from '../s
 import { duplicateForm, publish, saveDraft, setFormState } from './studioRepository';
 import { createFormInput, formParams, listFormsQuery, renameFormInput, type FormRepository } from '../shared/formApi';
 import { formRepository } from './formRepository';
+import { folderActions } from './folderService';
 
 export class ValidationFault extends Error { status = 400; code = 'VALIDATION_ERROR' as const; }
 export class NotFoundFault extends Error { status = 404; code = 'NOT_FOUND' as const; }
@@ -51,6 +52,7 @@ export class FormActions {
     if(!result)throw new NotFoundFault('Formulaire introuvable ou accès interdit');
     return result;
   }
+  move(userId:string,id:unknown,input:unknown){return folderActions.move(userId,id,input);}
   async duplicate(userId:string,id:unknown){
     const params=formParams.safeParse({id});if(!params.success)throw new ValidationFault('Identifiant incorrect');
     const result=await duplicateForm(userId,params.data.id);

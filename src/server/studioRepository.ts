@@ -2,6 +2,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { getDb } from './db/client';
 import { forms } from './db/schema';
 import { formRepository } from './formRepository';
+import { folderActions } from './folderService';
 import type { DraftPayload, StudioPageData } from '../shared/studio';
 
 export class ConflictFault extends Error {status=409;code='CONFLICT' as const;}
@@ -46,6 +47,7 @@ export async function duplicateForm(userId:string,id:string){
   if(!original) return null;
   const source=original.versions.find(v=>v.status==='draft') ?? original.versions.find(v=>v.status==='published');
   const created=await formRepository.create(userId,`Copie de ${original.title}`.slice(0,200));
+  if(original.role==='owner'&&original.folderId)await folderActions.move(userId,created.id,{folderId:original.folderId});
   if(!source || source.pages.length===0) return created;
   const pages:StudioPageData[]=source.pages.map(p=>({
     id:crypto.randomUUID(),title:p.title,description:p.description,

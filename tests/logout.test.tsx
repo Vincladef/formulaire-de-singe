@@ -22,6 +22,12 @@ describe('Déconnexion du Studio', () => {
     signOut.mockResolvedValue({ data: {}, error: null });
   });
   afterEach(() => { cleanup(); vi.clearAllMocks(); });
+  it('propose Se connecter et non Ouvrir le Studio dans l’en-tête public',()=>{
+    useSession.mockReturnValue({isPending:false,data:null});
+    renderHeader();
+    expect(screen.getByRole('link',{name:/se connecter/i})).toHaveAttribute('href','/connexion');
+    expect(screen.queryByText('Ouvrir le Studio')).not.toBeInTheDocument();
+  });
   it('propose la déconnexion lorsque la session est active', () => {
     renderHeader();
     fireEvent.click(screen.getByLabelText('Menu du compte'));

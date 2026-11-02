@@ -11,7 +11,7 @@ export const listFormsQuery = z.object({
 export const formParams = z.object({ id: z.string().uuid() }).strict();
 
 export const formSummary = z.object({
-  id: z.string().uuid(), title: z.string(), slug: z.string(),
+  id: z.string().uuid(), title: z.string(), slug: z.string(), folderId:z.string().uuid().nullable().optional(),
   role: z.enum(['owner', 'editor', 'viewer']),
   createdAt: z.string(), updatedAt: z.string(), archivedAt:z.string().nullable().optional(), published:z.boolean().optional(),
 });
@@ -30,7 +30,7 @@ export type FormCreate = z.infer<typeof createFormInput>;
 
 /** Content is intentionally JSON-compatible and version-specific. */
 export type FormDetail = {
-  id: string; title: string; slug: string; description: string | null; archivedAt?:string|null;
+  id: string; title: string; slug: string; description: string | null; folderId?:string|null; archivedAt?:string|null;
   role: 'owner' | 'editor' | 'viewer';
   versions: Array<{
     id: string; number: number; status: 'draft' | 'published'; publishedAt: string | null; revision?:number;

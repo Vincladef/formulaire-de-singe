@@ -2,12 +2,21 @@ import { sql } from 'drizzle-orm';
 import { boolean, check, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid, varchar, bigint } from 'drizzle-orm/pg-core';
 
 const timestamps = { createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow() };
+export const folders = pgTable('fs_form_folders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ownerId: text('owner_id').notNull(),
+  name: varchar('name', { length: 80 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [index('fs_form_folders_owner_idx').on(t.ownerId, t.createdAt), check('fs_form_folders_name_not_empty', sql`length(trim(${t.name})) > 0`)]);
+
 export const forms = pgTable('fs_forms', {
   id: uuid('id').primaryKey().defaultRandom(), ownerId: text('owner_id').notNull(), title: varchar('title', { length: 200 }).notNull(),
   slug: varchar('slug', { length: 120 }).notNull().unique(), description: text('description'),
+  folderId: uuid('folder_id').references(() => folders.id, { onDelete: 'set null' }),
   settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}), ...timestamps,
   deletedAt: timestamp('deleted_at', { withTimezone: true }), archivedAt: timestamp('archived_at', { withTimezone: true }),
-}, (t) => [index('fs_forms_owner_idx').on(t.ownerId, t.createdAt), check('fs_forms_title_not_empty', sql`length(trim(${t.title})) > 0`)]);
+}, (t) => [index('fs_forms_owner_idx').on(t.ownerId, t.createdAt), index('fs_forms_folder_idx').on(t.folderId), check('fs_forms_title_not_empty', sql`length(trim(${t.title})) > 0`)]);
 
 export const formMembers = pgTable('fs_form_members', {
   formId: uuid('form_id').notNull().references(() => forms.id, { onDelete: 'restrict' }), userId: text('user_id').notNull(),

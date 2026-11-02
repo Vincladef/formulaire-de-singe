@@ -12,7 +12,7 @@ export const formRepository: FormRepository = {
   async list(userId, limit) {
     const db = getDb();
     const rows = await db.select({
-      id: forms.id, title: forms.title, slug: forms.slug,
+      id: forms.id, title: forms.title, slug: forms.slug, folderId:forms.folderId,
       ownerId: forms.ownerId, memberRole: formMembers.role,
       createdAt: forms.createdAt, updatedAt: forms.updatedAt, archivedAt:forms.archivedAt,
     }).from(forms).leftJoin(formMembers, and(eq(formMembers.formId, forms.id), eq(formMembers.userId, userId)))
@@ -22,7 +22,7 @@ export const formRepository: FormRepository = {
       .where(and(inArray(formVersions.formId, rows.map(r=>r.id)),eq(formVersions.status,'published'))):[];
     const publishedSet=new Set(publishedVersions.map(v=>v.formId));
     return rows.map((r): FormSummary => ({
-      id: r.id, title: r.title, slug: r.slug,
+      id: r.id, title: r.title, slug: r.slug, folderId:r.folderId,
       role: r.ownerId === userId ? 'owner' : r.memberRole!,
       createdAt: iso(r.createdAt), updatedAt: iso(r.updatedAt),
       archivedAt:r.archivedAt?iso(r.archivedAt):null, published:publishedSet.has(r.id),
@@ -53,7 +53,7 @@ export const formRepository: FormRepository = {
   async get(userId, id) {
     const db = getDb();
     const [item] = await db.select({
-      id: forms.id, title: forms.title, slug: forms.slug, description: forms.description, archivedAt:forms.archivedAt,
+      id: forms.id, title: forms.title, slug: forms.slug, folderId:forms.folderId, description: forms.description, archivedAt:forms.archivedAt,
       ownerId: forms.ownerId, memberRole: formMembers.role,
     }).from(forms)
       .leftJoin(formMembers, and(eq(formMembers.formId, forms.id), eq(formMembers.userId, userId)))
@@ -76,7 +76,7 @@ export const formRepository: FormRepository = {
       .where(inArray(rules.versionId, versionIds)) : [];
 
     return {
-      id: item.id, title: item.title, slug: item.slug, description: item.description, archivedAt:item.archivedAt?iso(item.archivedAt):null,
+      id: item.id, title: item.title, slug: item.slug, folderId:item.folderId, description: item.description, archivedAt:item.archivedAt?iso(item.archivedAt):null,
       role: item.ownerId === userId ? 'owner' : item.memberRole!,
       versions: versions.map((v) => ({
         id: v.id, number: v.number, status: v.status, revision:v.revision, publishedAt: v.publishedAt ? iso(v.publishedAt) : null,

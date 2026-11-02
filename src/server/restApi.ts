@@ -2,6 +2,7 @@ import { ZodError } from 'zod';
 import { UnauthorizedError, requireUser } from './auth';
 import { FormActions, NotFoundFault, ValidationFault } from './formActions';
 import { ConflictFault, PermissionFault } from './studioRepository';
+import { FolderNotFoundError, FolderValidationError } from './folderService';
 
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers: {
   'Cache-Control': 'no-store, private', 'X-Content-Type-Options': 'nosniff',
@@ -16,7 +17,7 @@ export function createRestHandler(actions = new FormActions(), identity: Identit
       if (!userId) throw new UnauthorizedError();
       const url = new URL(request.url);
       const path = url.pathname;
-      const match = path.match(/^\/api\/forms(?:\/([^/]+))?(?:\/(draft|publish|state|duplicate))?\/?$/);
+      const match = path.match(/^\/api\/forms(?:\/([^/]+))?(?:\/(draft|publish|state|duplicate|folder))?\/?$/);
       if (!match) return json({ ok: false, error: { code: 'NOT_FOUND', message: 'Route not found' } }, 404);
       const id = match[1]; const operation=match[2];
       if (request.method === 'GET' && !id) {
@@ -31,6 +32,7 @@ export function createRestHandler(actions = new FormActions(), identity: Identit
       if (request.method === 'PUT' && id && operation==='draft') return json({ok:true,data:await actions.save(userId,id,await readJson(request))});
       if (request.method === 'POST' && id && operation==='publish') return json({ok:true,data:await actions.publish(userId,id,await readJson(request))});
       if (request.method === 'POST' && id && operation==='state') return json({ok:true,data:await actions.state(userId,id,await readJson(request))});
+      if (request.method === 'PATCH' && id && operation==='folder') return json({ok:true,data:await actions.move(userId,id,await readJson(request))});
       if (request.method === 'POST' && id && operation==='duplicate') return json({ok:true,data:await actions.duplicate(userId,id)},201);
       if (request.method === 'PATCH' && id && !operation) {
         const input = await readJson(request);
@@ -39,7 +41,7 @@ export function createRestHandler(actions = new FormActions(), identity: Identit
       return json({ ok: false, error: { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' } }, 405);
     } catch (error) {
       if (error instanceof UnauthorizedError) return json({ ok: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, 401);
-      if (error instanceof ValidationFault || error instanceof NotFoundFault || error instanceof ConflictFault || error instanceof PermissionFault)
+      if (error instanceof ValidationFault || error instanceof NotFoundFault || error instanceof ConflictFault || error instanceof PermissionFault || error instanceof FolderNotFoundError || error instanceof FolderValidationError)
         return json({ ok: false, error: { code: error.code, message: error.message } }, error.status);
       if (error instanceof ZodError || error instanceof SyntaxError)
         return json({ ok: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid JSON request' } }, 400);
