@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, FileQuestion, LoaderCircle, LockKeyhole, Mic2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, FileQuestion, LoaderCircle, LockKeyhole, ShieldCheck } from 'lucide-react';
+import { AudioRecorder } from '../components/AudioRecorder';
+import { audioMode, type AudioDraft, type UploadedAudio, AUDIO_PART_BYTES } from '../shared/audio';
 import { type AnswerValues, type PublicForm, type PublicQuestion, toSubmissionAnswers, validateAnswers } from '../shared/publicForm';
 
 type ApiResult<T>={ok:true;data:T}|{ok:false;error:{code:string;message:string}};
@@ -18,6 +20,10 @@ function QuestionField({question,value,onChange,error}: {question:PublicQuestion
  const errorId=`error-${question.id}`;
  const ariaDesc=[question.description?describedBy:null,error?errorId:null].filter(Boolean).join(' ')||undefined;
  const options=question.options;
+ const mode=question.mode??audioMode(question.type);
+ const [preferAudio,setPreferAudio]=useState(false);
+ const vocal=mode==='audio'||(mode==='either'&&preferAudio);
+ const draft=value&&typeof value==='object'&&!Array.isArray(value)&&value.kind==='audio-draft'?value:undefined;
  const common={id:question.id,'aria-invalid':!!error,'aria-describedby':ariaDesc,required:question.required} as const;
  return <div className="rounded-[26px] border border-[#e6eee4] bg-white p-5 shadow-[0_9px_35px_-28px_rgba(29,68,44,.3)] sm:p-7">
   {question.type==='statement' ? <>
@@ -30,8 +36,12 @@ function QuestionField({question,value,onChange,error}: {question:PublicQuestion
    </label>
    {question.description&&<p id={describedBy} className="mb-4 whitespace-pre-line text-sm leading-6 text-[#859688]">{question.description}</p>}
    <div className={question.description?'mt-3':'mt-4'}>
-    {question.type==='short_text'&&<input {...common} className={fieldStyle} type="text" maxLength={500} placeholder="Votre réponse…" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
-    {question.type==='long_text'&&<textarea {...common} className={fieldStyle+' min-h-32 resize-y'} rows={4} maxLength={10000} placeholder="Racontez-nous…" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
+    {mode==='either'&&<div className="mb-4 flex gap-2" role="group" aria-label="Type de réponse">
+     <button type="button" className="rounded-lg border px-3 py-2 text-sm" aria-pressed={!preferAudio} onClick={()=>{setPreferAudio(false);onChange(undefined);}}>Écrire</button>
+     <button type="button" className="rounded-lg border px-3 py-2 text-sm" aria-pressed={preferAudio} onClick={()=>{setPreferAudio(true);onChange(undefined);}}>Parler</button>
+    </div>}
+    {!vocal&&question.type==='short_text'&&<input {...common} className={fieldStyle} type="text" maxLength={500} placeholder="Votre réponse…" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
+    {!vocal&&question.type==='long_text'&&<textarea {...common} className={fieldStyle+' min-h-32 resize-y'} rows={4} maxLength={10000} placeholder="Racontez-nous…" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
     {question.type==='number'&&<input {...common} className={fieldStyle} type="number" placeholder="0" value={typeof value==='number'&&Number.isFinite(value)?value:''} onChange={e=>onChange(e.target.value===''?undefined:Number(e.target.value))}/>}
     {question.type==='date'&&<input {...common} className={fieldStyle} type="date" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
     {question.type==='select'&&<select {...common} className={fieldStyle} value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}>
@@ -49,9 +59,9 @@ function QuestionField({question,value,onChange,error}: {question:PublicQuestion
         <input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked?[...(Array.isArray(value)?value:[]),o.value]:(Array.isArray(value)?value:[]).filter(v=>v!==o.value))} className="h-4 w-4 accent-[#33764c]"/>{o.label}
       </label>})}
     </fieldset>}
-    {question.type==='audio'&&<div className="flex gap-3 rounded-2xl border border-dashed border-[#d6e6d6] bg-[#f6faf5] p-5 text-sm text-[#748976]">
-      <Mic2 className="shrink-0 text-[#7fa487]" size={21}/><p>La réponse vocale sera disponible prochainement. Ce champ ne peut pas encore recevoir d’enregistrement.</p>
-    </div>}
+    {vocal&&value&&typeof value==='object'&&!Array.isArray(value)&&value.kind==='audio'&&
+      <p className="rounded-xl bg-[#eaf4e8] p-3 text-sm">Enregistrement prêt pour l'envoi.</p>}
+    {vocal&&<AudioRecorder value={draft} onChange={onChange} maxSeconds={question.maxAudioSeconds??180} maxBytes={question.maxAudioBytes??15*1048576}/>}
    </div>
    {error&&<p id={errorId} role="alert" className="mt-3 flex items-start gap-2 text-sm font-medium text-[#ad5e4e]"><CircleAlert size={16} className="mt-0.5 shrink-0"/>{error}</p>}
   </>}
@@ -96,8 +106,34 @@ export function PublicFormPage(){
   if(form.requireConsent&&!consent){setConsentError(true);setError('Le consentement est nécessaire avant l’envoi.');return;}
   inFlightRef.current=true;setSubmitting(true);setError('');
   try{
+   const readyValues:AnswerValues={...answers};
+   for(const [questionId,value] of Object.entries(readyValues)){
+    if(!value||typeof value!=='object'||Array.isArray(value)||value.kind!=='audio-draft')continue;
+    const draft=value;
+    const api=`/api/public/forms/${encodeURIComponent(form.slug)}/audio`;
+    const prepare=await fetch(`${api}/prepare`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({versionId:form.versionId,questionId,clientNonce:nonceRef.current,
+        consent:true,mimeType:draft.file.type,byteSize:draft.file.size,durationMs:draft.durationMs})});
+    const prep=await prepare.json() as ApiResult<{uploadId:string;claimToken:string;partBytes:number;partCount:number}>;
+    if(!prep.ok)throw new Error(prep.error.message);
+    const {uploadId,claimToken,partCount}=prep.data;
+    for(let i=0;i<partCount;i++){
+      const chunk=draft.file.slice(i*AUDIO_PART_BYTES,Math.min((i+1)*AUDIO_PART_BYTES,draft.file.size));
+      const result=await fetch(`${api}/${uploadId}/parts/${i}`,{
+        method:'POST',headers:{'Content-Type':'application/octet-stream',
+         'x-audio-nonce':nonceRef.current,'x-audio-claim':claimToken},body:chunk});
+      if(!result.ok)throw new Error(`Envoi audio interrompu à la partie ${i+1}/${partCount}. Réessayez.`);
+    }
+    const finish=await fetch(`${api}/complete`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({uploadId,claimToken,clientNonce:nonceRef.current})});
+    const confirmed=await finish.json() as ApiResult<{verified:boolean}>;
+    if(!confirmed.ok||!confirmed.data.verified)
+      throw new Error(confirmed.ok?'Le fichier audio est incomplet.':confirmed.error.message);
+    readyValues[questionId]={kind:'audio',uploadId,claimToken} satisfies UploadedAudio;
+   }
+   setAnswers(readyValues);
    const response=await fetch(`/api/public/forms/${encodeURIComponent(form.slug)}/submissions`,{
-    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({versionId:form.versionId,clientNonce:nonceRef.current,consent,website:'',answers:toSubmissionAnswers(form,answers)}),
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({versionId:form.versionId,clientNonce:nonceRef.current,consent,website:'',answers:toSubmissionAnswers(form,readyValues)}),
    });
    const json=await response.json() as ApiResult<{id:string}>;
    if(!json.ok)throw new Error(json.error.message);
