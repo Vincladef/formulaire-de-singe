@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { Bold, Italic, Plus, Slash, Type } from 'lucide-react';
 import { audioMode } from '../../shared/audio';
 import { OTHER_VALUE } from '../../shared/publicForm';
@@ -125,7 +125,7 @@ function setCaretAtStart(node:HTMLElement){
 }
 function createEmptyParagraph():HTMLElement{return makeLine();}
 
-export function DocumentCanvas({page,editable,onChange,onSelectQuestion,onOpenSettings,onDeleteQuestion}:Props){
+export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function DocumentCanvas({page,editable,onChange,onSelectQuestion,onOpenSettings,onDeleteQuestion}:Props,ref){
  const root=useRef<HTMLDivElement>(null);
  const pageRef=useRef(page);
  const onChangeRef=useRef(onChange);
@@ -137,7 +137,6 @@ export function DocumentCanvas({page,editable,onChange,onSelectQuestion,onOpenSe
  const [menu,setMenu]=useState<{top:number;left:number}|null>(null);
  const [filter,setFilter]=useState('');
  const menuInput=useRef<HTMLInputElement>(null);
- const handle=useRef<DocumentCanvasHandle>({insert:()=>{},focus:()=>{}});
  onChangeRef.current=onChange;onSelectRef.current=onSelectQuestion;
  onSettingsRef.current=onOpenSettings;onDeleteRef.current=onDeleteQuestion;
 
@@ -261,11 +260,11 @@ export function DocumentCanvas({page,editable,onChange,onSelectQuestion,onOpenSe
   setCaretAtStart(following);remember();
   setMenu(null);setFilter('');
  }
- handle.current={insert:insertAtSelection,focus:()=>{
+ useImperativeHandle(ref,()=>({insert:insertAtSelection,focus:()=>{
   const editor=root.current;if(!editor)return;
   const target=Array.from(editor.children).find(c=>c instanceof HTMLElement&&c.dataset.lineId) as HTMLElement|undefined;
   setCaretAtStart(target??editor);
- }};
+ }}));
  function openInsertMenu(line?:HTMLElement){
   const editor=root.current;if(!editor)return;
   const container=editor.getBoundingClientRect();
@@ -387,10 +386,4 @@ export function DocumentCanvas({page,editable,onChange,onSelectQuestion,onOpenSe
     <button type="button" onClick={()=>setMenu(null)} className="mt-1 w-full rounded-lg px-3 py-2 text-left text-xs text-[#637c68] hover:bg-[#f2f6f0]">Fermer</button>
    </div>}
  </section>;
-}
-
-/** The Studio sidebar can insert into the same editing surface without owning another input. */
-export function useDocumentCanvasHandle():React.RefObject<DocumentCanvasHandle>{
- const instance=useRef<DocumentCanvasHandle>({insert:()=>{},focus:()=>{}});
- return instance;
-}
+});
