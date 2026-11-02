@@ -1,5 +1,7 @@
-import { afterEach,describe,expect,it,vi } from 'vitest';
+import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest';
+import { Blob as NodeBlob } from 'node:buffer';
 import { encodePcmToMp3,exportAudioAsMp3,hasMp3Header,MP3_SAMPLE_RATE } from '../src/shared/mp3Export';
+beforeEach(()=>vi.stubGlobal('Blob',NodeBlob));
 afterEach(()=>vi.unstubAllGlobals());
 const tone=(seconds=.5,rate=44100)=>{
  const samples=new Float32Array(Math.round(seconds*rate));
@@ -13,7 +15,6 @@ describe('exports MPEG Layer III',()=>{
   expect(result.type).toBe('audio/mpeg');
   expect(bytes.length).toBeGreaterThan(2000);
   expect(hasMp3Header(bytes)).toBe(true);
-  expect(new TextDecoder().decode(bytes.slice(0,4))).not.toBe('\\x1aEß£');
  });
  it('transcodes recorded WebM bytes through browser audio decoding',async()=>{
   const audio=tone(.25);
