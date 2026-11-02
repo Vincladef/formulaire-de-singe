@@ -9,7 +9,7 @@ CREATE OR REPLACE FUNCTION fs_submit_public(
 LANGUAGE plpgsql AS $$
 DECLARE
   v_form uuid; v_requires_consent boolean; v_submission uuid;
-  a jsonb; v_question record; v_value jsonb; v_count int; v_option_count int;
+  answer_item jsonb; v_question record; v_value jsonb; v_count int; v_option_count int;
   v_existing record;
 BEGIN
   IF p_hash !~ '^[a-f0-9]{64}$' OR jsonb_typeof(p_answers) IS DISTINCT FROM 'array'
@@ -38,17 +38,18 @@ BEGIN
     RAISE EXCEPTION 'INVALID_ANSWER' USING ERRCODE='22023';
   END IF;
 
-  FOR a IN SELECT * FROM jsonb_array_elements(p_answers) LOOP
+  FOR answer_item IN SELECT * FROM jsonb_array_elements(p_answers) LOOP
     SELECT q.id,q.type,q.required INTO v_question
     FROM fs_questions q JOIN fs_pages p ON p.id=q.page_id
-    WHERE p.version_id=p_version AND q.id::text=a->>'questionId';
+    WHERE p.version_id=p_version AND q.id::text=answer_item->>'questionId';
     IF NOT FOUND OR v_question.type IN ('statement','audio') THEN
       RAISE EXCEPTION 'INVALID_ANSWER' USING ERRCODE='22023';
     END IF;
-    v_value:=a->'value';
+    v_value:=answer_item->'value';
     IF v_question.type IN ('short_text','long_text') THEN
       IF jsonb_typeof(v_value)<>'string' OR length(trim(v_value #>> '{}'))=0
-        OR length(v_value #>> '{}') > CASE WHEN v_question.type='short_text' THEN 500 ELSE 10000 END THEN
+        OR (v_question.type='short_text' AND length(v_value #>> '{}') > 500)
+        OR (v_question.type='long_text' AND length(v_value #>> '{}') > 10000) THEN
         RAISE EXCEPTION 'INVALID_ANSWER' USING ERRCODE='22023';
       END IF;
     ELSIF v_question.type IN ('single_choice','select') THEN
