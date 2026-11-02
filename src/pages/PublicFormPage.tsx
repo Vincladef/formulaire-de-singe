@@ -28,7 +28,7 @@ export function QuestionField({question,value,onChange,error}: {question:PublicQ
  const vocal=mode==='audio'||(mode==='either'&&preferAudio);
  const draft=value&&typeof value==='object'&&!Array.isArray(value)&&value.kind==='audio-draft'?value:undefined;
  const common={id:question.id,'aria-invalid':!!error,'aria-describedby':ariaDesc,required:question.required} as const;
- return <div className={question.type==='statement'?'px-1 py-2 sm:px-3':'rounded-[26px] border border-[#e6eee4] bg-white p-5 shadow-[0_9px_35px_-28px_rgba(29,68,44,.3)] sm:p-7'}>
+ return <div className={question.type==='statement'?'px-1 py-2 sm:px-3':'rounded-2xl border border-[#e1e9df] bg-white p-5 sm:p-7'}>
   {question.type==='statement' ? <>
    <h3 className={question.settings?.textStyle==='heading'?'font-display text-2xl font-bold leading-snug text-[#294a34]':question.settings?.textStyle==='quote'?'border-l-[3px] border-[#a8c4aa] pl-4 text-base italic leading-7 text-[#647c69]':'whitespace-pre-line text-[15px] font-normal leading-8 text-[#526c59]'}>{question.label}</h3>
    {question.description&&<p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-[#728678]">{question.description}</p>}
@@ -167,7 +167,7 @@ export function PublicFormPage(){
    {totalQuestions.length>1&&<div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e3ece1]" role="progressbar" aria-label="Questions complétées" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full bg-[#5d9b6c] transition-[width] duration-300" style={{width:`${progress}%`}}/></div>}
    <header className="pb-10 pt-10 sm:pt-12">
     {pageIndex===0&&<><h1 className="font-display text-[clamp(2.2rem,6vw,3.5rem)] font-extrabold leading-tight tracking-[-.055em] text-[#254632]">{form.title}</h1>{form.description&&<p className="mt-4 max-w-2xl whitespace-pre-line text-base leading-8 text-[#607265]">{form.description}</p>}</>}
-    <h2 className={'font-display font-bold text-[#35583f] '+(pageIndex===0?'mt-9 text-2xl':'text-3xl')}>{page?.title||`Page ${pageIndex+1}`}</h2>
+    {(form.pages.length>1||(page?.title&&page.title!=='Nouvelle page'))&&<h2 className={'font-display font-bold text-[#35583f] '+(pageIndex===0?'mt-9 text-2xl':'text-3xl')}>{page?.title||`Page ${pageIndex+1}`}</h2>}
     {page?.description&&<p className="mt-3 whitespace-pre-line text-sm leading-7 text-[#607265]">{page.description}</p>}
    </header>
    <div className="space-y-4">{page?.questions.map(q=><QuestionField key={q.id} question={q} value={answers[q.id]} onChange={v=>setAnswer(q.id,v)} error={errors[q.id]}/>)}</div>
