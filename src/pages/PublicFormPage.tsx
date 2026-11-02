@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, FileQuestion, LoaderCircle, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { AudioRecorder } from '../components/AudioRecorder';
 import { audioMode, type UploadedAudio, AUDIO_PART_BYTES } from '../shared/audio';

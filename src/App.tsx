@@ -9,7 +9,7 @@ import { AudioResponsesPage } from './pages/AudioResponsesPage';
 
 function AppShell() {
   const { pathname } = useLocation();
-  const isPublicQuestionnaire = /^\\/f\\/[^/]+/.test(pathname);
+  const isPublicQuestionnaire = pathname.startsWith('/f/');
   return (
     <div className="min-h-screen bg-[#fbfcfa] text-[#253d30]">
       {!isPublicQuestionnaire && <SiteHeader />}
