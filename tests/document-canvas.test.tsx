@@ -27,7 +27,7 @@ describe('éditeur documentaire unique',()=>{
   const {documentEditor}=setup();
   expect(documentEditor).toHaveAttribute('contenteditable','true');
   expect(documentEditor.querySelectorAll('[contenteditable="true"]')).toHaveLength(0);
-  expect(documentEditor.querySelectorAll('[data-line-id]')).toHaveLength(1);
+  expect(documentEditor.querySelectorAll('[data-line-id]')).toHaveLength(2); // paragraphe existant + ligne libre après la question
   expect(documentEditor.querySelectorAll('[data-question-id]')).toHaveLength(1);
   expect(within(documentEditor).getByText('Voici mon introduction.')).toBeInTheDocument();
   expect(documentEditor.querySelector('textarea')).toBeNull();
