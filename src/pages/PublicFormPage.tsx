@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, FileQuestion, LoaderCircle, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { AudioRecorder } from '../components/AudioRecorder';
-import { audioMode, type AudioDraft, type UploadedAudio, AUDIO_PART_BYTES } from '../shared/audio';
+import { audioMode, type UploadedAudio, AUDIO_PART_BYTES } from '../shared/audio';
 import { type AnswerValues, type PublicForm, type PublicQuestion, toSubmissionAnswers, validateAnswers } from '../shared/publicForm';
 
 type ApiResult<T>={ok:true;data:T}|{ok:false;error:{code:string;message:string}};

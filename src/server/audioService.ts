@@ -8,7 +8,7 @@ export class AudioFault extends Error {
  constructor(public status:number,public code:string,message:string){super(message);}
 }
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
-const store=()=>getStore({name:'formulaire-singe-audio',region:'eu-central-1'});
+const store=()=>getStore('formulaire-singe-audio');
 const parts=(key:string,index:number)=>`${key}/part/${index}`;
 type Ticket={id:string;storage_key:string;content_type:string;declared_bytes:string|number;status:string;expires_at:string;claim_hash:string;client_nonce:string};
 function assertTicket(row:Ticket|undefined,claim:string,nonce:string,allowVerified=false){
