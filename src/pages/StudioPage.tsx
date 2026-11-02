@@ -152,31 +152,40 @@ export function StudioPage(){
  const activeItems=items.filter(i=>showArchived?!!i.archivedAt:!i.archivedAt);
  return <main className="min-h-[calc(100vh-90px)] bg-[#f6f8f4] px-4 py-7 text-[#2b4836] sm:px-7">
   <div className="mx-auto max-w-[1550px]">
-   <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-     <div><h1 className="font-display text-3xl font-extrabold tracking-[-.055em] sm:text-4xl">Le Studio<span className="text-[#8eaf8c]">.</span></h1>
-       <p className="mt-1 text-sm text-[#8a9d8d]">Imagine, compose, publie.</p>
-     </div>
-     <div className="flex flex-wrap items-center gap-2">
-       {detail&&<span role="status" aria-live="polite" className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium ${saveState==='error'?'bg-red-50 text-red-700':'bg-[#eaf2e7] text-[#5d8668]'}`}>
-         {saveState==='saving'?<LoaderCircle size={14} className="animate-spin"/>:saveState==='error'?<CircleAlert size={14}/>:saveState==='pending'?<Clock3 size={14}/>:<CheckCircle2 size={14}/>}
-         {{saved:'Enregistré',saving:'Enregistrement…',pending:'Non enregistré',error:'Sauvegarde échouée'}[saveState]}
-       </span>}
-       <button className={cta} disabled={operation} onClick={()=>void createForm()}><Plus size={16}/> Nouveau formulaire</button>
-     </div>
-   </div>
+   {!detail&&<div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <h1 className="font-display text-3xl font-bold tracking-tight text-[#244835] sm:text-4xl">Mes formulaires</h1>
+    <button className={cta} disabled={operation} onClick={()=>void createForm()}><Plus size={17}/> Nouveau formulaire</button>
+   </div>}
    {new URLSearchParams(window.location.search).get('google')==='connected'&&<p className="mb-4 rounded-xl bg-[#e8f5e8] p-3 text-sm text-[#31764b]">Compte Google connecté. Ouvre ton formulaire, puis son onglet Intégrations pour consulter la feuille.</p>}
    {new URLSearchParams(window.location.search).get('google')==='error'&&<p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">La connexion Google n’a pas abouti. Réessaie depuis l’onglet Intégrations.</p>}
    {error&&<div role="alert" className="mb-5 flex items-start justify-between gap-2 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button title="Fermer le message" onClick={()=>setError('')}><X size={16}/></button></div>}
    {operation&&<p className="mb-3 text-xs text-[#74927b]" role="status">Opération en cours…</p>}
-   {!detail ? <div className="rounded-[25px] border border-[#e4ece1] bg-white p-5 sm:p-8">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-bold">Mes formulaires</h2><p className="mt-1 text-sm text-[#8ca08c]">Retrouve tes questionnaires, ou crée le premier.</p></div><button className={light} onClick={()=>setShowArchived(v=>!v)}><Archive size={15}/>{showArchived?'Voir les actifs':'Voir les archives'}</button></div>
-      {listBusy?<p role="status" className="p-7 text-center text-[#91a393]">Chargement des formulaires…</p>:
-       activeItems.length===0?<div className="py-16 text-center"><Files className="mx-auto text-[#9dbca0]" size={35}/><p className="mt-4 font-semibold">{showArchived?'Aucune archive':'Ton espace de création est prêt.'}</p><p className="mt-2 text-sm text-[#94a598]">{showArchived?'Tu n’as pas encore archivé de formulaire.':'Ajoute ton premier questionnaire en quelques clics.'}</p></div>:
-       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{activeItems.map(item=><div key={item.id} className="rounded-2xl border border-[#e8ede5] bg-[#fafcf9] p-5"><button className="w-full text-left" onClick={()=>void openForm(item.id)}><p className="text-[11px] font-bold uppercase tracking-widest text-[#91a895]">{item.published?'Publié · ':'Brouillon · '}{item.role}</p><h3 className="mt-2 line-clamp-2 text-lg font-bold text-[#36533f]">{item.title}</h3><p className="mt-2 text-xs text-[#9aa99d]">{new Date(item.updatedAt).toLocaleDateString('fr-FR')}</p></button><div className="mt-5 flex justify-between border-t border-[#e7ede5] pt-3"><button className="text-xs font-bold text-[#548166]" onClick={()=>void openForm(item.id)}>Ouvrir <ChevronRight className="inline" size={14}/></button><div className="flex gap-2"><button title="Dupliquer" aria-label={`Dupliquer ${item.title}`} onClick={()=>void duplicateForm(item.id)}><Copy size={15}/></button><button title={showArchived?'Restaurer':'Archiver'} aria-label={`Archiver ou restaurer ${item.title}`} onClick={()=>void performState(showArchived?'unarchive':'archive',item.id)}><Archive size={15}/></button><button title="Corbeille" aria-label={`Supprimer ${item.title}`} onClick={()=>void performState('delete',item.id)}><Trash2 size={15} className="text-[#ba837a]"/></button></div></div></div>)}</div>}
-    </div> : <>
+   {!detail ? <section aria-label="Mes formulaires" className="rounded-2xl border border-[#e1e9de] bg-white px-4 py-3 sm:px-6">
+     <div className="flex items-center justify-end py-2"><button className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-medium text-[#3f6049] hover:bg-[#eef5ed]" onClick={()=>setShowArchived(v=>!v)}>
+      <Archive size={16}/>{showArchived?'Revenir aux formulaires':'Archives'}
+     </button></div>
+     {listBusy?<p role="status" className="py-12 text-center text-[#607265]">Chargement des formulaires…</p>:
+       activeItems.length===0?<div className="py-14 text-center"><Files className="mx-auto text-[#638d6e]" size={34}/><p className="mt-3 font-semibold text-[#36583e]">{showArchived?'Aucune archive':'Aucun formulaire pour le moment'}</p><p className="mt-2 text-sm text-[#607265]">{showArchived?'Les formulaires archivés apparaîtront ici.':'Crée ton premier questionnaire avec le bouton en haut.'}</p></div>:
+       <div className="divide-y divide-[#e5ece3]">{activeItems.map(item=>
+        <div key={item.id} className="flex items-center gap-2 py-1">
+         <button type="button" onClick={()=>void openForm(item.id)} className="flex min-h-20 min-w-0 flex-1 items-center gap-3 rounded-xl px-2 text-left hover:bg-[#f3f8f2] focus-visible:outline-2 focus-visible:outline-[#37784b] sm:px-4">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e9f2e7] text-[#3c7650]"><Files size={20}/></span>
+          <span className="min-w-0 flex-1">
+           <span className="block truncate text-base font-semibold text-[#284b36]">{item.title}</span>
+           <span className="mt-1 block text-xs text-[#607265]">{item.published?'Publié':'Brouillon'} · Modifié le {new Date(item.updatedAt).toLocaleDateString('fr-FR')}</span>
+          </span>
+         </button>
+         <FormItemMenu title={item.title} archived={showArchived} onDuplicate={()=>void duplicateForm(item.id)}
+          onArchive={()=>void performState(showArchived?'unarchive':'archive',item.id)}
+          onDelete={()=>void performState('delete',item.id)}/>
+        </div>)}</div>}
+    </section> : <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e3ebdf] bg-white px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3"><button title="Liste des formulaires" onClick={()=>{if(saveState!=='saved' && !window.confirm('Quitter sans confirmer l’enregistrement des dernières modifications ?'))return;setDetail(null);draftRef.current=null;}} className="rounded-lg p-1 text-[#6e8873] hover:bg-[#edf4ed]"><ArrowLeft size={19}/></button><div><h2 className="max-w-[330px] truncate font-bold">{detail.title}</h2><span className="text-xs text-[#8c9b8d]">{published?'Version publiée + brouillon':'Brouillon'} · {countQuestions(pages)} question(s)</span></div></div>
-        <div className="flex flex-wrap items-center gap-2">{published&&<><a className={light} target="_blank" rel="noopener noreferrer" href={`/f/${encodeURIComponent(detail.slug)}`}><Eye size={16}/> Voir le lien public</a><button className={light} onClick={()=>{void (async()=>{try{await navigator.clipboard.writeText(`${window.location.origin}/f/${encodeURIComponent(detail.slug)}`);}catch{setError("Copie impossible. Utilise le lien public.");}})();}}><Copy size={15}/> Copier le lien</button></>}<button className={light} onClick={()=>{setActiveTab('questions');setPreview(v=>!v);}}><Eye size={16}/>{preview?'Éditer':'Aperçu'}</button><button className={cta} disabled={!editable||operation||saveState==='saving'||saveState==='error'} onClick={()=>void publishForm()}><Send size={15}/> Publier</button></div>
+        <div className="flex min-w-0 items-center gap-3"><button title="Liste des formulaires" onClick={()=>void (async()=>{if(saveState!=='saved' && !(await askDialog({kind:'confirm',title:'Quitter l’éditeur ?',description:'Les modifications récentes ne sont pas encore confirmées comme enregistrées.',confirmLabel:'Quitter'})))return;setDetail(null);draftRef.current=null;})()} className="rounded-lg p-1 text-[#6e8873] hover:bg-[#edf4ed]"><ArrowLeft size={19}/></button><div><h1 className="max-w-[330px] truncate font-bold text-[#294936]">{detail.title}</h1><span className="text-xs text-[#607265]">{published?'Version publiée + brouillon':'Brouillon'} · {countQuestions(pages)} question(s)</span></div></div>
+        <div className="flex flex-wrap items-center gap-2">{detail&&<span role="status" aria-live="polite" className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium ${saveState==='error'?'bg-red-50 text-red-700':'bg-[#eaf2e7] text-[#5d8668]'}`}>
+         {saveState==='saving'?<LoaderCircle size={14} className="animate-spin"/>:saveState==='error'?<CircleAlert size={14}/>:saveState==='pending'?<Clock3 size={14}/>:<CheckCircle2 size={14}/>}
+         {{saved:'Enregistré',saving:'Enregistrement…',pending:'Non enregistré',error:'Sauvegarde échouée'}[saveState]}
+       </span>}{published&&<><a className={light} target="_blank" rel="noopener noreferrer" href={`/f/${encodeURIComponent(detail.slug)}`}><Eye size={16}/> Voir le lien public</a><button className={light} onClick={()=>{void (async()=>{try{await navigator.clipboard.writeText(`${window.location.origin}/f/${encodeURIComponent(detail.slug)}`);}catch{setError("Copie impossible. Utilise le lien public.");}})();}}><Copy size={15}/> Copier le lien</button></>}<button className={light} onClick={()=>{setActiveTab('questions');setPreview(v=>!v);}}><Eye size={16}/>{preview?'Éditer':'Aperçu'}</button><button className={cta} disabled={!editable||operation||saveState==='saving'||saveState==='error'} onClick={()=>void publishForm()}><Send size={15}/> Publier</button></div>
       </div>
       <nav aria-label="Sections du formulaire" className="mb-5 flex gap-2 border-b border-[#dfe8dc] pb-2">
         {(['questions','results','integrations','settings'] as const).map(tab=><button key={tab} type="button"
@@ -211,7 +220,7 @@ export function StudioPage(){
               </div>
               <input aria-label="Titre de la page" className="mt-3 w-full bg-transparent text-3xl font-extrabold tracking-tight text-[#314a37] outline-none placeholder:text-[#aabbac]" placeholder="Titre de la page" value={page.title} disabled={!editable} onChange={e=>updatePage({...page,title:e.target.value})}/>
               <textarea aria-label="Description de la page" className="mt-3 w-full resize-y bg-transparent text-sm text-[#899b8d] outline-none placeholder:text-[#b2bdb2]" rows={2} placeholder="Une courte introduction (facultative)…" value={page.description??''} disabled={!editable} onChange={e=>updatePage({...page,description:e.target.value||null})}/>
-              {pages.length>1&&<button disabled={!editable} className="text-xs font-semibold text-[#ba7c75]" onClick={deletePage}>Supprimer cette page</button>}
+              {pages.length>1&&<button disabled={!editable} className="text-xs font-semibold text-[#ba7c75]" onClick={()=>void deletePage()}>Supprimer cette page</button>}
             </div>
             {page.questions.map((q,i)=><QuestionCard key={q.id} index={i} question={q} selected={questionId===q.id}
  onSelect={()=>{setQuestionId(q.id);setSideMode('settings');cursorRef.current={questionId:q.id};}}
@@ -219,7 +228,7 @@ export function StudioPage(){
  onInsert={(type,offset,text)=>addQuestion(type,{questionId:q.id,offset,text})}
  onUpdate={updateQuestion} onMove={d=>moveQuestion(i,i+d)} onDrop={from=>moveQuestion(from,i)}
  onDuplicate={()=>{const next=duplicateQuestion(q);const questions=[...page.questions];questions.splice(i+1,0,next);updatePage({...page,questions});setQuestionId(next.id);}}
- onDelete={()=>deleteQuestion(q.id)} readOnly={!editable}/>)}
+ onDelete={()=>void deleteQuestion(q.id)} onOpenSettings={()=>{setQuestionId(q.id);setSideMode('settings');setSidebarOpen(true);}} readOnly={!editable}/>)}
             {page.questions.length===0&&<div className="rounded-[22px] border border-dashed border-[#d8e5d8] bg-white px-6 py-12 text-center"><FilePlus2 className="mx-auto text-[#9fbd9f]" size={30}/><p className="mt-4 font-semibold text-[#53715a]">Tout commence par une question.</p><p className="mt-2 text-sm text-[#9dab9e]">Écris comme dans un document, puis utilise / pour insérer une question.</p><button type="button" onClick={()=>addQuestion('statement')} className="mt-4 rounded-xl bg-[#e9f3e8] px-4 py-2 text-sm font-semibold text-[#35764b]">Commencer à écrire</button></div>}
             {editable&&<button type="button" className="mt-6 flex w-full items-center gap-2 rounded-lg px-2 py-3 text-left text-sm text-[#8ca992] hover:bg-[#f5faf5]"
               onClick={()=>addQuestion('statement',null)}><Plus size={18}/> Écrire un paragraphe… <span className="ml-auto text-xs">Tape / pour les questions</span></button>}
@@ -228,5 +237,6 @@ export function StudioPage(){
       </div>}
     </>}
   </div>
+   {dialog&&<StudioDialog intent={dialog} onResolve={resolveDialog}/>}
  </main>;
 }
