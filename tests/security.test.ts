@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { canEdit, canRead, resolveAccess } from '../src/server/forms';
 import { requireUser, UnauthorizedError } from '../src/server/auth';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 describe('autorisations applicatives',()=>{
  it('refuse la consultation et écriture sans identité',()=>{
@@ -19,7 +20,7 @@ describe('autorisations applicatives',()=>{
 });
 
 describe('contraintes de persistance',()=>{
- const migration=readFileSync(new URL('../drizzle/0000_initial.sql',import.meta.url),'utf8');
+ const migration=readFileSync(resolve(process.cwd(),'drizzle/0000_initial.sql'),'utf8');
  it('refuse les changements des versions publiées',()=>{
    expect(migration).toContain('A published version is immutable');
    expect(migration).toContain('Published questionnaire structure is immutable');

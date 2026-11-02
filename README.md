@@ -156,3 +156,17 @@ L’éditeur permet de créer et organiser des pages/questions, de modifier titr
 L’API REST privée s’étend à `PUT /api/forms/:id/draft`, `POST /api/forms/:id/publish`, `POST /api/forms/:id/state` et `POST /api/forms/:id/duplicate`. Ces routes réutilisent l’authentification JWT Neon Auth existante. Le serveur MCP de l’étape 3 conserve ses trois outils initiaux.
 
 La suppression est **logique**, elle ne détruit pas les versions publiées ou réponses existantes. Les règles conditionnelles seront développées après l'éditeur de base ; une version qui en contient ne peut pas être publiée avec la fonction de copie actuelle tant que la copie des règles n’est pas implémentée.
+
+
+## Étape 5 : parcours répondant public (v0.5.0)
+
+- URL permanente après publication : `https://formulaire-de-singe.netlify.app/f/<slug>`. Aucun compte participant n'est demandé.
+- `GET /api/public/forms/:slug` renvoie **seulement la dernière version publiée** (titre, pages, questions et options publiques). Les brouillons et formulaires archivés/supprimés ne sont pas accessibles.
+- `POST /api/public/forms/:slug/submissions` reçoit `{versionId, clientNonce, consent, website, answers:[{questionId,value}]}`. La version fournie est celle affichée lors de l'ouverture, même si une nouvelle version est publiée entre-temps.
+- La migration versionnée `drizzle/0002_public.sql` ajoute un condensat SHA-256 de la requête à `fs_submissions` et la fonction `fs_submit_public` : validations des valeurs/options requises, insertion atomique dans Neon et idempotence par `clientNonce`. Le même envoi renvoie le même ID ; le réemploi d'une clé pour des données différentes est refusé.
+- Le formulaire conserve les saisies pendant la navigation entre les pages. Il vérifie les valeurs, les choix multiples, les dates et les champs obligatoires. L'utilisateur peut refuser un consentement requis **sans envoyer de données**.
+- L'enregistrement vocal n'est PAS activé à cette étape. Les questions audio sont clairement signalées comme indisponibles ; si elles sont obligatoires, la soumission est bloquée.
+- Protection contre les abus : rate limiting déclaré dans Netlify Functions, limite de taille des requêtes, validation stricte Zod + PostgreSQL, champ piège et absence de données personnelles demandées par défaut.
+- Tests : `tests/public-api.test.ts`, `src/pages/PublicFormPage.test.tsx`. Le test SQL de création, envoi, répétition et consentement a été exécuté sur Neon dans une transaction annulée volontairement.
+
+**Production** : une configuration manuelle des variables d'environnement reste nécessaire dans Netlify. Tant que l'intégration authentifiée à Neon n'est pas opérationnelle, le Studio et la collecte ne doivent pas être annoncés comme utilisables en production. Ne pas passer à l'étape 6 sans vérifier le déploiement et le build.
