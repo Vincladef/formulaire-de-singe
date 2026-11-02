@@ -4,7 +4,7 @@ import { syncGoogleSheets } from '../../src/server/sheetsService';
 // Runs every two minutes; stored deliveries survive outages and failed API calls.
 export default async ()=>{
  try{
-  const result=await syncGoogleSheets(15);
+  const result=await syncGoogleSheets(8);
   console.info('Sheets sync',result);
   return Response.json(result);
  }catch(error){
