@@ -13,7 +13,7 @@ function credentials(){
  return {id,secret,key:bytes};
 }
 export function sheetsConfigured(){
- try{credentials();return Boolean(process.env.GOOGLE_SHEETS_REDIRECT_URI&&process.env.GOOGLE_SHEETS_STATE_SECRET);}
+ try{credentials();return Boolean(process.env.GOOGLE_SHEETS_REDIRECT_URI&&process.env.GOOGLE_SHEETS_STATE_SECRET&&process.env.GOOGLE_SHEETS_STATE_SECRET.length>=32);}
  catch{return false;}
 }
 export function encryptRefreshToken(plain:string){
