@@ -12,7 +12,7 @@ const cta='inline-flex items-center justify-center gap-2 rounded-xl bg-[#2f6546]
 const light='inline-flex items-center justify-center gap-2 rounded-xl border border-[#e0e8df] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#51735b] transition hover:bg-[#f0f5ef] disabled:opacity-35';
 type ApiResponse<T>={ok:true;data:T}|{ok:false;error:{code:string;message:string}};
 async function request<T>(path:string,method='GET',body?:unknown):Promise<T>{
- const token=await getAccessToken();if(!token)throw new Error('Session expirée. Reconnecte-toi pour continuer.');
+ const token=await getAccessToken();if(!token)throw new Error('Impossible de récupérer le jeton de connexion. Utilise « Se déconnecter » en haut de page, puis reconnecte-toi.');
  const response=await fetch(path,{method,headers:{Authorization:`Bearer ${token}`,...(body!==undefined?{'Content-Type':'application/json'}:{})},
     ...(body!==undefined?{body:JSON.stringify(body)}:{})});
  const payload=await response.json() as ApiResponse<T>;
