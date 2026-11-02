@@ -171,7 +171,9 @@ async function syncOne(item:Delivery){
  WHERE a.submission_id=${item.submission_id}::uuid ORDER BY q.position`);
  const cells=new Map<string,string>();
  for(const answer of answers.rows){
-  const key=String(answer.label)+' ['+String(answer.id).slice(0,8)+']';
+  const identity='['+String(answer.id)+']';
+  // Keep the same column when a published question is renamed later.
+  const key=headers.find(h=>h.endsWith(identity))??String(answer.label)+' '+identity;
   cells.set(key,valueToText(answer.value,Boolean(answer.has_audio)));
   if(!headers.includes(key))headers.push(key);
  }
