@@ -1,28 +1,57 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { audioLimits, audioMode } from '../../shared/audio';
 import { ArrowDown,ArrowUp,Copy,GripVertical,Trash2,Check,Mic } from 'lucide-react';
 import { questionTypeNames, type StudioQuestion } from '../../shared/studio';
 
-type Props={question:StudioQuestion;index:number;selected:boolean;onSelect:()=>void;onMove:(delta:number)=>void;onDuplicate:()=>void;onDelete:()=>void;onDrop:(from:number)=>void;readOnly?:boolean};
-export function QuestionCard({question,index,selected,onSelect,onMove,onDuplicate,onDelete,onDrop,readOnly=false}:Props){
+type Props={question:StudioQuestion;index:number;selected:boolean;onSelect:()=>void;onUpdate?:(question:StudioQuestion)=>void;onMove:(delta:number)=>void;onDuplicate:()=>void;onDelete:()=>void;onDrop:(from:number)=>void;readOnly?:boolean};
+export function QuestionCard({question,index,selected,onSelect,onUpdate,onMove,onDuplicate,onDelete,onDrop,readOnly=false}:Props){
   const [dragOver,setDragOver]=useState(false);
+  const [localTitle,setLocalTitle]=useState(question.label);
+  const [localDescription,setLocalDescription]=useState(question.description??'');
+  const [choiceLabels,setChoiceLabels]=useState<Record<string,string>>({});
+  useEffect(()=>setLocalTitle(question.label),[question.label]);
+  useEffect(()=>setLocalDescription(question.description??''),[question.description]);
+  function commitTitle(){const next=localTitle.trim();if(next&&next!==question.label)onUpdate?.({...question,label:next});else setLocalTitle(question.label);}
+  function commitDescription(){const next=localDescription.trim()||null;if(next!==question.description)onUpdate?.({...question,description:next});}
+  function commitOption(id:string){
+    const option=question.options.find(o=>o.id===id);
+    if(option){const next=(choiceLabels[id]??option.label).trim();if(next&&next!==option.label)
+      onUpdate?.({...question,options:question.options.map(o=>o.id===id?{...o,label:next}:o)});}
+    setChoiceLabels(labels=>{const next={...labels};delete next[id];return next;});
+  }
   const choice=['single_choice','multiple_choice','select'].includes(question.type);
-  return <article data-testid={`question-${question.id}`} draggable={!readOnly} onDragStart={e=>{e.dataTransfer.setData('text/plain',String(index));e.dataTransfer.effectAllowed='move';}}
+  return <article data-testid={`question-${question.id}`}
      onDragOver={e=>{if(!readOnly){e.preventDefault();setDragOver(true);}}} onDragLeave={()=>setDragOver(false)}
      onDrop={e=>{e.preventDefault();setDragOver(false);const from=Number(e.dataTransfer.getData('text/plain'));if(Number.isInteger(from)&&from!==index)onDrop(from);}}
      className={`group rounded-[22px] border bg-white p-5 shadow-[0_7px_25px_rgba(25,57,37,.025)] transition ${dragOver?'border-[#4e9571] ring-2 ring-[#a6c9af]':selected?'border-[#6c9e7b] ring-2 ring-[#d7e9dc]':'border-[#e7eae3] hover:border-[#d2dfd1]'}`}>
     <div className="flex items-start gap-3">
-      {!readOnly&&<span title="Déplacer la question en la faisant glisser" className="mt-1 cursor-grab text-[#9daa9e]" aria-hidden="true"><GripVertical size={18}/></span>}
-      <button type="button" onClick={onSelect} className="min-w-0 flex-1 text-left" aria-label={`Modifier : ${question.label}`}>
+      {!readOnly&&<span title="Déplacer la question" draggable className="mt-1 cursor-grab text-[#9daa9e] active:cursor-grabbing" aria-hidden="true" onDragStart={e=>{e.dataTransfer.setData('text/plain',String(index));e.dataTransfer.effectAllowed='move';}}><GripVertical size={18}/></span>}
+      <div className="min-w-0 flex-1">
         <p className="mb-2 text-[11px] font-bold uppercase tracking-[.14em] text-[#7e9b83]">{String(index+1).padStart(2,'0')} · {questionTypeNames[question.type]}</p>
-        <h3 className="text-lg font-semibold leading-snug tracking-tight text-[#2f4335]">{question.label}{question.required&&<span className="ml-1 text-[#cb7d60]">*</span>}</h3>
-        {question.description&&<p className="mt-2 text-sm leading-6 text-[#8c9d8d]">{question.description}</p>}
-      </button>
+        {readOnly?<h3 className="text-lg font-semibold leading-snug text-[#2f4335]">{question.label}</h3>:
+        <textarea aria-label={`Intitulé de la question ${index+1}`} rows={Math.max(1,Math.min(5,Math.ceil(localTitle.length/55)))}
+          maxLength={600} placeholder="Écrivez votre question…" value={localTitle}
+          className="block w-full resize-y rounded-lg border border-transparent bg-transparent p-1 text-lg font-semibold leading-snug tracking-tight text-[#2f4335] outline-none hover:border-[#dce9dc] focus:border-[#90b59a] focus:ring-2 focus:ring-[#e0efdf]"
+          onFocus={onSelect} onChange={e=>setLocalTitle(e.target.value)} onBlur={commitTitle}
+          onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();e.currentTarget.blur();}}}/>}
+        {readOnly?question.description&&<p className="mt-2 text-sm leading-6 text-[#8c9d8d]">{question.description}</p>:
+        <textarea aria-label={`Description de la question ${index+1}`} rows={localDescription?2:1} maxLength={3000}
+          value={localDescription} placeholder="Ajouter une description (facultatif)…"
+          className="mt-1 block w-full resize-y rounded-lg border border-transparent bg-transparent p-1 text-sm leading-6 text-[#788d7b] outline-none hover:border-[#dce9dc] focus:border-[#90b59a] focus:ring-2 focus:ring-[#e0efdf] placeholder:text-[#a9b8aa]"
+          onFocus={onSelect} onChange={e=>setLocalDescription(e.target.value)} onBlur={commitDescription}/>}
+      </div>
     </div>
     <div className="ml-0 mt-5 sm:ml-7">
       {(question.type==='short_text'||question.type==='number'||question.type==='date')&&<div className="rounded-xl border border-dashed border-[#e0e7df] bg-[#fafbf9] px-4 py-3 text-sm text-[#a3afa6]">{question.type==='number'?'0':question.type==='date'?'JJ / MM / AAAA':'Votre réponse...'}</div>}
       {question.type==='long_text'&&<div className="min-h-20 rounded-xl border border-dashed border-[#e0e7df] bg-[#fafbf9] px-4 py-3 text-sm text-[#a3afa6]">Rédigez votre réponse…</div>}
-      {choice&&<div className="space-y-2">{question.options.map(o=><div key={o.id} className="flex items-center gap-3 text-sm text-[#687b6d]"><span className={`flex h-[18px] w-[18px] items-center justify-center border border-[#bfcfc2] ${question.type==='multiple_choice'?'rounded-[5px]':'rounded-full'}`}/>{o.label}</div>)}</div>}
-      {question.type==='audio'&&<div className="flex items-center gap-3 rounded-2xl bg-[#edf5ef] p-4 text-sm font-semibold text-[#47745a]"><Mic size={19}/> Le répondant pourra enregistrer sa voix <span className="ml-auto text-[11px] font-normal">Étape 6</span></div>}
+      {choice&&<div className="space-y-2">{question.options.map((o,i)=><div key={o.id} className="flex items-center gap-3 text-sm text-[#687b6d]">
+       <span aria-hidden="true" className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center border border-[#bfcfc2] ${question.type==='multiple_choice'?'rounded-[5px]':'rounded-full'}`}/>
+       {readOnly?<span>{o.label}</span>:<input aria-label={`Choix ${i+1} de la question ${index+1}`}
+        className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm text-[#526b57] outline-none hover:border-[#dce9dc] focus:border-[#90b59a] focus:ring-2 focus:ring-[#e0efdf]"
+        maxLength={180} value={choiceLabels[o.id]??o.label} onFocus={onSelect}
+        onChange={e=>setChoiceLabels(v=>({...v,[o.id]:e.target.value}))} onBlur={()=>commitOption(o.id)}/>}
+      </div>)}</div>}
+      {audioMode(question.type,question.settings)!=='text'&&<div className="flex items-center gap-3 rounded-2xl bg-[#edf5ef] p-4 text-sm font-semibold text-[#47745a]"><Mic size={19}/> Réponse vocale possible <span className="ml-auto text-[11px] font-normal">{Math.round(audioLimits(question.settings).maxSeconds/60)} min max.</span></div>}
       {question.type==='statement'&&<div className="text-sm italic text-[#9baa9c]">Bloc d'information, sans réponse attendue</div>}
     </div>
     {!readOnly&&<div className="mt-5 flex flex-wrap items-center justify-end gap-1 border-t border-[#f0f2ed] pt-3 text-[#839487]">

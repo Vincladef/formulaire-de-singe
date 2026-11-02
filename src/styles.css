@@ -11,3 +11,10 @@ body { margin: 0; min-width: 320px; }
 button, a, input { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid #327957; outline-offset: 3px; }
 ::selection { background: #cfe3cb; color: #1e4b34; }
+
+/* Affordances cohérentes pour les actions sur ordinateur. */
+button:not(:disabled), a[href], select:not(:disabled), summary, [role="button"]:not([aria-disabled="true"]) { cursor: pointer; }
+button:disabled, select:disabled { cursor: not-allowed; }
+input[type="checkbox"]:not(:disabled), input[type="radio"]:not(:disabled), input[type="file"]:not(:disabled) { cursor: pointer; }
+input[type="text"]:not(:disabled), input[type="number"]:not(:disabled), input[type="date"]:not(:disabled), textarea:not(:disabled) { cursor: text; }
+textarea:focus-visible, select:focus-visible { outline: 2px solid #327957; outline-offset: 3px; }
