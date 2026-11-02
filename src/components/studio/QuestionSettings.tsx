@@ -8,7 +8,7 @@ export function QuestionSettings({question,onUpdate}:Props){
   const mode=audioMode(question.type,question.settings);
   const limits=audioLimits(question.settings);
   return <section aria-label="Paramètres de la question" className="space-y-5">
-    <div><p className="text-xs font-semibold uppercase tracking-[.12em] text-[#8da18f]">Personnalisation</p><h3 className="mt-1 text-lg font-bold text-[#284634]">Options de la question</h3><p className="mt-1 text-xs leading-5 text-[#829586]">Modifie le texte et les choix directement dans la carte.</p></div>
+    <div><p className="text-xs font-semibold uppercase tracking-[.12em] text-[#8da18f]">Personnalisation</p><h3 className="mt-1 text-lg font-bold text-[#284634]">Options de la question</h3><p className="mt-1 text-xs leading-5 text-[#829586]">Modifie le texte et les choix directement dans le document.</p></div>
     <label className="block space-y-2 text-xs font-semibold text-[#607666]">Type de réponse
       <select className={input} value={question.type} onChange={e=>{
         const type=e.target.value as QuestionType;

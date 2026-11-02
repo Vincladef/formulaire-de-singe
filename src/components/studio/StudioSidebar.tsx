@@ -29,11 +29,11 @@ export function StudioSidebar({mode,onModeChange,open,onToggle,pages,pageIndex,o
    </nav>
    {open&&<div className="mt-4 border-t border-[#edf1eb] pt-4">
    {mode==='add'&&<div className="space-y-2">
-     <h3 className="px-1 text-sm font-bold text-[#33583f]">Ajouter une question</h3>
+     <h3 className="px-1 text-sm font-bold text-[#33583f]">Insérer dans le document</h3><p className="px-1 text-xs leading-5 text-[#8da28f]">À la position du curseur.</p>
      <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
       {questionTypes.map(type=><button type="button" key={type} disabled={!editable}
        onClick={()=>onAddQuestion(type)} className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-[#4b7957] hover:bg-[#edf7ea] disabled:opacity-35">
-       <Plus size={15}/>{questionTypeNames[type]}</button>)}
+       <Plus size={15}/>{type==='statement'?'Paragraphe':questionTypeNames[type]}</button>)}
      </div>
    </div>}
    {mode==='settings'&&<div>

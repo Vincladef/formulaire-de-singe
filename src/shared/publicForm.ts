@@ -16,7 +16,7 @@ export const publicSubmitSchema = z.object({
 export type PublicSubmissionInput = z.infer<typeof publicSubmitSchema>;
 export type PublicAnswer = z.infer<typeof publicAnswerSchema>;
 export type PublicQuestion = {
-  id: string; type: QuestionType; label: string; description: string | null; required: boolean;
+  id: string; type: QuestionType; label: string; description: string | null; required: boolean; settings?:Record<string,unknown>;
   options: Array<{value:string;label:string}>; mode?:AnswerMode; maxAudioSeconds?:number; maxAudioBytes?:number;
 };
 export type PublicPage = { id: string; title:string; description:string|null; questions:PublicQuestion[] };
