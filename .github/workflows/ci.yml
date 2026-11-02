@@ -1,0 +1,21 @@
+name: Vérifications
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # During bootstrap a lockfile may be absent; switch to npm ci after first lockfile is committed.
+      - run: npm install --no-audit --no-fund
+      - run: npm run smoke
+      - run: node scripts/check-schema.mjs
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
