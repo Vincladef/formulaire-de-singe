@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Archive, ArrowLeft, CheckCircle2, ChevronRight, CircleAlert, Copy, Eye, FilePlus2, Files, LoaderCircle, Plus, Save, Send, Trash2, X } from 'lucide-react';
 import { getAccessToken } from '../authClient';
 import type { FormDetail, FormSummary } from '../shared/formApi';
-import { draftPayloadSchema, duplicateQuestion, makePage, makeQuestion, moveQuestionAt, type QuestionType, type StudioPageData, type StudioQuestion } from '../shared/studio';
+import { draftPayloadSchema, duplicateQuestion, makePage, moveQuestionAt, type QuestionType, type StudioPageData, type StudioQuestion } from '../shared/studio';
+import { insertAtAnchor, type EditorAnchor } from '../shared/documentEditor';
 import { QuestionCard } from '../components/studio/QuestionCard';
 import { StudioSidebar, type SidebarMode } from '../components/studio/StudioSidebar';
 import { ResultsPanel } from '../components/studio/ResultsPanel';
@@ -37,6 +38,7 @@ export function StudioPage(){
  const [operation,setOperation]=useState(false);
  const [showArchived,setShowArchived]=useState(false);
  const revisionRef=useRef(0);const draftRef=useRef<string|null>(null);
+ const cursorRef=useRef<EditorAnchor|null>(null);
  const savedRef=useRef('');const latestRef=useRef<StudioPageData[]>([]);const savingRef=useRef(false);
  const page=pages[pageIndex];const selected=page?.questions.find(q=>q.id===questionId)??null;
  const published=detail?.versions.some(v=>v.status==='published')??false;
@@ -56,7 +58,7 @@ export function StudioPage(){
      draftRef.current=draft?.id??null;revisionRef.current=draft?.revision??0;
      const next:StudioPageData[]=draft?.pages.map(p=>({id:p.id,title:p.title,description:p.description,
        questions:p.questions.map(q=>({id:q.id,type:q.type as QuestionType,label:q.label,description:q.description,required:q.required,settings:q.settings,options:q.options.map(o=>({id:o.id,value:o.value,label:o.label}))}))})) ?? [];
-     savedRef.current=JSON.stringify(next);setPages(next.length?next:[makePage()]);setPageIndex(0);setQuestionId(null);setPreview(false);setActiveTab('questions');setSideMode('add');setSaveState('saved');
+     savedRef.current=JSON.stringify(next);setPages(next.length?next:[makePage()]);setPageIndex(0);setQuestionId(null);cursorRef.current=null;setPreview(false);setActiveTab('questions');setSideMode('add');setSaveState('saved');
    }catch(e){setError(e instanceof Error?e.message:'Chargement impossible');}finally{setOperation(false);}
  }
  async function createForm(){
@@ -119,8 +121,20 @@ export function StudioPage(){
   }catch(e){setError(e instanceof Error?e.message:'Publication impossible');}finally{setOperation(false);}
  }
  function updatePage(next:StudioPageData){setSaveState('pending');setPages(p=>p.map((it,i)=>i===pageIndex?next:it));}
- function updateQuestion(question:StudioQuestion){if(!page)return;updatePage({...page,questions:page.questions.map(q=>q.id===question.id?question:q)});}
- function addQuestion(type:QuestionType){if(!page)return;const next=makeQuestion(type);updatePage({...page,questions:[...page.questions,next]});setQuestionId(next.id);setSideMode('settings');}
+ function updateQuestion(question:StudioQuestion){
+  setSaveState('pending');
+  setPages(prev=>prev.map((p,i)=>i===pageIndex?{...p,questions:p.questions.map(q=>q.id===question.id?question:q)}:p));
+ }
+ function addQuestion(type:QuestionType, at?:EditorAnchor|null){
+  if(!page)return;
+  const anchor=at===undefined?cursorRef.current:at;
+  const id=insertAtAnchor(page.questions,type,anchor).insertedId;
+  setSaveState('pending');
+  setPages(prev=>prev.map((p,i)=>i===pageIndex?{...p,questions:insertAtAnchor(p.questions,type,anchor).questions}:p));
+  // Keep the editing position after choosing a type in the menu or sidebar.
+  cursorRef.current={questionId:id};setQuestionId(id);setSideMode('settings');
+  requestAnimationFrame(()=>document.querySelector<HTMLTextAreaElement>(`[data-question-id="${id}"] textarea`)?.focus());
+ }
  function moveQuestion(from:number,to:number){if(!page||to<0||to>=page.questions.length)return;
    updatePage({...page,questions:moveQuestionAt(page.questions,from,to)});}
  function deleteQuestion(id:string){if(!page||!window.confirm('Supprimer cette question du brouillon ?'))return;
@@ -177,22 +191,28 @@ export function StudioPage(){
        </section>:
        preview?<StudioPreview pages={pages} title={detail.title}/>:<div className={`grid items-start gap-4 ${sidebarOpen?'lg:grid-cols-[255px_minmax(0,1fr)]':'lg:grid-cols-[70px_minmax(0,1fr)]'}`}>
         <StudioSidebar mode={sideMode} onModeChange={mode=>{setSideMode(mode);setSidebarOpen(true);}} open={sidebarOpen} onToggle={()=>setSidebarOpen(v=>!v)} pages={pages} pageIndex={pageIndex}
-          onPageIndex={idx=>{setPageIndex(idx);setQuestionId(null);}}
+          onPageIndex={idx=>{setPageIndex(idx);setQuestionId(null);cursorRef.current=null;}}
           selected={selected} editable={editable} onQuestionUpdate={updateQuestion}
           onAddQuestion={addQuestion} onAddPage={addPage} onDeletePage={deletePage}/>
-        <section aria-label="Éditeur de page" className="min-w-0 space-y-4">
+        <section aria-label="Éditeur de page" className="min-w-0 rounded-[22px] border border-[#e4eae1] bg-white px-3 py-6 sm:px-10 sm:py-10">
           {page&&<>
-            <div className="rounded-[22px] border border-[#e4eae1] bg-white p-5 sm:p-7"><div className="flex items-center justify-between gap-2"><p className="text-[11px] font-bold uppercase tracking-[.16em] text-[#83a18b]">PAGE {pageIndex+1}</p>
+            <div className="mb-7 border-b border-[#eff2ee] pb-5"><div className="flex items-center justify-between gap-2"><p className="text-[11px] font-bold uppercase tracking-[.16em] text-[#83a18b]">PAGE {pageIndex+1}</p>
                 {pages.length===1&&editable&&<button type="button" onClick={addPage} className="inline-flex items-center gap-1 rounded-lg border border-[#d7e6d7] px-3 py-2 text-xs font-semibold text-[#417353] hover:bg-[#edf5ec]"><Plus size={14}/> Ajouter une page</button>}
               </div>
-              <input aria-label="Titre de la page" className="mt-3 w-full bg-transparent text-2xl font-extrabold tracking-tight text-[#314a37] outline-none placeholder:text-[#aabbac]" placeholder="Titre de la page" value={page.title} disabled={!editable} onChange={e=>updatePage({...page,title:e.target.value})}/>
+              <input aria-label="Titre de la page" className="mt-3 w-full bg-transparent text-3xl font-extrabold tracking-tight text-[#314a37] outline-none placeholder:text-[#aabbac]" placeholder="Titre de la page" value={page.title} disabled={!editable} onChange={e=>updatePage({...page,title:e.target.value})}/>
               <textarea aria-label="Description de la page" className="mt-3 w-full resize-y bg-transparent text-sm text-[#899b8d] outline-none placeholder:text-[#b2bdb2]" rows={2} placeholder="Une courte introduction (facultative)…" value={page.description??''} disabled={!editable} onChange={e=>updatePage({...page,description:e.target.value||null})}/>
               {pages.length>1&&<button disabled={!editable} className="text-xs font-semibold text-[#ba7c75]" onClick={deletePage}>Supprimer cette page</button>}
             </div>
-            {page.questions.map((q,i)=><QuestionCard key={q.id} index={i} question={q} selected={questionId===q.id} onSelect={()=>{setQuestionId(q.id);setSideMode('settings');}} onUpdate={updateQuestion} onMove={d=>moveQuestion(i,i+d)} onDrop={from=>moveQuestion(from,i)} onDuplicate={()=>{const next=duplicateQuestion(q);const questions=[...page.questions];questions.splice(i+1,0,next);updatePage({...page,questions});setQuestionId(next.id);}} onDelete={()=>deleteQuestion(q.id)} readOnly={!editable}/>)}
-            {page.questions.length===0&&<div className="rounded-[22px] border border-dashed border-[#d8e5d8] bg-white px-6 py-12 text-center"><FilePlus2 className="mx-auto text-[#9fbd9f]" size={30}/><p className="mt-4 font-semibold text-[#53715a]">Tout commence par une question.</p><p className="mt-2 text-sm text-[#9dab9e]">Choisis un type ci-dessous pour composer ta page.</p></div>}
-            {editable&&<button type="button" className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#cbdcc9] bg-white px-4 py-3 text-sm font-semibold text-[#50865e] hover:bg-[#f0f8ef]"
-              onClick={()=>setSideMode('add')}><Plus size={18}/> Ajouter une question</button>}
+            {page.questions.map((q,i)=><QuestionCard key={q.id} index={i} question={q} selected={questionId===q.id}
+ onSelect={()=>{setQuestionId(q.id);setSideMode('settings');cursorRef.current={questionId:q.id};}}
+ onCursor={(offset,text)=>{cursorRef.current={questionId:q.id,offset,text};}}
+ onInsert={(type,offset,text)=>addQuestion(type,{questionId:q.id,offset,text})}
+ onUpdate={updateQuestion} onMove={d=>moveQuestion(i,i+d)} onDrop={from=>moveQuestion(from,i)}
+ onDuplicate={()=>{const next=duplicateQuestion(q);const questions=[...page.questions];questions.splice(i+1,0,next);updatePage({...page,questions});setQuestionId(next.id);}}
+ onDelete={()=>deleteQuestion(q.id)} readOnly={!editable}/>)}
+            {page.questions.length===0&&<div className="rounded-[22px] border border-dashed border-[#d8e5d8] bg-white px-6 py-12 text-center"><FilePlus2 className="mx-auto text-[#9fbd9f]" size={30}/><p className="mt-4 font-semibold text-[#53715a]">Tout commence par une question.</p><p className="mt-2 text-sm text-[#9dab9e]">Écris comme dans un document, puis utilise / pour insérer une question.</p><button type="button" onClick={()=>addQuestion('statement')} className="mt-4 rounded-xl bg-[#e9f3e8] px-4 py-2 text-sm font-semibold text-[#35764b]">Commencer à écrire</button></div>}
+            {editable&&<button type="button" className="mt-6 flex w-full items-center gap-2 rounded-lg px-2 py-3 text-left text-sm text-[#8ca992] hover:bg-[#f5faf5]"
+              onClick={()=>addQuestion('statement',null)}><Plus size={18}/> Écrire un paragraphe… <span className="ml-auto text-xs">Tape / pour les questions</span></button>}
           </>}
         </section>
       </div>}
