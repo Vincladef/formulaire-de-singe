@@ -128,9 +128,9 @@ export function StudioPage(){
  function addQuestion(type:QuestionType, at?:EditorAnchor|null){
   if(!page)return;
   const anchor=at===undefined?cursorRef.current:at;
-  const id=insertAtAnchor(page.questions,type,anchor).insertedId;
+  const id=crypto.randomUUID();
   setSaveState('pending');
-  setPages(prev=>prev.map((p,i)=>i===pageIndex?{...p,questions:insertAtAnchor(p.questions,type,anchor).questions}:p));
+  setPages(prev=>prev.map((p,i)=>i===pageIndex?{...p,questions:insertAtAnchor(p.questions,type,anchor,id).questions}:p));
   // Keep the editing position after choosing a type in the menu or sidebar.
   cursorRef.current={questionId:id};setQuestionId(id);setSideMode('settings');
   requestAnimationFrame(()=>document.querySelector<HTMLTextAreaElement>(`[data-question-id="${id}"] textarea`)?.focus());
