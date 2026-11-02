@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Circle, Headphones, Mic, MoveUpRight, Sparkles } from 'lucide-react';
+import { Check, Circle, Mic, MoveUpRight } from 'lucide-react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { cn } from './ui/utils';
@@ -11,14 +11,11 @@ export function DemoQuestion() {
   const [submitted, setSubmitted] = useState(false);
   return (
     <div className="relative mx-auto max-w-[470px]">
-      <div className="absolute -left-8 top-8 h-56 w-64 rounded-full bg-[#d8e6cf]/60 blur-[64px]" aria-hidden="true" />
-      <div className="absolute -right-12 bottom-8 h-64 w-64 rounded-full bg-[#ffeed4]/75 blur-[65px]" aria-hidden="true" />
       <Card className="relative overflow-hidden !rounded-[27px] p-7 sm:p-9 shadow-[0_28px_65px_-42px_#36594a]">
-        <div className="mb-7 flex items-center justify-between">
+        <div className="mb-5 flex items-center justify-between">
           <span className="inline-flex items-center gap-2 rounded-full bg-[#f1f5f0] px-3 py-1.5 text-xs font-semibold text-[#47725b]"><Circle size={8} fill="currentColor" /> APERÇU INTERACTIF</span>
-          <span className="text-xs font-semibold text-[#90a298]">01 / 03</span>
+          <span className="text-xs font-semibold text-[#596f60]">Démonstration</span>
         </div>
-        <div className="h-1 w-full rounded-full bg-[#edf1eb]"><div className="h-full w-1/3 rounded-full bg-[#6a9378]" /></div>
         {submitted ? (
           <section className="flex min-h-[300px] flex-col items-center justify-center gap-4 text-center" aria-live="polite">
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#e6f4e7] text-[#377d55]"><Check size={28} /></span>
@@ -30,7 +27,7 @@ export function DemoQuestion() {
           <>
             <p className="mt-8 text-[11px] font-bold uppercase tracking-[.17em] text-[#679077]">Habitudes & quotidien</p>
             <h2 className="font-display mt-3 mb-3 text-[25px] font-extrabold leading-[1.33] tracking-[-.045em] text-[#203d30]">Qu'est-ce qui compte le plus pendant vos courses ?</h2>
-            <p className="mb-6 text-[13px] leading-6 text-[#829087]">Choisissez la réponse qui vous correspond le mieux.</p>
+            <p className="mb-6 text-[13px] leading-6 text-[#617267]">Choisissez la réponse qui vous correspond le mieux.</p>
             <fieldset className="space-y-2.5">
               <legend className="sr-only">Votre priorité</legend>
               {choices.map((value) => (
@@ -44,18 +41,12 @@ export function DemoQuestion() {
               ))}
             </fieldset>
             <div className="mt-7 flex items-center justify-between gap-4 border-t border-[#eff2ed] pt-6">
-              <span className="inline-flex items-center gap-2 text-xs text-[#86988c]"><Mic size={15} /> Voix bientôt disponible</span>
+              <span className="inline-flex items-center gap-2 text-xs text-[#5d7363]"><Mic size={15} /> Réponses vocales disponibles dans le Studio</span>
               <Button onClick={() => setSubmitted(true)}>Valider <MoveUpRight size={17} /></Button>
             </div>
           </>
         )}
       </Card>
-      <div className="absolute -bottom-8 -left-6 hidden items-center gap-2 rounded-xl border border-[#dfebe0] bg-white px-4 py-3 text-xs font-semibold text-[#4f6c58] shadow-xl shadow-[#1d3520]/5 sm:flex">
-        <Headphones size={16} /> Pensé pour la voix
-      </div>
-      <div className="absolute -right-7 top-20 hidden rotate-6 items-center gap-2 rounded-xl border border-[#e8e7d8] bg-[#fffdf7] px-4 py-3 text-xs font-semibold text-[#957d3f] shadow-xl shadow-[#1d3520]/5 sm:flex">
-        <Sparkles size={15} /> Simple, vraiment
-      </div>
     </div>
   );
 }
