@@ -63,7 +63,7 @@ export function QuestionCard({question,index,selected,onSelect,onUpdate,onMove,o
     maxLength={prose?600:600} value={localTitle}
     placeholder={prose?'Écrivez votre texte…':'Écrivez votre question…'}
     className={`block w-full resize-none bg-transparent px-0 py-1 outline-none placeholder:text-[#b0c0b2] ${prose?(textStyle==='heading'?'text-2xl font-bold tracking-tight':textStyle==='quote'?'border-l-[3px] border-[#b4cab6] pl-3 text-base italic leading-7':'text-base font-normal leading-8'):'text-lg font-semibold leading-7 tracking-tight'} text-[#2c4535]`}
-    onFocus={()=>{onSelect();recordCaret();}} onClick={recordCaret} onKeyUp={recordCaret}
+    onFocus={e=>{onSelect();if(prose&&localTitle==='Votre texte ici…')e.currentTarget.select();recordCaret();}} onClick={recordCaret} onKeyUp={recordCaret}
     onChange={e=>{setLocalTitle(e.target.value);onCursor?.(prose?e.target.selectionStart:undefined,prose?e.target.value:undefined);}}
     onBlur={commitTitle}
     onKeyDown={e=>{if(prose&&e.key==='/'&&!e.ctrlKey&&!e.metaKey){e.preventDefault();recordCaret();setMenu(true);return;}
