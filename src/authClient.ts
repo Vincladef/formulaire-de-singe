@@ -13,16 +13,16 @@ function isJwt(value: unknown): value is string {
 
 /**
  * Get the short-lived JWT for our server-side API, never the opaque session cookie.
- * Neon Auth's React adapter exposes getJWTToken(); some SDK versions may miss
- * the token immediately after a Google callback, so retry at Neon Auth's own
+ * This installed Neon Auth SDK exposes token(); on some versions, its cache
+ * can miss the JWT after a Google callback. Retry using Neon Auth's official
  * managed GET /token endpoint with its HTTP-only session cookie.
  */
 export async function getAccessToken(): Promise<string | null> {
   if (!authClient || !authUrl) return null;
 
   try {
-    const jwt = await authClient.getJWTToken();
-    if (isJwt(jwt)) return jwt;
+    const result = await authClient.token();
+    if (isJwt(result.data?.token)) return result.data.token;
   } catch {
     // Fall back to the managed token endpoint instead of treating a valid
     // browser session as expired due to a transient SDK/cache failure.
