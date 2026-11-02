@@ -12,9 +12,8 @@ export function DemoQuestion() {
   return (
     <div className="relative mx-auto max-w-[470px]">
       <Card className="relative overflow-hidden !rounded-[27px] p-7 sm:p-9 shadow-[0_28px_65px_-42px_#36594a]">
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-5 flex items-center">
           <span className="inline-flex items-center gap-2 rounded-full bg-[#f1f5f0] px-3 py-1.5 text-xs font-semibold text-[#47725b]"><Circle size={8} fill="currentColor" /> APERÇU INTERACTIF</span>
-          <span className="text-xs font-semibold text-[#596f60]">Démonstration</span>
         </div>
         {submitted ? (
           <section className="flex min-h-[300px] flex-col items-center justify-center gap-4 text-center" aria-live="polite">
