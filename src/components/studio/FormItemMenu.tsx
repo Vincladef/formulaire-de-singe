@@ -1,9 +1,10 @@
 import { Archive, Copy, Ellipsis, Trash2, Undo2 } from 'lucide-react';
+import type { MouseEvent } from 'react';
 
 export function FormItemMenu({title,archived,onDuplicate,onArchive,onDelete}:{
  title:string;archived:boolean;onDuplicate:()=>void;onArchive:()=>void;onDelete:()=>void;
 }){
- const dismiss=(e:React.MouseEvent<HTMLButtonElement>,callback:()=>void)=>{
+ const dismiss=(e:MouseEvent<HTMLButtonElement>,callback:()=>void)=>{
   e.currentTarget.closest('details')?.removeAttribute('open');callback();
  };
  return <details className="group relative shrink-0" onKeyDown={e=>{if(e.key==='Escape'){e.currentTarget.removeAttribute('open');(e.currentTarget.querySelector('summary') as HTMLElement|null)?.focus();}}}>
