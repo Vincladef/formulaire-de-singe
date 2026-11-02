@@ -166,7 +166,7 @@ export function ResultsPanel({formId}:{formId:string}){
      </article>)}</div>}
     <div className="rounded-xl border border-[#e5eee3] bg-[#f8fbf7] p-4 text-sm text-[#6d8673]">
      <p className="font-semibold text-[#4a7656]">Google Sheets</p>
-     <p className="mt-1">La synchronisation automatique nécessitera une autorisation Google Sheets spécifique. Les exports CSV et XLSX peuvent déjà être importés dans Google Sheets.</p>
+     <p className="mt-1">Pour synchroniser automatiquement les prochaines réponses et les précédentes, ouvre l’onglet « Intégrations » du formulaire. Tu peux également exporter ces données en CSV ou XLSX.</p>
     </div>
    </>}
  </section>;
