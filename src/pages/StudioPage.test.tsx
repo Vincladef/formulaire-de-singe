@@ -8,6 +8,6 @@ describe('Studio',()=>{
     render(<MemoryRouter><StudioPage/></MemoryRouter>);
     expect(screen.getByRole('heading',{name:/Le Studio/i})).toBeInTheDocument();
     expect(screen.getByRole('button',{name:/Nouveau formulaire/i})).toBeInTheDocument();
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Session expirée/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Impossible de récupérer le jeton de connexion/);
   });
 });
