@@ -111,4 +111,5 @@ export function QuestionCard({question,index,selected,onSelect,onUpdate,onMove,o
     </div>
    </details>
   </div>}
-
+ </article>;
+}
