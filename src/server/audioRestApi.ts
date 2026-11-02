@@ -1,6 +1,7 @@
 import { ZodError } from 'zod';
 import { requireUser,UnauthorizedError } from './auth';
 import { AudioFault,NeonAudioService, type AudioService } from './audioService';
+import { audioPrepareSchema, audioCompleteSchema } from '../shared/audio';
 
 const json=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 export function createAudioRestHandler(service:AudioService=new NeonAudioService(),auth:typeof requireUser=requireUser){
@@ -14,7 +15,9 @@ export function createAudioRestHandler(service:AudioService=new NeonAudioService
     if(Number(req.headers.get('content-length')||0)>4096)return json({ok:false,error:{code:'INVALID_INPUT',message:'Requête trop longue.'}},413);
     const raw=await req.text();if(raw.length>4096)return json({ok:false,error:{code:'INVALID_INPUT',message:'Requête trop longue.'}},413);
     const payload=JSON.parse(raw);
-    const result=publicMatch[2]==='prepare'?await service.prepare(publicMatch[1],payload):await service.complete(publicMatch[1],payload);
+    const isPrepare=publicMatch[2]==='prepare';
+    const validated=isPrepare?audioPrepareSchema.parse(payload):audioCompleteSchema.parse(payload);
+    const result=isPrepare?await service.prepare(publicMatch[1],validated):await service.complete(publicMatch[1],validated);
     return json({ok:true,data:result},publicMatch[2]==='prepare'?201:200);
    }
    if(adminMatch&&req.method==='GET'){
