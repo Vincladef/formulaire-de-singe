@@ -1,8 +1,9 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
-import { Bold, Heading2, Italic, Plus, Quote, Slash, Type } from 'lucide-react';
+import { Bold, Heading2, Highlighter, ImagePlus, Italic, Palette, Quote, Strikethrough, Type, Underline, Undo2, Redo2 } from 'lucide-react';
 import { audioMode } from '../../shared/audio';
 import { OTHER_VALUE } from '../../shared/publicForm';
-import { sanitizeDocumentHtml } from '../../shared/richText';
+import { allowedInlineImage, sanitizeDocumentHtml } from '../../shared/richText';
+import { clipboardImageToDataUrl } from '../../shared/clipboardImage';
 import { duplicateQuestion, makeQuestion, questionTypeNames, questionTypes, type QuestionType, type StudioPageData, type StudioQuestion } from '../../shared/studio';
 
 type Props = {
@@ -37,8 +38,7 @@ function makeLine(question?:StudioQuestion):HTMLElement {
   if(typeof saved==='string')line.innerHTML=sanitizeDocumentHtml(saved);
   else line.textContent=question.label;
  }
- line.dataset.placeholder=tag==='p'?'Écris ici…':'';
- line.dataset.empty=String(!line.textContent?.trim());
+ line.dataset.empty=String(!line.textContent?.trim()&&!line.querySelector('img'));
  return line;
 }
 function textField(kind:string,value:string,placeholder:string,classes:string):HTMLInputElement{
@@ -59,14 +59,21 @@ function questionNode(q:StudioQuestion,index:number):HTMLElement {
  const meta=el('div','mb-1 flex items-center justify-between gap-3');
  meta.appendChild(el('span','text-xs font-semibold text-[#617866]',String(index+1).padStart(2,'0')+' · '+questionTypeNames[q.type]));
  const actionBar=el('div','flex items-center gap-1 opacity-60 transition group-hover:opacity-100 group-focus-within:opacity-100');
- actionBar.append(action('Options','settings'),action('↑','move-up'),action('↓','move-down'),action('Dupliquer','duplicate'),action('Supprimer','delete'));
+ actionBar.append(action('Options','settings'),action('Dupliquer','duplicate'),action('Supprimer','delete'));
  meta.appendChild(actionBar);block.appendChild(meta);
  block.appendChild(textField('label',q.label==='Votre question'?'':q.label,'Écris ta question…','block h-auto min-h-10 w-full rounded-md border-0 bg-transparent p-1 text-lg font-semibold text-[#294b36] outline-none placeholder:text-[#738b78] focus:bg-[#f6faf5]'));
  block.appendChild(textField('description',q.description??'','Ajouter une indication (facultatif)','block min-h-9 w-full rounded-md border-0 bg-transparent p-1 text-sm text-[#617668] outline-none placeholder:text-[#819484] focus:bg-[#f6faf5]'));
  const answer=el('div','mt-1 px-1 pb-2 text-sm text-[#6e8373]');
  if(['short_text','long_text','number','date'].includes(q.type))answer.appendChild(el('p','border-b border-dashed border-[#b9cdbb] py-2',q.type==='number'?'0':q.type==='date'?'JJ / MM / AAAA':'Réponse du participant…'));
  if(q.type==='audio'||audioMode(q.type,q.settings)!=='text')answer.appendChild(el('p','py-2 text-[#427453]','🎙 Réponse vocale'));
- if(q.type==='select')answer.appendChild(el('p','rounded-md border border-[#d8e5d9] px-3 py-2','Choisir une option…'));
+ if(q.type==='select'){
+  const preview=el('select','min-h-10 w-full max-w-xs rounded-lg border border-[#d8e5d9] bg-[#f8faf7] px-3 text-sm text-[#45634b]') as HTMLSelectElement;
+  preview.disabled=true;preview.setAttribute('aria-label','Aperçu de la liste déroulante');
+  const empty=el('option','', 'Choisir une réponse…') as HTMLOptionElement;
+  empty.value='';preview.append(empty);
+  for(const item of q.options){const opt=el('option','',item.label) as HTMLOptionElement;opt.value=item.value;preview.append(opt);}
+  answer.appendChild(preview);
+ }
  if(['single_choice','multiple_choice','select'].includes(q.type)){
   for(const [i,opt] of q.options.entries()){
    const row=el('div','flex min-h-9 items-center gap-2');
@@ -162,7 +169,9 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
     const options=original.options.map(o=>({...o,label:optionFields.find(f=>f.dataset.optionId===o.id)?.value.trim()||o.label}));
     questions.push({...original,label,description,options});
    }else if(textTypes.includes(child.tagName)||child.dataset.lineId){
-    const label=(child.textContent??'').trim();
+    const text=(child.textContent??'').trim();
+    const hasImage=Array.from(child.querySelectorAll('img')).some(img=>allowedInlineImage(img.getAttribute('src')??''));
+    const label=text||(hasImage?'Image intégrée':'');
     child.dataset.empty=String(!label);
     if(!label)continue;
     const original=map.get(child.dataset.lineId??'');
@@ -283,14 +292,6 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
   if(existing)existing.replaceWith(questionNode(updated,pageRef.current.questions.filter(q=>q.type!=='statement').findIndex(q=>q.id===id)));
   emit();
  }
- function moveQuestion(id:string,delta:number){
-  const editor=root.current;if(!editor)return;
-  const nodes=Array.from(editor.children).filter((n):n is HTMLElement=>n instanceof HTMLElement&&!!n.dataset.questionId);
-  const index=nodes.findIndex(n=>n.dataset.questionId===id),node=nodes[index],other=nodes[index+delta];
-  if(!node||!other)return;
-  if(delta<0)other.before(node);else other.after(node);
-  emit();
- }
  function onClick(event:MouseEvent<HTMLDivElement>){
   const target=event.target;if(!(target instanceof Element))return;
   const block=closestQuestion(target),id=block?.dataset.questionId;
@@ -307,8 +308,6 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
    pageRef.current={...pageRef.current,questions:[...pageRef.current.questions,copy]};
    block?.after(questionNode(copy,0));ensureEnd();emit();
   }
-  if(command==='move-up')moveQuestion(id,-1);
-  if(command==='move-down')moveQuestion(id,1);
   if(command==='add-option'||command==='add-other'){
    updateQuestion(id,q=>{
     if(q.options.length>=100)return q;
@@ -332,7 +331,7 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
    settings:{...(previous?.settings??{}),textStyle:style}};
   const replacement=makeLine(question);
   replacement.innerHTML=sanitizeDocumentHtml(line.innerHTML);
-  replacement.dataset.empty=String(!replacement.textContent?.trim());
+  replacement.dataset.empty=String(!replacement.textContent?.trim()&&!replacement.querySelector('img'));
   line.replaceWith(replacement);setCaretAtStart(replacement);remember();emit();
  }
  function format(name:'bold'|'italic'){ 
