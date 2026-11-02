@@ -8,7 +8,7 @@ export const questionTypeNames: Record<QuestionType,string> = {
 };
 export const optionSchema = z.object({id:z.string().uuid(),value:z.string().trim().min(1).max(100),label:z.string().trim().min(1).max(180)}).strict();
 export const questionSchema = z.object({
-  id:z.string().uuid(),type:z.enum(questionTypes),label:z.string().trim().min(1).max(600),
+  id:z.string().uuid(),type:z.enum(questionTypes),label:z.string().trim().min(1).max(50000),
   description:z.string().max(3000).nullable(), required:z.boolean(),settings:z.record(z.string(),z.unknown()),
   options:z.array(optionSchema).max(100),
 }).strict().superRefine((q,ctx)=>{
@@ -16,6 +16,8 @@ export const questionSchema = z.object({
     ctx.addIssue({code:'custom',message:'Deux options au minimum',path:['options']});
   if (new Set(q.options.map(o=>o.value)).size !== q.options.length)
     ctx.addIssue({code:'custom',message:'Les valeurs des choix doivent être uniques',path:['options']});
+  if (q.type !== 'statement' && q.label.length > 600)
+    ctx.addIssue({code:'custom',message:'Une question ne peut pas dépasser 600 caractères',path:['label']});
   if (q.type === 'statement' && q.required)
     ctx.addIssue({code:'custom',message:'Un bloc explicatif ne peut pas être obligatoire',path:['required']});
 });
