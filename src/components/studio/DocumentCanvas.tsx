@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef, 
 import { Bold, Italic, Plus, Slash, Type } from 'lucide-react';
 import { audioMode } from '../../shared/audio';
 import { OTHER_VALUE } from '../../shared/publicForm';
+import { sanitizeDocumentHtml } from '../../shared/richText';
 import { duplicateQuestion, makeQuestion, questionTypeNames, questionTypes, type QuestionType, type StudioPageData, type StudioQuestion } from '../../shared/studio';
 
 type Props = {
@@ -18,36 +19,8 @@ export type DocumentCanvasHandle = {
 };
 
 const placeholderLine = 'Votre texte ici…';
-const maxText = 10000;
 const textTypes = ['P','DIV','H2','BLOCKQUOTE'];
 
-function escapeText(text: string): string {
- return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-/** Keep only document formatting. Never write arbitrary pasted HTML to public forms. */
-export function sanitizeDocumentHtml(raw: string): string {
- if(typeof document==='undefined')return escapeText(raw);
- const template=document.createElement('template');
- template.innerHTML=raw;
- function clean(node:Node):string {
-  if(node.nodeType===Node.TEXT_NODE)return escapeText(node.textContent??'');
-  if(node.nodeType!==Node.ELEMENT_NODE)return '';
-  const el=node as HTMLElement;
-  if(['SCRIPT','STYLE','IFRAME','OBJECT','SVG','MATH'].includes(el.tagName))return '';
-  if(el.tagName==='BR')return '<br>';
-  const body=Array.from(el.childNodes).map(clean).join('');
-  const simple:Record<string,string>={STRONG:'strong',B:'strong',I:'em',EM:'em',U:'u'};
-  const tag=simple[el.tagName];
-  if(tag)return '<'+tag+'>'+body+'</'+tag+'>';
-  if(el.tagName==='A'){
-   const href=el.getAttribute('href')??'';
-   if(/^(https?:|mailto:)/i.test(href))return '<a href="'+escapeText(href)+'" rel="noopener noreferrer">'+body+'</a>';
-  }
-  return body;
- }
- return Array.from(template.content.childNodes).map(clean).join('');
-}
 function el(tag:string,cls:string,text?:string):HTMLElement{
  const result=document.createElement(tag);
  result.className=cls;
@@ -175,6 +148,7 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
   const previous=pageRef.current;
   const map=new Map(previous.questions.map(q=>[q.id,q]));
   const questions:StudioQuestion[]=[];
+  const usedIds=new Set<string>();
   const title=editor.querySelector<HTMLElement>('[data-role="title"]');
   const intro=editor.querySelector<HTMLElement>('[data-role="description"]');
   for(const child of Array.from(editor.children)){
@@ -194,9 +168,10 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
     const original=map.get(child.dataset.lineId??'');
     const template=original?.type==='statement'?original:makeQuestion('statement');
     const textStyle=child.tagName==='H2'?'heading':child.tagName==='BLOCKQUOTE'?'quote':'paragraph';
-    const id=child.dataset.lineId??crypto.randomUUID();
-    child.dataset.lineId=id;
-    questions.push({...template,id,type:'statement',label:label.slice(0,maxText),
+    let id=child.dataset.lineId??crypto.randomUUID();
+    if(usedIds.has(id))id=crypto.randomUUID();
+    usedIds.add(id);child.dataset.lineId=id;
+    questions.push({...template,id,type:'statement',label,
      description:null,required:false,options:[],
      settings:{...template.settings,textStyle,richHtml:sanitizeDocumentHtml(child.innerHTML)}});
    }
@@ -254,7 +229,10 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
    line.after(questionElement,tail);
    if(!line.textContent?.trim())line.remove();
   }else line.after(questionElement);
-  if(type!=='statement')pageRef.current={...pageRef.current,questions:[...pageRef.current.questions,question]};
+  if(type!=='statement'){
+   pageRef.current={...pageRef.current,questions:[...pageRef.current.questions,question]};
+   onSelectRef.current(question.id);
+  }
   ensureEnd();emit();
   const following=questionElement.nextElementSibling instanceof HTMLElement?questionElement.nextElementSibling:questionElement;
   setCaretAtStart(following);remember();
