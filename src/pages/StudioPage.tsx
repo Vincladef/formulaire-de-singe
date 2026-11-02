@@ -213,7 +213,7 @@ export function StudioPage(){
           {pages.length>1&&editable&&<button type="button" onClick={()=>void deletePage()} className="mt-4 rounded-lg px-2 py-2 text-xs font-medium text-[#98534b] hover:bg-red-50">Supprimer cette page</button>}
          </>}
         </section>
-       </div>
+       </div>}
     </>}
   </div>
    {dialog&&<StudioDialog intent={dialog} onResolve={resolveDialog}/>}
