@@ -13,7 +13,7 @@ export const titleSchema = z.string().trim().min(1).max(200);
 export const formIdField = {formId:uuid.describe('UUID du formulaire obtenu via list_forms ou create_form')};
 const labels=z.array(z.string().trim().min(1).max(180)).min(2).max(100);
 export const newQuestion = z.object({type:z.enum(questionTypes),label:z.string().trim().min(1).max(600),description:z.string().max(3000).nullable().optional(),required:z.boolean().optional(),options:labels.optional(),settings:z.record(z.string(),z.unknown()).optional()}).strict();
-export const questionPatch=z.object({label:z.string().trim().min(1).max(600).optional(),description:z.string().max(3000).nullable().optional(),required:z.boolean().optional(),options:labels.optional(),settings:z.record(z.string(),z.unknown()).optional()}).strict().refine(v=>Object.values(v).some(x=>x!==undefined),'Modification manquante');
+export const questionPatch=z.object({type:z.enum(questionTypes).optional(),label:z.string().trim().min(1).max(600).optional(),description:z.string().max(3000).nullable().optional(),required:z.boolean().optional(),options:labels.optional(),settings:z.record(z.string(),z.unknown()).optional()}).strict().refine(v=>Object.values(v).some(x=>x!==undefined),'Modification manquante');
 export const filterSchema=z.object({from:z.string().optional(),to:z.string().optional(),versionId:uuid.optional(),limit:z.number().int().min(1).max(50).default(20),offset:z.number().int().min(0).max(10000).default(0)}).strict();
 export const formPatch=z.object({title:titleSchema.optional(),theme:formThemeSchema.optional()}).strict().refine(v=>v.title!==undefined||v.theme!==undefined,'Titre ou thème requis');
 
@@ -59,8 +59,12 @@ export class McpApplication {
     const patch=questionPatch.parse(input.patch);const {draft,pages}=await this.getDraft(user,formId,input.expectedRevision);
     const target=pages.flatMap(p=>p.questions).find(q=>q.id===input.questionId);
     if(!target)throw new NotFoundFault('Question introuvable dans le brouillon');
-    if(patch.options&&!['single_choice','multiple_choice','select'].includes(target.type))throw new ValidationFault('Options non autorisées pour ce type');
-    const changed=questionSchema.parse({...target,label:patch.label??target.label,description:patch.description===undefined?target.description:patch.description,required:patch.required??target.required,settings:patch.settings?{...target.settings,...patch.settings}:target.settings,options:patch.options?patch.options.map((label,i)=>({id:randomUUID(),value:`option_${i+1}`,label})):target.options});
+    if(patch.options&&!['single_choice','multiple_choice','select'].includes(patch.type??target.type))throw new ValidationFault('Options non autorisées pour ce type');
+    const type=patch.type??target.type;
+    const choices=['single_choice','multiple_choice','select'].includes(type);
+    const options=choices?(patch.options?patch.options.map((label,i)=>({id:randomUUID(),value:`option_${i+1}`,label})):
+      ['single_choice','multiple_choice','select'].includes(target.type)?target.options:['Option 1','Option 2'].map((label,i)=>({id:randomUUID(),value:`option_${i+1}`,label}))):[];
+    const changed=questionSchema.parse({...target,type,label:patch.label??target.label,description:patch.description===undefined?target.description:patch.description,required:type==='statement'?false:(patch.required??target.required),settings:patch.settings?{...target.settings,...patch.settings}:target.settings,options});
     Object.assign(target,changed);
     const saved=await this.forms.save(user,formId,{versionId:draft.id,expectedRevision:draft.revision??0,pages});
     return {formId,versionId:draft.id,revision:saved.revision,question:changed};

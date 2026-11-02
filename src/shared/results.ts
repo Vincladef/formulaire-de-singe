@@ -24,6 +24,7 @@ export type SubmissionDetail = ResultsSubmission & { answers: ResultAnswer[] };
 export function safeCsvCell(value: unknown): string {
   const text = value == null ? '' : typeof value === 'string' ? value : JSON.stringify(value);
   // CSV formula injection is possible when users open a file in Excel or LibreOffice.
+  // eslint-disable-next-line no-control-regex -- CSV formula injection can follow control bytes.
   const sanitized = /^[\s\u0000-\u001f]*[=+@\-\t\r]/.test(text) ? `'${text}` : text;
   return `"${sanitized.replaceAll('"', '""')}"`;
 }

@@ -8,7 +8,7 @@ class FakeRecorder {
  ondataavailable:((event:{data:Blob})=>void)|null=null;
  onstop:(()=>void)|null=null;
  onerror:(()=>void)|null=null;
- constructor(_stream:MediaStream,_options?:MediaRecorderOptions){}
+ constructor(_stream:MediaStream,_options?:MediaRecorderOptions){void _stream;void _options;}
  start(){this.state='recording';}
  stop(){this.state='inactive';this.ondataavailable?.({data:new Blob([new Uint8Array([0x1a,0x45,0xdf,0xa3,1,2])],{type:'audio/webm'})});this.onstop?.();}
 }

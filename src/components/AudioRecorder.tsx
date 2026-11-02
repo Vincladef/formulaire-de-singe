@@ -61,7 +61,7 @@ export function AudioRecorder({value,onChange,maxSeconds=180,maxBytes=MAX_AUDIO_
    const objectUrl=URL.createObjectURL(file);
    const duration=await new Promise<number>((resolve,reject)=>{
     const audio=document.createElement('audio');const timeout=setTimeout(()=>{audio.src='';reject(new Error('timeout'));},10000);
-    audio.preload='metadata';audio.onloadedmetadata=()=>{clearTimeout(timeout);const seconds=audio.duration;audio.src='';Number.isFinite(seconds)&&seconds>0?resolve(seconds):reject(new Error('duration'));};
+    audio.preload='metadata';audio.onloadedmetadata=()=>{clearTimeout(timeout);const seconds=audio.duration;audio.src='';if(Number.isFinite(seconds)&&seconds>0){resolve(seconds);}else{reject(new Error('duration'));}};
     audio.onerror=()=>{clearTimeout(timeout);audio.src='';reject(new Error('unsupported'));};audio.src=objectUrl;
    }).finally(()=>URL.revokeObjectURL(objectUrl));
    if(duration>maxSeconds){setError(`Cet audio dépasse la limite de ${maxSeconds} secondes.`);return;}

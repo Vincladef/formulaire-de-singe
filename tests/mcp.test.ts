@@ -15,7 +15,7 @@ const submissionId='237e925a-fd3a-4420-9aa9-114ec7f6a13a';
 const audioId='a59483b1-dd5b-4678-8cae-1b52e0b56c84';
 
 function fixture(){
- let detail:FormDetail={id:formId,title:'Questionnaire test',slug:'questionnaire-test',description:null,role:'owner',versions:[{id:draftId,number:1,status:'draft',revision:0,publishedAt:null,pages:[{id:pageId,position:0,title:'Introduction',description:null,questions:[{id:questionId,position:0,type:'short_text',label:'Votre avis ?',description:null,required:false,settings:{},options:[]}]}],rules:[]}]};
+ const detail:FormDetail={id:formId,title:'Questionnaire test',slug:'questionnaire-test',description:null,role:'owner',versions:[{id:draftId,number:1,status:'draft',revision:0,publishedAt:null,pages:[{id:pageId,position:0,title:'Introduction',description:null,questions:[{id:questionId,position:0,type:'short_text',label:'Votre avis ?',description:null,required:false,settings:{},options:[]}]}],rules:[]}]};
  const calls:string[]=[];
  const formActions={
   list:async(user:string)=>{calls.push('list_forms');return user==='owner'?[{id:formId,title:detail.title,slug:detail.slug,role:'owner',createdAt:'2026-11-02',updatedAt:'2026-11-02'}]:[];},
