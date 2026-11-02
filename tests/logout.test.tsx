@@ -27,6 +27,26 @@ describe('Déconnexion du Studio', () => {
     fireEvent.click(screen.getByLabelText('Menu du compte'));
     expect(screen.getByRole('button', { name: /se déconnecter/i })).toBeInTheDocument();
   });
+  it('ferme le menu du compte lorsqu’on clique à l’extérieur', () => {
+    renderHeader();
+    fireEvent.click(screen.getByLabelText('Menu du compte'));
+    expect(screen.getByRole('button', { name: /se déconnecter/i })).toBeVisible();
+    fireEvent.pointerDown(document.body);
+    expect(screen.getByLabelText('Menu du compte').closest('details')).not.toHaveAttribute('open');
+  });
+  it('ferme le menu du compte avec Échap et rend le focus au bouton', () => {
+    renderHeader();
+    const trigger = screen.getByLabelText('Menu du compte');
+    fireEvent.click(trigger);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(trigger.closest('details')).not.toHaveAttribute('open');
+    expect(trigger).toHaveFocus();
+  });
+  it('aligne le logo et le compte sur la largeur du Studio', () => {
+    const { container } = renderHeader();
+    expect(container.querySelector('header > div')).toHaveClass('max-w-[1550px]');
+    expect(screen.getByText('Mon compte')).toBeInTheDocument();
+  });
   it('appelle Neon Auth puis ramène à l’accueil', async () => {
     renderHeader();
     fireEvent.click(screen.getByLabelText('Menu du compte'));
