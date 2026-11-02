@@ -191,3 +191,13 @@ npm run check
 ```
 
 Vérifier aussi manuellement : insertion avant/après un paragraphe, insertion au milieu d'un texte, saisie au clavier, conservation des choix et enregistrements audio, aperçu, publication, soumission publique puis apparition de la réponse dans Google Sheets après activation OAuth.
+
+## Exports audio MP3
+
+Les fichiers reçus sont conservés dans leur format source (WebM/Opus, Ogg, M4A ou WAV), pour garantir la compatibilité de capture. Les téléchargements produisent toutefois de vrais fichiers **MPEG Layer III (.mp3)** : bouton « Télécharger MP3 » par réponse et archive « ZIP + audios MP3 » dans Résultats. Un MP3 valide est conservé sans réencodage.
+
+La conversion s'effectue dans le navigateur connecté au moment de l'export, sans modifier l'enregistrement original stocké. Encodage mono, 44,1 kHz, 96 kbit/s, adapté à la parole. Si le navigateur ne peut pas décoder un ancien codec, l'interface signale une erreur : elle ne rebaptise jamais un fichier WebM en MP3.
+
+**Dépendance tierce :** @breezystack/lamejs 1.2.7, encodeur JavaScript sous licence LGPL-3.0. Le code source est disponible sur https://github.com/gideonstele/lamejs. La bibliothèque est utilisée sans modification ; ses obligations LGPL de redistribution et de remplacement doivent être respectées par les distributeurs.
+
+Tests : tests/mp3-export.test.ts. Recette manuelle : exporter du WebM depuis Chrome/Edge, lire le MP3 dans un lecteur externe, vérifier que tous les fichiers du dossier audios/ du ZIP sont des MP3 lisibles ; tester aussi un MP3 importé, un M4A Safari et une réponse longue.
