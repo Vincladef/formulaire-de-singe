@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, FileQuestion, LoaderCircle, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { AudioRecorder } from '../components/AudioRecorder';
 import { audioMode, type UploadedAudio, AUDIO_PART_BYTES } from '../shared/audio';
-import { type AnswerValues, type PublicForm, type PublicQuestion, toSubmissionAnswers, validateAnswers } from '../shared/publicForm';
+import { type AnswerValues, type PublicForm, type PublicQuestion, toSubmissionAnswers, validateAnswers, isAnswered } from '../shared/publicForm';
 
 type ApiResult<T>={ok:true;data:T}|{ok:false;error:{code:string;message:string}};
 const fieldStyle='w-full rounded-2xl border border-[#dce7dc] bg-white px-4 py-3.5 text-[#294735] outline-none transition focus:border-[#5b986e] focus:ring-4 focus:ring-[#e0eee0]';
@@ -61,7 +61,7 @@ function QuestionField({question,value,onChange,error}: {question:PublicQuestion
     </fieldset>}
     {vocal&&value&&typeof value==='object'&&!Array.isArray(value)&&value.kind==='audio'&&
       <p className="rounded-xl bg-[#eaf4e8] p-3 text-sm">Enregistrement prêt pour l'envoi.</p>}
-    {vocal&&<AudioRecorder value={draft} onChange={onChange} maxSeconds={question.maxAudioSeconds??180} maxBytes={question.maxAudioBytes??15*1048576}/>}
+    {vocal&&<AudioRecorder value={draft} onChange={onChange} maxSeconds={question.maxAudioSeconds??600} maxBytes={question.maxAudioBytes??15*1048576}/>}
    </div>
    {error&&<p id={errorId} role="alert" className="mt-3 flex items-start gap-2 text-sm font-medium text-[#ad5e4e]"><CircleAlert size={16} className="mt-0.5 shrink-0"/>{error}</p>}
   </>}
@@ -72,6 +72,7 @@ export function PublicFormPage(){
  const {slug=''}=useParams<{slug:string}>();
  const [form,setForm]=useState<PublicForm|null>(null);
  const [loading,setLoading]=useState(true);
+ useEffect(()=>{if(!form)return;const previous=document.title;document.title=`${form.title} | Questionnaire`;return()=>{document.title=previous;};},[form]);
  const [error,setError]=useState('');
  const [pageIndex,setPageIndex]=useState(0);
  const [answers,setAnswers]=useState<AnswerValues>({});
@@ -90,7 +91,9 @@ export function PublicFormPage(){
   return()=>controller.abort();
  },[slug]);
  const page=form?.pages[pageIndex];
- const progress=form?Math.round((pageIndex+1)/Math.max(1,form.pages.length)*100):0;
+ const totalQuestions=form?.pages.flatMap(p=>p.questions.filter(q=>q.type!=='statement'))??[];
+ const answeredCount=totalQuestions.filter(q=>isAnswered(answers[q.id])).length;
+ const progress=totalQuestions.length?Math.round(answeredCount/totalQuestions.length*100):0;
  function setAnswer(id:string,value:AnswerValues[string]){setAnswers(prev=>({...prev,[id]:value}));setErrors(prev=>{const n={...prev};delete n[id];return n;});}
  function validatePage(){if(!form||!page)return false;
   const issue=validateAnswers({...form,pages:[page]},answers);
@@ -142,13 +145,13 @@ export function PublicFormPage(){
   finally{inFlightRef.current=false;setSubmitting(false);}
  }
  if(loading)return <main className="mx-auto flex min-h-[65vh] max-w-2xl items-center justify-center px-5" role="status"><LoaderCircle className="animate-spin text-[#4d865e]" size={30}/><span className="ml-3 text-[#64806c]">Chargement du questionnaire…</span></main>;
- if(!form)return <main className="mx-auto max-w-xl px-6 py-28 text-center"><FileQuestion className="mx-auto text-[#88a68a]" size={42}/><h1 className="mt-6 font-display text-3xl font-bold">Formulaire indisponible</h1><p className="mt-4 text-[#839487]">{error||'Ce questionnaire est introuvable ou n’a pas été publié.'}</p><Link to="/" className="mt-8 inline-block text-[#327d4c] underline">Retour à l’accueil</Link></main>;
- if(declined)return <main className="mx-auto max-w-xl px-6 py-28 text-center"><ShieldCheck size={48} className="mx-auto text-[#5c946c]"/><h1 className="mt-6 font-display text-3xl font-bold">Choix respecté</h1><p className="mt-4 text-[#6d8271]">Aucune réponse n’a été envoyée. Merci d’avoir pris le temps de consulter ce questionnaire.</p><Link to="/" className="mt-8 inline-block text-[#327d4c] underline">Retour à l’accueil</Link></main>;
- if(submitted)return <main className="mx-auto max-w-xl px-6 py-28 text-center" role="status"><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#e4f4e4]"><CheckCircle2 size={44} className="text-[#397b51]"/></div><h1 className="mt-7 font-display text-4xl font-bold">Merci pour votre participation !</h1><p className="mt-4 text-[#718374]">Vos réponses ont bien été enregistrées. Vous pouvez fermer cette page.</p><Link to="/" className="mt-8 inline-block text-[#327d4c] underline">Retour à l’accueil</Link></main>;
+ if(!form)return <main className="mx-auto max-w-xl px-6 py-28 text-center"><FileQuestion className="mx-auto text-[#88a68a]" size={42}/><h1 className="mt-6 font-display text-3xl font-bold">Formulaire indisponible</h1><p className="mt-4 text-[#839487]">{error||'Ce questionnaire est introuvable ou n’a pas été publié.'}</p></main>;
+ if(declined)return <main className="mx-auto max-w-xl px-6 py-28 text-center"><ShieldCheck size={48} className="mx-auto text-[#5c946c]"/><h1 className="mt-6 font-display text-3xl font-bold">Choix respecté</h1><p className="mt-4 text-[#6d8271]">Aucune réponse n’a été envoyée. Merci d’avoir pris le temps de consulter ce questionnaire.</p></main>;
+ if(submitted)return <main className="mx-auto max-w-xl px-6 py-28 text-center" role="status"><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#e4f4e4]"><CheckCircle2 size={44} className="text-[#397b51]"/></div><h1 className="mt-7 font-display text-4xl font-bold">Merci pour votre participation !</h1><p className="mt-4 text-[#718374]">Vos réponses ont bien été enregistrées. Vous pouvez fermer cette page.</p></main>;
  return <main className="min-h-[75vh] bg-[#fafcf8] px-4 pb-24 pt-8 sm:px-7 sm:pt-14">
   <div className="mx-auto max-w-[740px]">
-   <div className="mb-8 flex items-center justify-between text-xs font-semibold uppercase tracking-[.12em] text-[#8da18f]"><span>Questionnaire</span><span>Page {pageIndex+1} sur {form.pages.length}</span></div>
-   <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e3ece1]" role="progressbar" aria-label="Progression du formulaire" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full bg-[#5d9b6c] transition-[width] duration-300" style={{width:`${progress}%`}}/></div>
+   <div className="mb-8 flex items-center justify-between text-xs font-semibold uppercase tracking-[.12em] text-[#8da18f]"><span>Questionnaire</span><span>{form.pages.length===1?`${answeredCount}/${totalQuestions.length} réponses`:`Page ${pageIndex+1} sur ${form.pages.length}`}</span></div>
+   {totalQuestions.length>1&&<div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e3ece1]" role="progressbar" aria-label="Questions complétées" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full bg-[#5d9b6c] transition-[width] duration-300" style={{width:`${progress}%`}}/></div>}
    <header className="pb-10 pt-10 sm:pt-12">
     {pageIndex===0&&<><div className="mb-4 inline-flex items-center gap-2 rounded-full bg-[#edf5ea] px-3 py-1.5 text-xs font-bold text-[#648a6b]"><Check size={13}/> Participation libre</div><h1 className="font-display text-[clamp(2.2rem,6vw,3.5rem)] font-extrabold leading-tight tracking-[-.055em] text-[#254632]">{form.title}</h1>{form.description&&<p className="mt-4 max-w-2xl whitespace-pre-line text-base leading-8 text-[#748776]">{form.description}</p>}</>}
     <h2 className={'font-display font-bold text-[#35583f] '+(pageIndex===0?'mt-9 text-2xl':'text-3xl')}>{page?.title||`Page ${pageIndex+1}`}</h2>
@@ -166,7 +169,7 @@ export function PublicFormPage(){
     {pageIndex>0?<button type="button" className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-semibold text-[#588061] hover:bg-[#edf4eb]" onClick={()=>{setError('');setPageIndex(i=>i-1);}}><ArrowLeft size={18}/> Retour</button>:<span className="flex items-center gap-2 text-xs text-[#9ba99b]"><LockKeyhole size={13}/> Envoi sécurisé</span>}
     {pageIndex<form.pages.length-1?<button type="button" className={solid} onClick={next}>Continuer <ArrowRight size={18}/></button>:<button type="button" disabled={submitting} className={solid} onClick={()=>void send()}>{submitting?<LoaderCircle className="animate-spin" size={18}/>:<Check size={18}/>} {submitting?'Envoi en cours…':'Envoyer mes réponses'}</button>}
    </nav>
-   <p className="mt-10 text-center text-xs leading-5 text-[#a0aea0]">Créé avec Formulaire de Singe. Aucun compte n’est nécessaire pour répondre.</p>
+   <p className="mt-10 text-center text-xs leading-5 text-[#a0aea0]">Aucun compte n’est nécessaire pour répondre.</p>
   </div>
  </main>;
 }

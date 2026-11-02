@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
 export const AUDIO_PART_BYTES = 2 * 1024 * 1024;
-export const MAX_AUDIO_SECONDS = 300;
+export const MAX_AUDIO_SECONDS = 1800;
 export const audioMimeTypes = ['audio/webm','audio/ogg','audio/mp4','audio/mpeg','audio/wav','audio/x-m4a','audio/aac'] as const;
 export type AnswerMode = 'text' | 'audio' | 'either';
 export const uploadedAudioSchema = z.object({
@@ -26,7 +26,7 @@ export function audioMode(type:string,settings?:Record<string,unknown>):AnswerMo
 export function audioLimits(settings?:Record<string,unknown>) {
  const seconds=settings?.maxAudioSeconds, bytes=settings?.maxAudioBytes;
  return {
-  maxSeconds:typeof seconds==='number'&&Number.isInteger(seconds)?Math.max(15,Math.min(MAX_AUDIO_SECONDS,seconds)):180,
+  maxSeconds:typeof seconds==='number'&&Number.isInteger(seconds)?Math.max(15,Math.min(MAX_AUDIO_SECONDS,seconds)):600,
   maxBytes:typeof bytes==='number'&&Number.isInteger(bytes)?Math.max(1048576,Math.min(MAX_AUDIO_BYTES,bytes)):MAX_AUDIO_BYTES,
  };
 }

@@ -4,7 +4,7 @@ import { audioMimeTypes,MAX_AUDIO_BYTES,normalizedMime,type AudioDraft } from '.
 
 const formats=['audio/webm;codecs=opus','audio/mp4','audio/webm','audio/ogg;codecs=opus','audio/ogg'];
 export function chooseRecorderMime(supported:(s:string)=>boolean){return formats.find(supported)??'';}
-export function AudioRecorder({value,onChange,maxSeconds=180,maxBytes=MAX_AUDIO_BYTES}:{
+export function AudioRecorder({value,onChange,maxSeconds=600,maxBytes=MAX_AUDIO_BYTES}:{
  value?:AudioDraft;onChange:(value:AudioDraft|undefined)=>void;maxSeconds?:number;maxBytes?:number;
 }){
  const [recording,setRecording]=useState(false),[seconds,setSeconds]=useState(0),[error,setError]=useState('');
@@ -90,6 +90,6 @@ export function AudioRecorder({value,onChange,maxSeconds=180,maxBytes=MAX_AUDIO_
    <input aria-label="Importer un audio" className="sr-only" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg" onChange={e=>{void imported(e.target.files?.[0]);e.target.value='';}}/>
   </label>
   {error&&<p role="alert" className="mt-3 flex items-center gap-2 text-sm text-red-700"><AlertCircle size={17}/>{error}</p>}
-  <p className="mt-3 text-xs text-[#58715d]">Maximum {maxSeconds} s et {Math.round(maxBytes/1048576)} Mo. Le fichier ne quitte pas votre appareil avant l’envoi.</p>
+  <p className="mt-3 text-xs text-[#58715d]">Maximum {maxSeconds>=60?`${maxSeconds/60} min`:`${maxSeconds} s`} et {Math.round(maxBytes/1048576)} Mio. Le fichier ne quitte pas votre appareil avant l’envoi.</p>
  </div>;
 }
