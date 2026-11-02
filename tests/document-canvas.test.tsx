@@ -1,9 +1,11 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { DocumentCanvas } from '../src/components/studio/DocumentCanvas';
 import { sanitizeDocumentHtml } from '../src/shared/richText';
 import { makePage, makeQuestion } from '../src/shared/studio';
+
+vi.mock('../src/shared/clipboardImage',()=>({clipboardImageToDataUrl:vi.fn(async()=> 'data:image/png;base64,'+'A'.repeat(80))}));
 
 afterEach(()=>cleanup());
 function setup(withText=true){
@@ -102,6 +104,18 @@ describe('édition épurée et images',()=>{
   expect(next.questions[0].label).toBe('Image intégrée');
   expect(next.questions[0].settings.richHtml).toContain('<img src="'+src+'"');
   expect(next.questions[0].settings.richHtml).not.toContain('onerror');
+ });
+ it('colle également un fichier image du presse-papiers dans le document',async()=>{
+  const {documentEditor,onChange}=setup(false);
+  const paragraph=documentEditor.querySelector<HTMLElement>('[data-line-id]')!;
+  cursor(paragraph,0);
+  const file=new File(['image'],'copie.png',{type:'image/png'});
+  fireEvent.paste(documentEditor,{clipboardData:{
+   items:[{kind:'file',type:'image/png',getAsFile:()=>file}],
+   files:[],getData:()=>''}
+  });
+  await waitFor(()=>expect(documentEditor.querySelector('img')).toBeInTheDocument());
+  expect(onChange.mock.lastCall![0].questions[0].settings.richHtml).toContain('data:image/png;base64,');
  });
  it('montre un vrai aperçu de liste déroulante',()=>{
   const page=makePage();const q=makeQuestion('select');
