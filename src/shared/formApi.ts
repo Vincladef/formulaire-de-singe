@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { FormTheme } from './theme';
 
 /** Strict schemas shared by the REST API and MCP tools. */
 export const createFormInput = z.object({
@@ -30,7 +31,7 @@ export type FormCreate = z.infer<typeof createFormInput>;
 
 /** Content is intentionally JSON-compatible and version-specific. */
 export type FormDetail = {
-  id: string; title: string; slug: string; description: string | null; archivedAt?:string|null;
+  id: string; title: string; slug: string; description: string | null; archivedAt?:string|null; theme?: FormTheme;
   role: 'owner' | 'editor' | 'viewer';
   versions: Array<{
     id: string; number: number; status: 'draft' | 'published'; publishedAt: string | null; revision?:number;

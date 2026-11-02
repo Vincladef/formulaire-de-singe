@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { audioLimits, audioMode } from './audio';
 
 export const questionTypes = ['short_text','long_text','single_choice','multiple_choice','select','number','date','audio','statement'] as const;
 export type QuestionType = typeof questionTypes[number];
@@ -16,6 +17,9 @@ export const questionSchema = z.object({
     ctx.addIssue({code:'custom',message:'Deux options au minimum',path:['options']});
   if (new Set(q.options.map(o=>o.value)).size !== q.options.length)
     ctx.addIssue({code:'custom',message:'Les valeurs des choix doivent être uniques',path:['options']});
+  if(['short_text','long_text'].includes(q.type)&&q.settings.answerMode!==undefined&&!['text','audio','either'].includes(String(q.settings.answerMode)))ctx.addIssue({code:'custom',message:'Mode de réponse inconnu',path:['settings','answerMode']});
+  if(q.settings.maxAudioSeconds!==undefined&&(typeof q.settings.maxAudioSeconds!=='number'||q.settings.maxAudioSeconds<15||q.settings.maxAudioSeconds>300))ctx.addIssue({code:'custom',message:'Durée audio invalide',path:['settings','maxAudioSeconds']});
+  if(q.settings.maxAudioBytes!==undefined&&(typeof q.settings.maxAudioBytes!=='number'||q.settings.maxAudioBytes<1024*1024||q.settings.maxAudioBytes>15*1024*1024))ctx.addIssue({code:'custom',message:'Taille audio invalide',path:['settings','maxAudioBytes']});
   if (q.type === 'statement' && q.required)
     ctx.addIssue({code:'custom',message:'Un bloc explicatif ne peut pas être obligatoire',path:['required']});
 });
@@ -50,3 +54,5 @@ export function moveQuestionAt<T>(items:readonly T[],from:number,to:number):T[]{
   if(from<0||from>=items.length||to<0||to>=items.length||from===to)return [...items];
   const result=[...items];const [item]=result.splice(from,1);result.splice(to,0,item);return result;
 }
+
+export { audioMode, audioLimits };

@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { FormDetail, FormRepository, FormSummary } from '../shared/formApi';
+import { readFormTheme } from '../shared/theme';
 import { getDb } from './db/client';
 import {
   forms, formMembers, formVersions, pages, questions, questionOptions, rules,
@@ -53,7 +54,7 @@ export const formRepository: FormRepository = {
   async get(userId, id) {
     const db = getDb();
     const [item] = await db.select({
-      id: forms.id, title: forms.title, slug: forms.slug, description: forms.description, archivedAt:forms.archivedAt,
+      id: forms.id, title: forms.title, slug: forms.slug, description: forms.description, settings:forms.settings, archivedAt:forms.archivedAt,
       ownerId: forms.ownerId, memberRole: formMembers.role,
     }).from(forms)
       .leftJoin(formMembers, and(eq(formMembers.formId, forms.id), eq(formMembers.userId, userId)))
@@ -76,7 +77,7 @@ export const formRepository: FormRepository = {
       .where(inArray(rules.versionId, versionIds)) : [];
 
     return {
-      id: item.id, title: item.title, slug: item.slug, description: item.description, archivedAt:item.archivedAt?iso(item.archivedAt):null,
+      id: item.id, title: item.title, slug: item.slug, description: item.description, theme:readFormTheme(item.settings?.theme), archivedAt:item.archivedAt?iso(item.archivedAt):null,
       role: item.ownerId === userId ? 'owner' : item.memberRole!,
       versions: versions.map((v) => ({
         id: v.id, number: v.number, status: v.status, revision:v.revision, publishedAt: v.publishedAt ? iso(v.publishedAt) : null,

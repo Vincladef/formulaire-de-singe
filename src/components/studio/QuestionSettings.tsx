@@ -1,8 +1,10 @@
 import { Plus,Trash2 } from 'lucide-react';
+import { audioMode, audioLimits } from '../../shared/audio';
 import { questionTypeNames, questionTypes, type StudioQuestion, type QuestionType } from '../../shared/studio';
 const input='w-full rounded-xl border border-[#dce7db] bg-white px-3.5 py-2.5 text-sm text-[#3a5845] outline-none focus:border-[#79a386] focus:ring-2 focus:ring-[#d7e8d8]';
 type Props={question:StudioQuestion;onUpdate:(question:StudioQuestion)=>void};
 export function QuestionSettings({question,onUpdate}:Props){
+  const mode=audioMode(question.type,question.settings);const limits=audioLimits(question.settings);
   const choice=['single_choice','multiple_choice','select'].includes(question.type);
   const change=(update:Partial<StudioQuestion>)=>onUpdate({...question,...update});
   return <section aria-label="Paramètres de la question" className="space-y-5">
@@ -31,7 +33,23 @@ export function QuestionSettings({question,onUpdate}:Props){
         const value=`option_${crypto.randomUUID().slice(0,8)}`;change({options:[...question.options,{id:crypto.randomUUID(),value,label:`Option ${question.options.length+1}`}]});
       }}><Plus size={15}/> Ajouter un choix</button>
     </div>}
-    {question.type==='audio'&&<div className="rounded-xl bg-[#f0f6ee] p-3 text-xs leading-5 text-[#65806d]">Le champ vocal est configurable dès maintenant. L’enregistrement et le stockage audio seront ajoutés à l’étape 6.</div>}
+    {['short_text','long_text'].includes(question.type)&&<label className="block space-y-2 text-xs font-semibold text-[#607666]">Modalité de réponse
+      <select aria-label="Modalité de réponse" className={input} value={mode} onChange={e=>change({settings:{...question.settings,answerMode:e.target.value}})}>
+        <option value="text">Texte uniquement</option><option value="audio">Audio uniquement</option><option value="either">Texte ou audio</option>
+      </select>
+    </label>}
+    {mode!=='text'&&<div className="space-y-3 rounded-xl bg-[#f0f6ee] p-3">
+      <label className="block space-y-2 text-xs font-semibold text-[#607666]">Durée maximale
+       <select aria-label="Durée maximale de l’audio" className={input} value={limits.maxSeconds} onChange={e=>change({settings:{...question.settings,maxAudioSeconds:Number(e.target.value)}})}>
+        {[30,60,120,180,300].map(n=><option key={n} value={n}>{n} secondes</option>)}
+       </select>
+      </label>
+      <label className="block space-y-2 text-xs font-semibold text-[#607666]">Taille maximale
+       <select aria-label="Taille maximale de l’audio" className={input} value={limits.maxBytes} onChange={e=>change({settings:{...question.settings,maxAudioBytes:Number(e.target.value)}})}>
+        {[5,10,15].map(n=><option key={n} value={n*1048576}>{n} Mo</option>)}
+       </select>
+      </label>
+    </div>}
     <div className="border-t border-[#e7ece4] pt-4 text-[11px] leading-5 text-[#9ba89c]">Les changements sont sauvegardés automatiquement dans le brouillon.</div>
   </section>;
 }

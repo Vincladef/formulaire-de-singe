@@ -76,3 +76,18 @@ export const audioFiles = pgTable('fs_audio_files',{
  createdAt: timestamp('created_at',{withTimezone:true}).notNull().defaultNow(),
  uploadedAt: timestamp('uploaded_at',{withTimezone:true}),deletedAt: timestamp('deleted_at',{withTimezone:true}),
 },t=>[index('fs_audio_answer_idx').on(t.answerId),check('fs_audio_byte_size_check',sql`${t.byteSize} >= 0`),check('fs_audio_duration_check',sql`${t.durationMs} >= 0`),check('fs_audio_status_check',sql`${t.status} in ('pending','uploaded','removed')`)]);
+
+/** Short-lived upload tickets. No upload is attached to a response before its transaction commits. */
+export const audioUploads=pgTable('fs_audio_uploads',{
+ id:uuid('id').primaryKey().defaultRandom(),formId:uuid('form_id').notNull().references(()=>forms.id,{onDelete:'restrict'}),
+ versionId:uuid('version_id').notNull().references(()=>formVersions.id,{onDelete:'restrict'}),
+ questionId:uuid('question_id').notNull().references(()=>questions.id,{onDelete:'restrict'}),
+ submissionId:uuid('submission_id').references(()=>submissions.id,{onDelete:'restrict'}),
+ clientNonce:uuid('client_nonce').notNull(),claimHash:varchar('claim_hash',{length:64}).notNull(),
+ storageKey:text('storage_key').notNull().unique(),contentType:varchar('content_type',{length:120}).notNull(),
+ declaredBytes:bigint('declared_bytes',{mode:'number'}).notNull(),actualBytes:bigint('actual_bytes',{mode:'number'}),
+ durationMs:integer('duration_ms').notNull(),status:varchar('status',{length:16}).$type<'issued'|'verified'|'claimed'|'expired'>().notNull().default('issued'),
+ createdAt:timestamp('created_at',{withTimezone:true}).notNull().defaultNow(),expiresAt:timestamp('expires_at',{withTimezone:true}).notNull(),
+ verifiedAt:timestamp('verified_at',{withTimezone:true}),
+},t=>[index('fs_audio_uploads_nonce_idx').on(t.clientNonce,t.status),index('fs_audio_uploads_cleanup_idx').on(t.expiresAt,t.status),
+ check('fs_audio_uploads_status_check',sql`${t.status} in ('issued','verified','claimed','expired')`)]);

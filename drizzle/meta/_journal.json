@@ -22,6 +22,20 @@
       "when": 1793625000000,
       "tag": "0002_public",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793626000000,
+      "tag": "0003_audio",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793627000000,
+      "tag": "0004_results",
+      "breakpoints": true
     }
   ]
 }
