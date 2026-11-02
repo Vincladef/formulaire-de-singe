@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { X } from 'lucide-react';
 
 export type StudioDialogIntent = {
@@ -18,7 +18,7 @@ export function StudioDialog({intent,onResolve}:Props){
   (intent.kind==='text'?inputRef.current:cancelRef.current)?.focus();
   return()=>previous?.focus();
  },[intent.kind]);
- function onKeyDown(e:React.KeyboardEvent<HTMLDivElement>){
+ function onKeyDown(e:KeyboardEvent<HTMLDivElement>){
   if(e.key==='Escape'){e.preventDefault();onResolve(null);}
   if(e.key!=='Tab')return;
   const nodes=[...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled])')??[])];
