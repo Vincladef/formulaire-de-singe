@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Archive, ArrowLeft, CheckCircle2, ChevronRight, CircleAlert, Copy, Eye, FilePlus2, Files, LoaderCircle, Plus, Save, Send, Settings2, Trash2, X } from 'lucide-react';
 import { getAccessToken } from '../authClient';
 import type { FormDetail, FormSummary } from '../shared/formApi';
-import { draftPayloadSchema, duplicateQuestion, makePage, makeQuestion, moveQuestionAt, questionTypes, questionTypeNames, type QuestionType, type StudioPageData, type StudioQuestion } from '../shared/studio';
+import { draftPayloadSchema, duplicateQuestion, makePage, makeQuestion, moveQuestionAt, type QuestionType, type StudioPageData, type StudioQuestion } from '../shared/studio';
 import { QuestionCard } from '../components/studio/QuestionCard';
-import { QuestionSettings } from '../components/studio/QuestionSettings';
+import { StudioSidebar, type SidebarMode } from '../components/studio/StudioSidebar';
+import { ResultsPanel } from '../components/studio/ResultsPanel';
 import { StudioPreview } from '../components/studio/StudioPreview';
 
 const cta='inline-flex items-center justify-center gap-2 rounded-xl bg-[#2f6546] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#254e38] disabled:cursor-not-allowed disabled:opacity-40';
@@ -29,6 +29,8 @@ export function StudioPage(){
  const [pageIndex,setPageIndex]=useState(0);
  const [questionId,setQuestionId]=useState<string|null>(null);
  const [preview,setPreview]=useState(false);
+ const [activeTab,setActiveTab]=useState<'questions'|'results'|'settings'>('questions');
+ const [sideMode,setSideMode]=useState<SidebarMode>('add');
  const [saveState,setSaveState]=useState<SaveState>('saved');
  const [error,setError]=useState('');
  const [operation,setOperation]=useState(false);
@@ -53,7 +55,7 @@ export function StudioPage(){
      draftRef.current=draft?.id??null;revisionRef.current=draft?.revision??0;
      const next:StudioPageData[]=draft?.pages.map(p=>({id:p.id,title:p.title,description:p.description,
        questions:p.questions.map(q=>({id:q.id,type:q.type as QuestionType,label:q.label,description:q.description,required:q.required,settings:q.settings,options:q.options.map(o=>({id:o.id,value:o.value,label:o.label}))}))})) ?? [];
-     savedRef.current=JSON.stringify(next);setPages(next.length?next:[makePage()]);setPageIndex(0);setQuestionId(null);setPreview(false);setSaveState('saved');
+     savedRef.current=JSON.stringify(next);setPages(next.length?next:[makePage()]);setPageIndex(0);setQuestionId(null);setPreview(false);setActiveTab('questions');setSideMode('add');setSaveState('saved');
    }catch(e){setError(e instanceof Error?e.message:'Chargement impossible');}finally{setOperation(false);}
  }
  async function createForm(){
@@ -117,7 +119,7 @@ export function StudioPage(){
  }
  function updatePage(next:StudioPageData){setSaveState('pending');setPages(p=>p.map((it,i)=>i===pageIndex?next:it));}
  function updateQuestion(question:StudioQuestion){if(!page)return;updatePage({...page,questions:page.questions.map(q=>q.id===question.id?question:q)});}
- function addQuestion(type:QuestionType){if(!page)return;const next=makeQuestion(type);updatePage({...page,questions:[...page.questions,next]});setQuestionId(next.id);}
+ function addQuestion(type:QuestionType){if(!page)return;const next=makeQuestion(type);updatePage({...page,questions:[...page.questions,next]});setQuestionId(next.id);setSideMode('settings');}
  function moveQuestion(from:number,to:number){if(!page||to<0||to>=page.questions.length)return;
    updatePage({...page,questions:moveQuestionAt(page.questions,from,to)});}
  function deleteQuestion(id:string){if(!page||!window.confirm('Supprimer cette question du brouillon ?'))return;
@@ -151,16 +153,33 @@ export function StudioPage(){
     </div> : <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e3ebdf] bg-white px-4 py-3">
         <div className="flex min-w-0 items-center gap-3"><button title="Liste des formulaires" onClick={()=>{if(saveState!=='saved' && !window.confirm('Quitter sans confirmer l’enregistrement des dernières modifications ?'))return;setDetail(null);draftRef.current=null;}} className="rounded-lg p-1 text-[#6e8873] hover:bg-[#edf4ed]"><ArrowLeft size={19}/></button><div><h2 className="max-w-[330px] truncate font-bold">{detail.title}</h2><span className="text-xs text-[#8c9b8d]">{published?'Version publiée + brouillon':'Brouillon'} · {countQuestions(pages)} question(s)</span></div></div>
-        <div className="flex flex-wrap items-center gap-2">{published&&<><a className={light} target="_blank" rel="noopener noreferrer" href={`/f/${encodeURIComponent(detail.slug)}`}><Eye size={16}/> Voir le lien public</a><button className={light} onClick={()=>{void (async()=>{try{await navigator.clipboard.writeText(`${window.location.origin}/f/${encodeURIComponent(detail.slug)}`);}catch{setError("Copie impossible. Utilise le lien public.");}})();}}><Copy size={15}/> Copier le lien</button></>}<button className={light} onClick={()=>setPreview(v=>!v)}><Eye size={16}/>{preview?'Éditer':'Aperçu'}</button><button className={light} disabled={!editable} onClick={()=>void renameForm()}>Renommer</button><button className={light} onClick={()=>void duplicateForm()}><Copy size={15}/> Dupliquer</button><button className={cta} disabled={!editable||operation||saveState==='saving'||saveState==='error'} onClick={()=>void publishForm()}><Send size={15}/> Publier</button></div>
+        <div className="flex flex-wrap items-center gap-2">{published&&<><a className={light} target="_blank" rel="noopener noreferrer" href={`/f/${encodeURIComponent(detail.slug)}`}><Eye size={16}/> Voir le lien public</a><button className={light} onClick={()=>{void (async()=>{try{await navigator.clipboard.writeText(`${window.location.origin}/f/${encodeURIComponent(detail.slug)}`);}catch{setError("Copie impossible. Utilise le lien public.");}})();}}><Copy size={15}/> Copier le lien</button></>}<button className={light} onClick={()=>{setActiveTab('questions');setPreview(v=>!v);}}><Eye size={16}/>{preview?'Éditer':'Aperçu'}</button><button className={cta} disabled={!editable||operation||saveState==='saving'||saveState==='error'} onClick={()=>void publishForm()}><Send size={15}/> Publier</button></div>
       </div>
-      {detail.archivedAt&&<p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Ce formulaire est archivé ; son contenu ne peut pas être modifié.</p>}
-      {preview?<StudioPreview pages={pages} title={detail.title}/>:<div className={`grid items-start gap-4 ${pages.length>1&&selected&&editable?'lg:grid-cols-[190px_minmax(0,1fr)_260px] xl:grid-cols-[220px_minmax(0,1fr)_315px]':pages.length>1?'lg:grid-cols-[220px_minmax(0,1fr)]':selected&&editable?'lg:grid-cols-[minmax(0,1fr)_315px]':'grid-cols-1'}`}>
-        {pages.length>1&&<aside aria-label="Pages du formulaire" className="rounded-[22px] border border-[#e4eae1] bg-white p-4 lg:sticky lg:top-5">
-          <p className="mb-4 px-2 text-[11px] font-bold uppercase tracking-[.14em] text-[#98a899]">Navigation</p>
-          <div className="space-y-1.5">{pages.map((p,i)=><button type="button" key={p.id} onClick={()=>{setPageIndex(i);setQuestionId(null);}} className={`flex w-full items-center gap-3 rounded-xl p-3 text-left transition ${pageIndex===i?'bg-[#eaf3e9] text-[#366b49]':'text-[#738a78] hover:bg-[#f5f8f3]'}`}><span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-xs font-bold ${pageIndex===i?'bg-[#d7e7d5]':'bg-[#f0f4ed]'}`}>{i+1}</span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{p.title||'Sans titre'}</span><span className="text-[11px] opacity-65">{p.questions.length} question(s)</span></span></button>)}</div>
-          <button disabled={!editable} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#c8dbcb] px-3 py-3 text-sm font-semibold text-[#5d8c69] hover:bg-[#f5faf4] disabled:opacity-35" onClick={addPage}><Plus size={16}/> Ajouter une page</button>
-          <div className="mt-6 border-t border-[#eef2eb] pt-5 text-xs text-[#9aaa9b]">{pages.length} page(s)<br/>{countQuestions(pages)} question(s)</div>
-        </aside>}
+      <nav aria-label="Sections du formulaire" className="mb-5 flex gap-2 border-b border-[#dfe8dc] pb-2">
+        {(['questions','results','settings'] as const).map(tab=><button key={tab} type="button"
+         aria-current={activeTab===tab?'page':undefined} onClick={()=>{setPreview(false);setActiveTab(tab);}}
+         className={`rounded-lg px-4 py-2.5 text-sm font-semibold transition ${activeTab===tab?'bg-[#e2f0e0] text-[#2d7246]':'text-[#718775] hover:bg-[#eef5ed]'}`}>
+          {{questions:'Questions',results:'Résultats',settings:'Paramètres'}[tab]}
+        </button>)}
+       </nav>
+       {detail.archivedAt&&<p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Ce formulaire est archivé ; son contenu ne peut pas être modifié.</p>}
+      {activeTab==='results'?<ResultsPanel formId={detail.id}/>:
+       activeTab==='settings'?<section className="max-w-xl space-y-4 rounded-2xl border border-[#e2eade] bg-white p-6">
+        <h2 className="text-xl font-bold text-[#31553c]">Paramètres du formulaire</h2>
+        <p className="text-sm text-[#708675]">Nom : {detail.title}</p>
+        <p className="break-all text-xs text-[#8a9c8b]">Lien public : {window.location.origin}/f/{detail.slug}</p>
+        <div className="flex flex-wrap gap-2">
+         <button className={light} disabled={!editable} onClick={()=>void renameForm()}>Renommer</button>
+         <button className={light} onClick={()=>void duplicateForm()}><Copy size={15}/> Dupliquer</button>
+         <button className={light} disabled={!editable||saveState==='saving'} onClick={()=>void saveNow()}><Save size={15}/> Enregistrer</button>
+        </div>
+        {editable&&<button className="inline-flex items-center gap-2 text-sm text-[#a06f68]" onClick={()=>void performState('archive')}><Archive size={15}/> Archiver</button>}
+       </section>:
+       preview?<StudioPreview pages={pages} title={detail.title}/>:<div className="grid items-start gap-4 lg:grid-cols-[255px_minmax(0,1fr)]">
+        <StudioSidebar mode={sideMode} onModeChange={setSideMode} pages={pages} pageIndex={pageIndex}
+          onPageIndex={idx=>{setPageIndex(idx);setQuestionId(null);}}
+          selected={selected} editable={editable} onQuestionUpdate={updateQuestion}
+          onAddQuestion={addQuestion} onAddPage={addPage} onDeletePage={deletePage}/>
         <section aria-label="Éditeur de page" className="min-w-0 space-y-4">
           {page&&<>
             <div className="rounded-[22px] border border-[#e4eae1] bg-white p-5 sm:p-7"><div className="flex items-center justify-between gap-2"><p className="text-[11px] font-bold uppercase tracking-[.16em] text-[#83a18b]">PAGE {pageIndex+1}</p>
@@ -170,17 +189,12 @@ export function StudioPage(){
               <textarea aria-label="Description de la page" className="mt-3 w-full resize-y bg-transparent text-sm text-[#899b8d] outline-none placeholder:text-[#b2bdb2]" rows={2} placeholder="Une courte introduction (facultative)…" value={page.description??''} disabled={!editable} onChange={e=>updatePage({...page,description:e.target.value||null})}/>
               {pages.length>1&&<button disabled={!editable} className="text-xs font-semibold text-[#ba7c75]" onClick={deletePage}>Supprimer cette page</button>}
             </div>
-            {page.questions.map((q,i)=><QuestionCard key={q.id} index={i} question={q} selected={questionId===q.id} onSelect={()=>setQuestionId(q.id)} onUpdate={updateQuestion} onMove={d=>moveQuestion(i,i+d)} onDrop={from=>moveQuestion(from,i)} onDuplicate={()=>{const next=duplicateQuestion(q);const questions=[...page.questions];questions.splice(i+1,0,next);updatePage({...page,questions});setQuestionId(next.id);}} onDelete={()=>deleteQuestion(q.id)} readOnly={!editable}/>)}
+            {page.questions.map((q,i)=><QuestionCard key={q.id} index={i} question={q} selected={questionId===q.id} onSelect={()=>{setQuestionId(q.id);setSideMode('settings');}} onUpdate={updateQuestion} onMove={d=>moveQuestion(i,i+d)} onDrop={from=>moveQuestion(from,i)} onDuplicate={()=>{const next=duplicateQuestion(q);const questions=[...page.questions];questions.splice(i+1,0,next);updatePage({...page,questions});setQuestionId(next.id);}} onDelete={()=>deleteQuestion(q.id)} readOnly={!editable}/>)}
             {page.questions.length===0&&<div className="rounded-[22px] border border-dashed border-[#d8e5d8] bg-white px-6 py-12 text-center"><FilePlus2 className="mx-auto text-[#9fbd9f]" size={30}/><p className="mt-4 font-semibold text-[#53715a]">Tout commence par une question.</p><p className="mt-2 text-sm text-[#9dab9e]">Choisis un type ci-dessous pour composer ta page.</p></div>}
-            {editable&&<div className="rounded-[22px] border border-dashed border-[#cbdcc9] bg-white p-4"><p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#8ba28d]">Ajouter une question</p><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{questionTypes.map(type=><button key={type} onClick={()=>addQuestion(type)} className="flex items-center gap-2 rounded-xl bg-[#f4f8f2] px-3 py-3 text-left text-xs font-semibold text-[#578064] transition hover:bg-[#e7f1e5]"><Plus size={14}/>{questionTypeNames[type]}</button>)}</div></div>}
+            {editable&&<button type="button" className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#cbdcc9] bg-white px-4 py-3 text-sm font-semibold text-[#50865e] hover:bg-[#f0f8ef]"
+              onClick={()=>setSideMode('add')}><Plus size={18}/> Ajouter une question</button>}
           </>}
         </section>
-        {selected&&editable&&<aside className="rounded-[22px] border border-[#e4eae1] bg-white p-5 lg:sticky lg:top-5"><div className="mb-5 flex items-center gap-2"><Settings2 size={18} className="text-[#648b6d]"/><h2 className="font-bold">Réglages</h2></div>
-          <QuestionSettings question={selected} onUpdate={updateQuestion}/>
-          <div className="mt-7 border-t border-[#eaf0e9] pt-5"><button className={light+' w-full'} disabled={!editable||saveState==='saving'} onClick={()=>void saveNow()}><Save size={15}/> Enregistrer maintenant</button>
-          <button className="mt-3 inline-flex w-full items-center justify-center gap-2 text-xs font-semibold text-[#9b7b72]" onClick={()=>void performState('archive')}><Archive size={13}/> Archiver le formulaire</button>
-          </div>
-        </aside>}
       </div>}
     </>}
   </div>
