@@ -48,7 +48,7 @@ export function StudioSidebar({mode,onModeChange,open,onToggle,pages,pageIndex,o
       className={`w-full truncate rounded-xl px-3 py-3 text-left text-sm ${pageIndex===i?'bg-[#e6f1e5] font-semibold text-[#2c6a41]':'text-[#496a54] hover:bg-[#f3f7f1]'}`}>
       {i+1}. {p.title||'Page sans titre'}</button>)}
      {editable&&<button className="mt-2 flex w-full items-center gap-2 rounded-xl p-3 text-xs font-semibold text-[#468253] hover:bg-[#edf6ea]" onClick={onAddPage}><Plus size={16}/> Ajouter une page</button>}
-     {editable&&pages.length>1&&<button onClick={onDeletePage} className="w-full rounded-lg px-3 py-2 text-left text-xs text-[#ad6d64]">Supprimer la page actuelle</button>}
+     {editable&&pages.length>1&&<button onClick={onDeletePage} className="w-full rounded-lg px-3 py-2 text-left text-xs text-[#98483f]">Supprimer la page actuelle</button>}
    </div>}
    </div>}
   </aside>;
