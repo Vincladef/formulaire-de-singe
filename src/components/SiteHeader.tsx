@@ -7,7 +7,7 @@ import { Button } from './ui/button';
 
 function AccountActions() {
   // The hook stays inside an authenticated-client-only component.
-  if (!authClient) return <Button asChild variant="outline" size="sm"><Link to="/studio">Ouvrir le Studio <ArrowUpRight size={16}/></Link></Button>;
+  if (!authClient) return null;
   return <SignedInActions/>;
 }
 
@@ -60,7 +60,7 @@ function SignedInActions() {
   }
 
   if (session.isPending || !session.data?.user) {
-    return <Button asChild variant="outline" size="sm"><Link to="/studio">Ouvrir le Studio <ArrowUpRight size={16}/></Link></Button>;
+    return <Button asChild variant="outline" size="sm"><Link to="/connexion">Se connecter <ArrowUpRight size={16}/></Link></Button>;
   }
 
   return <div className="relative flex min-w-0 items-center justify-end gap-2">
