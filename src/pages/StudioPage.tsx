@@ -31,7 +31,7 @@ export function StudioPage(){
  const [preview,setPreview]=useState(false);
  const [activeTab,setActiveTab]=useState<'questions'|'results'|'settings'>('questions');
  const [sideMode,setSideMode]=useState<SidebarMode>('add');
- const [sidebarOpen,setSidebarOpen]=useState(true);
+ const [sidebarOpen,setSidebarOpen]=useState(()=>typeof window==='undefined'||typeof window.matchMedia!=='function'?true:window.matchMedia('(min-width: 1024px)').matches);
  const [saveState,setSaveState]=useState<SaveState>('saved');
  const [error,setError]=useState('');
  const [operation,setOperation]=useState(false);
@@ -176,7 +176,7 @@ export function StudioPage(){
         {editable&&<button className="inline-flex items-center gap-2 text-sm text-[#a06f68]" onClick={()=>void performState('archive')}><Archive size={15}/> Archiver</button>}
        </section>:
        preview?<StudioPreview pages={pages} title={detail.title}/>:<div className={`grid items-start gap-4 ${sidebarOpen?'lg:grid-cols-[255px_minmax(0,1fr)]':'lg:grid-cols-[70px_minmax(0,1fr)]'}`}>
-        <StudioSidebar mode={sideMode} onModeChange={setSideMode} open={sidebarOpen} onToggle={()=>setSidebarOpen(v=>!v)} pages={pages} pageIndex={pageIndex}
+        <StudioSidebar mode={sideMode} onModeChange={mode=>{setSideMode(mode);setSidebarOpen(true);}} open={sidebarOpen} onToggle={()=>setSidebarOpen(v=>!v)} pages={pages} pageIndex={pageIndex}
           onPageIndex={idx=>{setPageIndex(idx);setQuestionId(null);}}
           selected={selected} editable={editable} onQuestionUpdate={updateQuestion}
           onAddQuestion={addQuestion} onAddPage={addPage} onDeletePage={deletePage}/>
