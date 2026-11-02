@@ -59,7 +59,7 @@ function questionNode(q:StudioQuestion,index:number):HTMLElement {
  const meta=el('div','mb-1 flex items-center justify-between gap-3');
  meta.appendChild(el('span','text-xs font-semibold text-[#617866]',String(index+1).padStart(2,'0')+' · '+questionTypeNames[q.type]));
  const actionBar=el('div','flex items-center gap-1 opacity-60 transition group-hover:opacity-100 group-focus-within:opacity-100');
- actionBar.append(action('Options','settings'),action('Dupliquer','duplicate'),action('Supprimer','delete'));
+ actionBar.append(action('Options','settings'),action('↑','move-up'),action('↓','move-down'),action('Dupliquer','duplicate'),action('Supprimer','delete'));
  meta.appendChild(actionBar);block.appendChild(meta);
  block.appendChild(textField('label',q.label==='Votre question'?'':q.label,'Écris ta question…','block h-auto min-h-10 w-full rounded-md border-0 bg-transparent p-1 text-lg font-semibold text-[#294b36] outline-none placeholder:text-[#738b78] focus:bg-[#f6faf5]'));
  block.appendChild(textField('description',q.description??'','Ajouter une indication (facultatif)','block min-h-9 w-full rounded-md border-0 bg-transparent p-1 text-sm text-[#617668] outline-none placeholder:text-[#819484] focus:bg-[#f6faf5]'));
@@ -117,7 +117,7 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
   const editor=root.current;if(!editor)return;
   const fragment=document.createDocumentFragment();
   const title=el('h1','mb-3 min-h-12 text-3xl font-bold tracking-tight text-[#294b36] sm:text-4xl',data.title==='Nouvelle page'?'':data.title);
-  title.dataset.role='title';title.dataset.placeholder='Titre du formulaire';title.dataset.empty=String(!title.textContent?.trim());
+  title.dataset.role='title';title.dataset.placeholder='Titre de la page (facultatif)';title.dataset.empty=String(!title.textContent?.trim());
   fragment.appendChild(title);
   const intro=el('p','mb-7 min-h-8 text-sm leading-7 text-[#536a59]',data.description??'');
   intro.dataset.role='description';intro.dataset.placeholder='Ajouter une introduction…';intro.dataset.empty=String(!intro.textContent?.trim());
@@ -322,8 +322,8 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
   }
  }
  function format(name:'bold'|'italic'){
-  const selection=window.getSelection();if(savedRange.current&&selection){selection.removeAllRanges();selection.addRange(savedRange.current);}
   root.current?.focus();
+  const selection=window.getSelection();if(savedRange.current&&selection){selection.removeAllRanges();selection.addRange(savedRange.current);}
   if(typeof document.execCommand==='function')document.execCommand(name,false);
   remember();emit();
  }
