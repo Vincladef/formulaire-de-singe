@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
-import { Bold, Heading2, Highlighter, ImagePlus, Italic, Palette, Quote, Strikethrough, Type, Underline, Undo2, Redo2 } from 'lucide-react';
+import { Bold, Heading2, ImagePlus, Italic, Quote, Strikethrough, Type, Underline, Undo2, Redo2 } from 'lucide-react';
+import { ColorPalette } from './ColorPalette';
 import { audioMode } from '../../shared/audio';
 import { OTHER_VALUE } from '../../shared/publicForm';
 import { allowedInlineImage, sanitizeDocumentHtml } from '../../shared/richText';
@@ -428,16 +429,8 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
    <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>styleLine('heading')} title="Titre" aria-label="Titre" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Heading2 size={18}/></button>
    <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>styleLine('quote')} title="Citation" aria-label="Citation" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Quote size={17}/></button>
    <div className="mx-1 h-5 w-px bg-[#dce6db]"/>
-   <label className="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]" title="Couleur du texte">
-    <Palette size={19}/><span className="absolute bottom-1.5 h-0.5 w-5 rounded" style={{backgroundColor:textColor}}/>
-    <input aria-label="Couleur du texte" type="color" value={textColor} onChange={e=>{setTextColor(e.target.value);format('foreColor',e.target.value);}}
-     className="absolute inset-0 h-full w-full cursor-pointer opacity-0"/>
-   </label>
-   <label className="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]" title="Surligner le texte">
-    <Highlighter size={19}/><span className="absolute bottom-1.5 h-0.5 w-5 rounded" style={{backgroundColor:highlightColor}}/>
-    <input aria-label="Couleur de surlignage" type="color" value={highlightColor} onChange={e=>{setHighlightColor(e.target.value);format('hiliteColor',e.target.value);}}
-     className="absolute inset-0 h-full w-full cursor-pointer opacity-0"/>
-   </label>
+   <ColorPalette kind="text" label="Couleur du texte" value={textColor} onColor={color=>{setTextColor(color);format('foreColor',color);}}/>
+   <ColorPalette kind="highlight" label="Couleur de surlignage" value={highlightColor} onColor={color=>{setHighlightColor(color);format('hiliteColor',color);}}/>
    <select aria-label="Taille des caractères" title="Taille des caractères" defaultValue="3" onChange={e=>format('fontSize',e.target.value)}
     className="h-10 w-[68px] rounded-lg border border-[#dce6db] bg-white px-1 text-sm text-[#41644a] outline-none">
     <option value="2">Petit</option><option value="3">16</option><option value="4">18</option><option value="5">24</option><option value="6">30</option>
