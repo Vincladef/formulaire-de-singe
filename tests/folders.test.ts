@@ -18,7 +18,7 @@ function req(url:string,method:string,body?:unknown,authorized=true){
   ...(body===undefined?{}:{'Content-Type':'application/json'})},
   body:body===undefined?undefined:JSON.stringify(body)});
 }
-const handle=createFoldersHandler(foldersStub as typeof folderActions,async request=>{
+const handle=createFoldersHandler(foldersStub as unknown as typeof folderActions,async request=>{
  if(!request.headers.get('Authorization'))throw new (await import('../src/server/auth')).UnauthorizedError();
  return 'owner-user';
 });
