@@ -3,6 +3,7 @@ import { zipSync,strToU8 } from 'fflate';
 import { BarChart3,Download,FileSpreadsheet,Headphones,LoaderCircle } from 'lucide-react';
 import { getAccessToken } from '../../authClient';
 import type { FormResults,ResultAnswer,ResultSubmission } from '../../server/resultsService';
+import { exportAudioAsMp3 } from '../../shared/mp3Export';
 type Result<T>={ok:true;data:T}|{ok:false;error:{message:string}};
 const formatted=(a:ResultAnswer)=>{
  if(a.audioId)return `Enregistrement audio${a.durationMs?' ('+Math.ceil(a.durationMs/1000)+' s)':''}`;
@@ -79,7 +80,7 @@ function ChoiceChart({question,answers}:{question:string;answers:ResultAnswer[]}
 }
 export function ResultsPanel({formId}:{formId:string}){
  const [data,setData]=useState<FormResults|null>(null),[loading,setLoading]=useState(true);
- const [busy,setBusy]=useState(''),[error,setError]=useState(''),[view,setView]=useState<'summary'|'individual'>('summary');
+ const [busy,setBusy]=useState(''),[error,setError]=useState(''),[progress,setProgress]=useState(''),[view,setView]=useState<'summary'|'individual'>('summary');
  const [player,setPlayer]=useState<{id:string;url:string}|null>(null);
  useEffect(()=>{let active=true;setLoading(true);setError('');setData(null);
   requestFormResults(formId,0).then(x=>{if(active)setData(x)}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Résultats indisponibles.')})
@@ -95,7 +96,7 @@ export function ResultsPanel({formId}:{formId:string}){
   }return [...groups.values()];
  },[data]);
  async function doExport(format:'csv'|'xlsx'|'zip'){
-  setBusy(format);setError('');
+  setBusy(format);setError('');setProgress('');
   try{
    const all=await fetchAll(formId),sheet=dataset(all);
    const name='reponses-'+formId.slice(0,8);
@@ -108,17 +109,31 @@ export function ResultsPanel({formId}:{formId:string}){
     if(audio.length>80)throw Error('Export ZIP limité à 80 audios par téléchargement.');
     const token=await getAccessToken();if(!token)throw Error('Session expirée.');
     let bytes=0;
-    for(const a of audio){
+    for(const [index,a] of audio.entries()){
      const response=await fetch(`/api/audio/${a.audioId}`,{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});
      if(!response.ok)throw Error('Impossible de récupérer un des enregistrements.');
-     const blob=await response.blob();bytes+=blob.size;
+     const original=await response.blob();
+     setProgress(`Conversion MP3 ${index+1}/${audio.length}…`);
+     const mp3=await exportAudioAsMp3(original);
+     bytes+=mp3.size;
      if(bytes>100*1048576)throw Error('Le ZIP dépasserait 100 Mio. Exportez un ensemble plus petit.');
-     const ext=blob.type.includes('webm')?'webm':blob.type.includes('ogg')?'ogg':blob.type.includes('mp4')?'m4a':blob.type.includes('wav')?'wav':'audio';
-     archive[`audios/${a.submission.slice(0,8)}-${a.audioId}.${ext}`]=new Uint8Array(await blob.arrayBuffer());
+     archive[`audios/${a.submission.slice(0,8)}-${a.audioId}.mp3`]=new Uint8Array(await mp3.arrayBuffer());
     }
     download(name+'.zip',new Blob([zipSync(archive,{level:0}) as BlobPart],{type:'application/zip'}));
    }
-  }catch(e){setError(e instanceof Error?e.message:'Export impossible.');}finally{setBusy('');}
+  }catch(e){setError(e instanceof Error?e.message:'Export impossible.');}finally{setBusy('');setProgress('');}
+ }
+ async function downloadMp3(id:string,submissionId:string){
+  if(busy)return;
+  setBusy('mp3:'+id);setError('');setProgress('Préparation du MP3…');
+  try{
+   const token=await getAccessToken();if(!token)throw Error('Connexion expirée.');
+   const response=await fetch(`/api/audio/${id}`,{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});
+   if(!response.ok)throw Error('Enregistrement inaccessible.');
+   const mp3=await exportAudioAsMp3(await response.blob(),fraction=>setProgress(`Conversion MP3 : ${Math.round(fraction*100)} %`));
+   download(`reponse-${submissionId.slice(0,8)}-${id.slice(0,8)}.mp3`,mp3);
+  }catch(e){setError(e instanceof Error?e.message:'Téléchargement MP3 impossible.');}
+  finally{setBusy('');setProgress('');}
  }
  async function play(id:string){
   setBusy(id);setError('');
@@ -136,10 +151,11 @@ export function ResultsPanel({formId}:{formId:string}){
     {(['csv','xlsx','zip'] as const).map(type=><button key={type} disabled={!!busy||loading}
       onClick={()=>void doExport(type)} className="inline-flex items-center gap-1.5 rounded-xl border border-[#dce7db] bg-white px-3 py-2 text-xs font-semibold text-[#3a6950] hover:bg-[#eff6ef] disabled:opacity-50">
       {busy===type?<LoaderCircle size={14} className="animate-spin"/>:type==='xlsx'?<FileSpreadsheet size={14}/>:<Download size={14}/>}
-      {type==='zip'?'ZIP + audios':type.toUpperCase()}</button>)}
+      {type==='zip'?'ZIP + audios MP3':type.toUpperCase()}</button>)}
    </div>
   </div>
   {error&&<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+  {progress&&<p role="status" className="flex items-center gap-2 rounded-xl bg-[#eef5ec] p-3 text-sm text-[#356344]"><LoaderCircle size={16} className="animate-spin"/>{progress}</p>}
   {loading?<p role="status" className="text-sm text-[#72917a]"><LoaderCircle size={17} className="inline animate-spin"/> Chargement des réponses…</p>:
    data&&<>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -159,8 +175,10 @@ export function ResultsPanel({formId}:{formId:string}){
       <p className="text-xs font-semibold text-[#7c8f7f]">{sub.submittedAt?new Date(sub.submittedAt).toLocaleString('fr-FR'):'Date inconnue'}</p>
       {sub.answers.map(ans=><div className="mt-3 border-t border-[#f0f3ef] pt-3" key={ans.questionId}>
        <p className="text-xs font-semibold text-[#637b68]">{ans.question}</p><p className="mt-1 whitespace-pre-wrap text-sm text-[#36503b]">{formatted(ans)}</p>
-       {ans.audioId&&<><button className="mt-2 rounded-lg border border-[#d8e7db] px-3 py-2 text-xs font-semibold text-[#397450]"
+       {ans.audioId&&<><div className="mt-2 flex flex-wrap gap-2"><button className="rounded-lg border border-[#d8e7db] px-3 py-2 text-xs font-semibold text-[#397450]"
          disabled={!!busy} onClick={()=>void play(ans.audioId!)}>{busy===ans.audioId?'Chargement…':'Écouter la réponse'}</button>
+        <button className="inline-flex items-center gap-1.5 rounded-lg border border-[#d8e7db] px-3 py-2 text-xs font-semibold text-[#397450] disabled:opacity-50"
+         disabled={!!busy} onClick={()=>void downloadMp3(ans.audioId!,sub.id)}><Download size={14}/>{busy==='mp3:'+ans.audioId?'Conversion…':'Télécharger MP3'}</button></div>
         {player?.id===ans.audioId&&<audio className="mt-2 w-full" controls autoPlay src={player.url}/>}</>}
       </div>)}
      </article>)}</div>}
