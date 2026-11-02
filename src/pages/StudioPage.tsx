@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Archive, ArrowLeft, CheckCircle2, ChevronRight, CircleAlert, Copy, Eye, FilePlus2, Files, LoaderCircle, Plus, Save, Send, Trash2, X } from 'lucide-react';
+import { Archive, ArrowLeft, CheckCircle2, CircleAlert, Clock3, Copy, Eye, FilePlus2, Files, LoaderCircle, Plus, Save, Send, X } from 'lucide-react';
 import { getAccessToken } from '../authClient';
 import type { FormDetail, FormSummary } from '../shared/formApi';
 import { draftPayloadSchema, duplicateQuestion, makePage, moveQuestionAt, type QuestionType, type StudioPageData, type StudioQuestion } from '../shared/studio';
@@ -9,6 +9,8 @@ import { StudioSidebar, type SidebarMode } from '../components/studio/StudioSide
 import { ResultsPanel } from '../components/studio/ResultsPanel';
 import { StudioPreview } from '../components/studio/StudioPreview';
 import { GoogleSheetsPanel } from '../components/studio/GoogleSheetsPanel';
+import { FormItemMenu } from '../components/studio/FormItemMenu';
+import { StudioDialog, type StudioDialogIntent } from '../components/studio/StudioDialog';
 
 const cta='inline-flex items-center justify-center gap-2 rounded-xl bg-[#2f6546] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#254e38] disabled:cursor-not-allowed disabled:opacity-40';
 const light='inline-flex items-center justify-center gap-2 rounded-xl border border-[#e0e8df] bg-white px-3.5 py-2.5 text-sm font-semibold text-[#51735b] transition hover:bg-[#f0f5ef] disabled:opacity-35';
@@ -33,11 +35,15 @@ export function StudioPage(){
  const [preview,setPreview]=useState(false);
  const [activeTab,setActiveTab]=useState<'questions'|'results'|'integrations'|'settings'>('questions');
  const [sideMode,setSideMode]=useState<SidebarMode>('add');
- const [sidebarOpen,setSidebarOpen]=useState(()=>typeof window==='undefined'||typeof window.matchMedia!=='function'?true:window.matchMedia('(min-width: 1024px)').matches);
+ const [sidebarOpen,setSidebarOpen]=useState(false);
  const [saveState,setSaveState]=useState<SaveState>('saved');
  const [error,setError]=useState('');
  const [operation,setOperation]=useState(false);
  const [showArchived,setShowArchived]=useState(false);
+ const [dialog,setDialog]=useState<StudioDialogIntent|null>(null);
+ const dialogResolver=useRef<((answer:string|null)=>void)|null>(null);
+ function askDialog(intent:StudioDialogIntent):Promise<string|null>{return new Promise(resolve=>{dialogResolver.current?.(null);dialogResolver.current=resolve;setDialog(intent);});}
+ function resolveDialog(answer:string|null){dialogResolver.current?.(answer);dialogResolver.current=null;setDialog(null);}
  const revisionRef=useRef(0);const draftRef=useRef<string|null>(null);
  const cursorRef=useRef<EditorAnchor|null>(null);
  const savedRef=useRef('');const latestRef=useRef<StudioPageData[]>([]);const savingRef=useRef(false);
@@ -63,24 +69,24 @@ export function StudioPage(){
    }catch(e){setError(e instanceof Error?e.message:'Chargement impossible');}finally{setOperation(false);}
  }
  async function createForm(){
-   const name=window.prompt('Titre du nouveau formulaire','Mon nouveau formulaire');if(!name?.trim())return;
+   const name=await askDialog({kind:'text',title:'Nouveau formulaire',description:'Donne un nom à ton questionnaire. Tu pourras le modifier ensuite.',initialValue:'Mon nouveau formulaire',confirmLabel:'Créer'});if(!name?.trim())return;
    setOperation(true);setError('');try{const result=await request<{id:string}>('/api/forms','POST',{title:name.trim()});await refreshList();await openForm(result.id);}
    catch(e){setError(e instanceof Error?e.message:'Création impossible');}finally{setOperation(false);}
  }
  async function renameForm(){if(!detail)return;
-   const name=window.prompt('Nouveau titre',detail.title);if(!name?.trim()||name.trim()===detail.title)return;
+   const name=await askDialog({kind:'text',title:'Renommer le formulaire',initialValue:detail.title,confirmLabel:'Renommer'});if(!name?.trim()||name.trim()===detail.title)return;
    setOperation(true);setError('');try{await request(`/api/forms/${detail.id}`,'PATCH',{title:name.trim()});setDetail({...detail,title:name.trim()});await refreshList();}
    catch(e){setError(e instanceof Error?e.message:'Renommage impossible');}finally{setOperation(false);}
  }
  async function performState(action:'archive'|'unarchive'|'delete',id=detail?.id){if(!id)return;
    const label=action==='delete'?'placer à la corbeille':action==='archive'?'archiver':'restaurer';
-   if(!window.confirm(`Voulez-vous vraiment ${label} ce formulaire ?`))return;
+   if(!(await askDialog({kind:'confirm',title:action==='delete'?'Mettre à la corbeille ?':action==='archive'?'Archiver le formulaire ?':'Restaurer le formulaire ?',description:`Veux-tu ${label} ce formulaire ?`,confirmLabel:action==='delete'?'Mettre à la corbeille':action==='archive'?'Archiver':'Restaurer',danger:action==='delete'})))return;
    setOperation(true);setError('');try{await request(`/api/forms/${id}/state`,'POST',{action});await refreshList();
      if(action==='delete'||action==='archive'){setDetail(null);setPages([]);draftRef.current=null;}
      else await openForm(id);
    }catch(e){setError(e instanceof Error?e.message:'Action impossible');}finally{setOperation(false);}
  }
- async function duplicateForm(id=detail?.id){if(!id||!window.confirm('Créer une copie indépendante de ce formulaire ?'))return;
+ async function duplicateForm(id=detail?.id){if(!id||!(await askDialog({kind:'confirm',title:'Dupliquer le formulaire ?',description:'Une copie indépendante sera créée ; le questionnaire original restera intact.',confirmLabel:'Dupliquer'})))return;
   setOperation(true);setError('');try{const result=await request<{id:string}>(`/api/forms/${id}/duplicate`,'POST');await refreshList();await openForm(result.id);}
   catch(e){setError(e instanceof Error?e.message:'Duplication impossible');}finally{setOperation(false);}
  }
@@ -111,7 +117,7 @@ export function StudioPage(){
    const t=setTimeout(()=>{void saveNow();},850);return()=>clearTimeout(t);
  },[pages,editable,saveNow]);
  async function publishForm(){if(!detail||!editable||operation)return;
-  if(!window.confirm('Publier cette version ? Elle sera figée et un nouveau brouillon sera créé.'))return;
+  if(!(await askDialog({kind:'confirm',title:'Publier ce formulaire ?',description:'La version publiée sera figée ; un nouveau brouillon sera créé pour les prochaines modifications.',confirmLabel:'Publier'})))return;
   setOperation(true);try{
     await saveNow();
     if(JSON.stringify(latestRef.current)!==savedRef.current)throw new Error('Enregistre les changements avant publication.');
@@ -138,10 +144,10 @@ export function StudioPage(){
  }
  function moveQuestion(from:number,to:number){if(!page||to<0||to>=page.questions.length)return;
    updatePage({...page,questions:moveQuestionAt(page.questions,from,to)});}
- function deleteQuestion(id:string){if(!page||!window.confirm('Supprimer cette question du brouillon ?'))return;
-   updatePage({...page,questions:page.questions.filter(q=>q.id!==id)});if(questionId===id)setQuestionId(null);}
+ async function deleteQuestion(id:string){if(!page||!(await askDialog({kind:'confirm',title:'Supprimer cette question ?',description:'La question sera retirée du brouillon ; les versions déjà publiées resteront intactes.',confirmLabel:'Supprimer',danger:true})))return;
+   setSaveState('pending');setPages(prev=>prev.map((p,i)=>i===pageIndex?{...p,questions:p.questions.filter(q=>q.id!==id)}:p));if(questionId===id)setQuestionId(null);}
  function addPage(){setSaveState('pending');setPages(p=>[...p,makePage()]);setPageIndex(pages.length);setQuestionId(null);}
- function deletePage(){if(pages.length<2||!window.confirm('Supprimer cette page et toutes ses questions ?'))return;
+ async function deletePage(){if(pages.length<2||!(await askDialog({kind:'confirm',title:'Supprimer cette page ?',description:'La page et toutes ses questions seront retirées du brouillon.',confirmLabel:'Supprimer la page',danger:true})))return;
    setSaveState('pending');setPages(p=>p.filter((_,i)=>i!==pageIndex));setPageIndex(0);setQuestionId(null);}
  const activeItems=items.filter(i=>showArchived?!!i.archivedAt:!i.archivedAt);
  return <main className="min-h-[calc(100vh-90px)] bg-[#f6f8f4] px-4 py-7 text-[#2b4836] sm:px-7">
@@ -152,8 +158,8 @@ export function StudioPage(){
      </div>
      <div className="flex flex-wrap items-center gap-2">
        {detail&&<span role="status" aria-live="polite" className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium ${saveState==='error'?'bg-red-50 text-red-700':'bg-[#eaf2e7] text-[#5d8668]'}`}>
-         {saveState==='saving'?<LoaderCircle size={14} className="animate-spin"/>:saveState==='error'?<CircleAlert size={14}/>:<CheckCircle2 size={14}/>}
-         {{saved:'Enregistré',saving:'Enregistrement…',pending:'Modifications en attente',error:'Sauvegarde échouée'}[saveState]}
+         {saveState==='saving'?<LoaderCircle size={14} className="animate-spin"/>:saveState==='error'?<CircleAlert size={14}/>:saveState==='pending'?<Clock3 size={14}/>:<CheckCircle2 size={14}/>}
+         {{saved:'Enregistré',saving:'Enregistrement…',pending:'Non enregistré',error:'Sauvegarde échouée'}[saveState]}
        </span>}
        <button className={cta} disabled={operation} onClick={()=>void createForm()}><Plus size={16}/> Nouveau formulaire</button>
      </div>
