@@ -48,7 +48,7 @@ export function QuestionCard({question,index,selected,onSelect,onUpdate,onMove,o
   onDrop={e=>{e.preventDefault();setDragOver(false);const from=Number(e.dataTransfer.getData('text/plain'));if(Number.isInteger(from)&&from!==index)onDrop(from);}}
   className={`group relative rounded-xl px-2 py-2 transition sm:pl-10 sm:pr-4 ${dragOver?'bg-[#e6f2e9] ring-1 ring-[#98bba4]':selected?'bg-[#f5faf5]':'hover:bg-[#f8faf7]'}`}>
   {!readOnly&&<div className="absolute -left-1 top-3 z-10 flex items-center gap-0.5 sm:left-1">
-   <span title="Déplacer" draggable onDragStart={e=>{e.dataTransfer.setData('text/plain',String(index));e.dataTransfer.effectAllowed='move';}} className="hidden cursor-grab rounded-md p-1 text-[#a4b1a6] hover:text-[#4b7458] sm:block"><GripVertical size={15}/></span>
+   <span title="Déplacer la question" draggable onDragStart={e=>{e.dataTransfer.setData('text/plain',String(index));e.dataTransfer.effectAllowed='move';}} className="hidden cursor-grab rounded-md p-1 text-[#a4b1a6] hover:text-[#4b7458] sm:block"><GripVertical size={15}/></span>
    <button type="button" title="Insérer ici" aria-label={`Insérer après l’élément ${index+1}`} onClick={()=>{onSelect();recordCaret();setMenu(v=>!v);}} className="rounded-md p-1 text-[#739880] opacity-60 hover:bg-[#e4efe4] group-hover:opacity-100"><Plus size={17}/></button>
   </div>}
   {menu&&!readOnly&&<div className="absolute left-2 top-9 z-30 w-64 rounded-xl border border-[#dce8dc] bg-white p-2 shadow-xl sm:left-10">
