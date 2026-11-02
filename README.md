@@ -170,3 +170,23 @@ La suppression est **logique**, elle ne détruit pas les versions publiées ou r
 - Tests : `tests/public-api.test.ts`, `src/pages/PublicFormPage.test.tsx`. Le test SQL de création, envoi, répétition et consentement a été exécuté sur Neon dans une transaction annulée volontairement.
 
 **Production** : une configuration manuelle des variables d'environnement reste nécessaire dans Netlify. Tant que l'intégration authentifiée à Neon n'est pas opérationnelle, le Studio et la collecte ne doivent pas être annoncés comme utilisables en production. Ne pas passer à l'étape 6 sans vérifier le déploiement et le build.
+
+## Étape 6 : réponses vocales privées
+
+Les répondants peuvent enregistrer un audio (MediaRecorder) ou importer un fichier WebM, OGG, MP4/M4A, MP3, WAV ou AAC. Le Studio configure les modes **texte**, **audio**, **texte ou audio**, jusqu'à 300 secondes et 15 Mo maximum.
+
+Les fichiers restent localement sur l'appareil avant l'envoi. Après consentement, le navigateur demande un ticket `POST /api/public/forms/:slug/audio/prepare` : Netlify signe une URL `PUT` R2 de 120 secondes. Le navigateur transfère directement l'objet, puis appelle `POST /api/public/forms/:slug/audio/complete`. Le backend vérifie l'objet par HEAD et sa signature binaire par lecture des 64 premiers octets. La transaction `fs_submit_public` lie l'upload au bon formulaire, à la version et à la question, via un ticket unique et secret ; elle nettoie le jeton avant sauvegarde de la réponse. La fonction programmée `audio-cleanup` efface les objets non réclamés à expiration. Une URL GET temporaire de 60 secondes n'est délivrée que par `GET /api/audio/:id` à un propriétaire ou membre authentifié, sans URL publique permanente.
+
+### Configuration préalable
+
+1. Créer un bucket Cloudflare R2 privé, désactiver son accès public, créer une clé API limitée à ce bucket (`Object Read & Write`).
+2. Dans les variables d'environnement Netlify (fonctions), ajouter `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`. Ne jamais préfixer les secrets avec `VITE_`.
+3. Appliquer la configuration `r2-cors.example.json` aux règles CORS du bucket (remplacer les origines selon les domaines réels).
+4. Appliquer `drizzle/0003_audio.sql` à la base `formulaire_de_singe`, **après sauvegarde et vérification** ; garder la migration suivie dans Drizzle. Ne pas l'exécuter deux fois au hasard.
+5. Vérifier aussi `DATABASE_URL`, `NEON_AUTH_URL`, `NEON_AUTH_JWKS_URL` et `VITE_NEON_AUTH_URL`, puis relancer un déploiement Netlify.
+
+### Limitation actuelle
+
+La durée est mesurée par le navigateur, et plafonnée côté API selon la déclaration et la configuration du questionnaire. La taille, l'existence et la signature du fichier sont contrôlées côté serveur. La durée *intrinsèque* de chaque conteneur audio n'est pas encore recalculée par un décodeur serveur ; ne pas assimiler le champ `durationMs` à une métadonnée certifiée. Pour une validation antifraude renforcée, ajouter un analyseur audio sur serveur.
+
+Le job programmé `audio-cleanup.mts` reprend aussi l'effacement R2 des participations supprimées dont le transfert a échoué, sous réserve que les variables R2 soient configurées et que la migration audio de l'étape 6 soit appliquée. Les réponses textuelles restent masquées dans PostgreSQL ; elles ne sont pas effacées physiquement par cette version.
