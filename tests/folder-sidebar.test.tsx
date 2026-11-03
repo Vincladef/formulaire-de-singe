@@ -25,5 +25,22 @@ describe('bibliothèque de formulaires',()=>{
   fireEvent.click(screen.getByLabelText('Options du dossier Recherche'));
   fireEvent.click(within(screen.getByLabelText('Options du dossier Recherche').closest('details')!).getByRole('button',{name:'Supprimer'}));
   expect(onDelete).toHaveBeenCalledWith(folders[0]);
+ }); it('déplie un dossier et accepte un formulaire glissé vers le sous-dossier',()=>{
+  const onMoveForm=vi.fn();
+  const nested=[
+   {id:'research',name:'Recherche',createdAt:'2026-11-02T10:00:00Z',parentId:null},
+   {id:'sub',name:'Psychologie',createdAt:'2026-11-02T10:00:00Z',parentId:'research'}
+  ];
+  render(<FolderSidebar folders={nested} selected="all" allCount={1} formCounts={{uncategorized:0,research:0,sub:1}}
+   onSelect={vi.fn()} onCreate={vi.fn()} onRename={vi.fn()} onDelete={vi.fn()}
+   onMoveForm={onMoveForm}/>);
+  fireEvent.click(screen.getByRole('button',{name:'Déplier Recherche'}));
+  const target=screen.getByRole('button',{name:/Psychologie 1/}).closest('.group');
+  expect(target).not.toBeNull();
+  const dataTransfer={getData:(type:string)=>type==='application/x-monk-form'?'form-id':''};
+  fireEvent.dragOver(target!,{dataTransfer});
+  fireEvent.drop(target!,{dataTransfer});
+  expect(onMoveForm).toHaveBeenCalledWith('form-id','sub');
  });
+
 });
