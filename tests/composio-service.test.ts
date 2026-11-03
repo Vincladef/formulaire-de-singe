@@ -1,5 +1,5 @@
 import {beforeEach,afterEach,describe,it,expect,vi} from 'vitest';
-import {authConfigId,startComposioGoogle,completeComposioGoogle,createComposioSpreadsheet,googleSheetsComposioJSON,verifyComposioAccount} from '../src/server/composioService';
+import {authConfigId,startComposioGoogle,completeComposioGoogle,createComposioSpreadsheet,googleSheetsComposioJSON,verifyComposioAccount,prepareExistingComposioSpreadsheet} from '../src/server/composioService';
 
 const fetchMock=vi.fn();
 beforeEach(()=>{vi.stubEnv('COMPOSIO_API_KEY','test-key-never-real');vi.stubEnv('COMPOSIO_OAUTH_VERIFIER_ENABLED','true');vi.stubGlobal('fetch',fetchMock);fetchMock.mockReset();});
@@ -52,6 +52,31 @@ describe('Composio managed Sheets adapter',()=>{
    expect(payload.endpoint).toMatch(/^https:\/\/sheets\.googleapis\.com\/v4\/spreadsheets/);
    expect(JSON.stringify(payload)).not.toContain('access_token');
   }
+ });
+ it('prépare l’onglet Réponses dans un tableur existant sans toucher aux autres onglets',async()=>{
+  const sheetId='1'+'a'.repeat(43);
+  fetchMock.mockImplementation(async(_url:string,init:RequestInit)=>{
+   const payload=JSON.parse(init.body as string);
+   if(payload.method==='GET')return result({status:200,data:{spreadsheetId:sheetId,sheets:[{properties:{title:'Données historiques'}}]}});
+   return result({status:200,data:{}});
+  });
+  await prepareExistingComposioSpreadsheet('owner-1','ca_abcdef',sheetId);
+  const queries=fetchMock.mock.calls.map(([,init])=>JSON.parse(init.body));
+  expect(queries.map(q=>q.method)).toEqual(['GET','POST','PUT']);
+  expect(queries[1].body.requests[0].addSheet.properties.title).toBe('Réponses');
+  expect(queries[2].body.values[0]).toEqual(['ID soumission','Date UTC']);
+  expect(queries.every(q=>q.endpoint.startsWith('https://sheets.googleapis.com/v4/spreadsheets/'+sheetId))).toBe(true);
+ });
+ it('ne modifie pas un onglet Réponses contenant des données étrangères',async()=>{
+  const sheetId='1'+'b'.repeat(43);
+  fetchMock.mockImplementation(async(_url:string,init:RequestInit)=>{
+   const payload=JSON.parse(init.body as string);
+   if(payload.endpoint.includes('/values/'))return result({status:200,data:{values:[['Prénom','Téléphone']]}});
+   return result({status:200,data:{spreadsheetId:sheetId,sheets:[{properties:{title:'Réponses'}}]}});
+  });
+  await expect(prepareExistingComposioSpreadsheet('owner-1','ca_abcdef',sheetId)).rejects.toThrow(/incompatibles/);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(fetchMock.mock.calls.every(([,init])=>JSON.parse(init.body).method==='GET')).toBe(true);
  });
  it('distingue un quota fournisseur des autres erreurs',async()=>{
   fetchMock.mockResolvedValue(result({status:429,data:{message:'limit'}}));
