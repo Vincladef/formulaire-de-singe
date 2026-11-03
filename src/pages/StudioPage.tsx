@@ -302,27 +302,66 @@ export function StudioPage(){
    {operation&&<p className="mb-3 text-xs text-[#607265]" role="status">Opération en cours…</p>}
    {!detail ? <div className="grid items-start gap-4 lg:grid-cols-[250px_minmax(0,1fr)]">
     <FolderSidebar folders={folders} selected={selectedFolder} formCounts={folderCounts} allCount={allVisibleItems.length}
-      onSelect={setSelectedFolder} onCreate={()=>void createFolder()} onRename={folder=>void renameFolder(folder)} onDelete={folder=>void deleteFolder(folder)}/>
+     onSelect={setSelectedFolder} onCreate={()=>void createFolder(null)} onCreateChild={id=>void createFolder(id)}
+     onRename={folder=>void renameFolder(folder)} onDelete={folder=>void deleteFolder(folder)}
+     onMoveFolder={(id,parentId)=>void moveFolderTree(id,parentId)}
+     onMoveForm={(id,folderId)=>void moveForm(folderId,id)}/>
     <section aria-label="Mes formulaires" className="min-w-0 rounded-2xl border border-[#e1e9de] bg-white px-4 py-3 sm:px-6">
      <div className="flex flex-wrap items-center justify-between gap-2 py-2">
-       <h2 className="min-w-0 truncate text-base font-bold text-[#31543d]">{folderTitle}</h2>
-       <button className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-medium text-[#3f6049] hover:bg-[#eef5ed]" onClick={()=>setShowArchived(v=>!v)}>
-        <Archive size={16}/>{showArchived?'Afficher les formulaires':'Archives'}
-       </button>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm">
+       <button type="button" className="rounded-lg px-1.5 py-2 text-[#66816c] hover:bg-[#eff5ed]" onClick={()=>setSelectedFolder('all')}>Bibliothèque</button>
+       <ChevronRight size={15} className="text-[#9aaa9c]"/>
+       {folderPath.length>0?folderPath.map((folder,i)=><span key={folder.id} className="inline-flex min-w-0 items-center gap-1">
+        <button type="button" onClick={()=>setSelectedFolder(folder.id)} className="max-w-44 truncate rounded-lg px-1.5 py-2 font-semibold text-[#31543d] hover:bg-[#edf5eb]">{folder.name}</button>
+        {i<folderPath.length-1&&<ChevronRight size={15} className="text-[#9aaa9c]"/>}
+       </span>):<h2 className="min-w-0 truncate px-1.5 text-base font-bold text-[#31543d]">{folderTitle}</h2>}
+      </div>
+      <button className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-medium text-[#3f6049] hover:bg-[#eef5ed]" onClick={()=>setShowArchived(v=>!v)}>
+       <Archive size={16}/>{showArchived?'Afficher les formulaires':'Archives'}
+      </button>
      </div>
+     <div className="mb-3 mt-1 flex flex-wrap items-center gap-2">
+      <label className="flex min-h-11 min-w-[190px] flex-1 items-center gap-2 rounded-xl border border-[#e3ebe1] bg-[#fafcf9] px-3 text-[#74907a] focus-within:border-[#8bb594] focus-within:ring-2 focus-within:ring-[#cbe5ce]">
+       <Search size={17} className="shrink-0"/>
+       <input ref={searchRef} value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} aria-label="Rechercher des formulaires et dossiers"
+        placeholder="Rechercher un formulaire ou un dossier" className="min-w-0 flex-1 bg-transparent py-2 text-sm text-[#31533c] outline-none placeholder:text-[#99a99c]"/>
+       <kbd className="hidden shrink-0 rounded-md border border-[#e3ebe0] bg-white px-1.5 py-0.5 text-[10px] text-[#849888] sm:block">Ctrl K</kbd>
+      </label>
+      <select aria-label="Trier les formulaires" value={sortMode} onChange={e=>setSortMode(e.target.value as 'recent'|'name')}
+       className="min-h-11 rounded-xl border border-[#e3ebe1] bg-white px-3 text-xs font-semibold text-[#587360]">
+       <option value="recent">Modifiés récemment</option><option value="name">Nom A-Z</option>
+      </select>
+     </div>
+     {childFolders.length>0&&<div className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+      {childFolders.map(folder=><button type="button" key={folder.id} onClick={()=>setSelectedFolder(folder.id)}
+       className="flex min-h-12 items-center gap-3 rounded-xl border border-[#e4ede1] bg-[#f9fbf8] px-3 text-left text-sm text-[#426c4c] hover:bg-[#eaf3e8]">
+       <Folder size={18} className="shrink-0"/><span className="min-w-0 flex-1 truncate font-semibold">{folder.name}</span>
+       <span className="text-xs text-[#7b8e7d]">{folderCounts[folder.id]??0}</span>
+       <ChevronRight size={15} className="text-[#9bab9c]"/>
+      </button>)}
+     </div>}
      {listBusy?<p role="status" className="py-12 text-center text-[#607265]">Chargement des formulaires…</p>:
-      activeItems.length===0?<div className="py-14 text-center"><Files className="mx-auto text-[#638d6e]" size={34}/>
-       <p className="mt-3 font-semibold text-[#36583e]">{showArchived?'Aucune archive':selectedFolder==='all'?'Aucun formulaire pour le moment':'Ce dossier est vide'}</p>
-       <p className="mt-2 text-sm text-[#607265]">{showArchived?'Les formulaires archivés apparaîtront ici.':selectedFolder==='all'?'Crée ton premier questionnaire avec le bouton en haut.':'Déplace un formulaire ici depuis son menu « ⋯ ».'}</p>
+      activeItems.length===0&&childFolders.length===0?<div className="py-14 text-center"><Files className="mx-auto text-[#638d6e]" size={34}/>
+       <p className="mt-3 font-semibold text-[#36583e]">{searchTerm?'Aucun résultat pour cette recherche':showArchived?'Aucune archive':selectedFolder==='all'?'Aucun formulaire pour le moment':'Ce dossier est vide'}</p>
+       <p className="mt-2 text-sm text-[#607265]">{showArchived?'Les formulaires archivés apparaîtront ici.':selectedFolder==='all'?'Crée ton premier questionnaire avec le bouton en haut.':'Déplace un formulaire ici en le faisant glisser ou depuis le menu « ⋯ ».'}</p>
       </div>:
       <div className="divide-y divide-[#e5ece3]">{activeItems.map(item=>
-       <div key={item.id} className="flex items-center gap-2 py-1">
-        <button type="button" onClick={()=>void openForm(item.id)} className="flex min-h-20 min-w-0 flex-1 items-center gap-3 rounded-xl px-2 text-left hover:bg-[#f3f8f2] focus-visible:outline-2 focus-visible:outline-[#37784b] sm:px-4">
-         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e9f2e7] text-[#3c7650]"><Files size={20}/></span>
-         <span className="min-w-0 flex-1"><span className="block truncate text-base font-semibold text-[#284b36]">{item.title}</span>
-          <span className="mt-1 block text-xs text-[#607265]">{item.published?'Publié':'Brouillon'} · Modifié le {new Date(item.updatedAt).toLocaleDateString('fr-FR')}</span>
+       <div key={item.id} draggable={item.role==='owner'} onDragStart={e=>{if(item.role==='owner'){e.dataTransfer.setData('application/x-monk-form',item.id);e.dataTransfer.effectAllowed='move';}}}
+        className="group flex items-center gap-2 py-1">
+        <span className="hidden text-[#a6b9a9] group-hover:text-[#64846e] sm:block" title="Glisser vers un dossier"><GripVertical size={16}/></span>
+        <button type="button" onClick={()=>void openForm(item.id)} className="flex min-h-20 min-w-0 flex-1 items-center gap-3 rounded-xl px-2 text-left hover:bg-[#f3f8f2] focus-visible:outline-2 focus-visible:outline-[#37784b] sm:px-3">
+         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e9f2e7] text-[#3c7650]"><FileText size={20}/></span>
+         <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-[#284b36] sm:text-base">{item.title}</span>
+          <span className="mt-1 block text-xs text-[#607265]">{item.published?'Publié':'Brouillon'} · Modifié le {formatParisDate(item.updatedAt)}</span>
          </span>
         </button>
+        <button type="button" aria-label="Voir les résultats du formulaire" title="Ouvrir les résultats" onClick={()=>void openForm(item.id,'results')}
+         className="flex min-w-[74px] flex-col items-center rounded-lg px-2 py-2 text-[#477452] hover:bg-[#edf5e9]">
+         <span className="text-lg font-bold tabular-nums">{item.submissionCount??0}</span>
+         <span className="text-[10px] text-[#7a8f7e]">{item.submissionCount===1?'participation':'participations'}</span>
+        </button>
+        <button type="button" aria-label="Modifier le formulaire" title="Modifier le formulaire" onClick={()=>void openForm(item.id,'questions')}
+         className="hidden min-h-10 items-center gap-1.5 rounded-lg px-2 text-xs text-[#55735e] hover:bg-[#edf4ea] focus-visible:inline-flex sm:inline-flex"><FileText size={15}/> Modifier</button>
         <FormItemMenu title={item.title} archived={showArchived}
          onMove={item.role==='owner'?()=>setMoveTarget(item):undefined}
          onDuplicate={()=>void duplicateForm(item.id)}
