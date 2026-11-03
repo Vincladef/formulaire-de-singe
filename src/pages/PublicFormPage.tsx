@@ -106,6 +106,7 @@ export function PublicFormPage(){
  const [submitting,setSubmitting]=useState(false);
  const [uploadStates,setUploadStates]=useState<Record<string,'uploading'|'ready'|'error'>>({});
  const uploadTasksRef=useRef(new Map<string,{file:Blob;promise:Promise<UploadedAudio>}>());
+ const attemptedUploadsRef=useRef(new Map<string,Blob>());
  const [submitted,setSubmitted]=useState(false);
   
  const nonceRef=useRef(crypto.randomUUID());
@@ -113,7 +114,7 @@ export function PublicFormPage(){
  useEffect(()=>{
   const controller=new AbortController();
   setForm(null);setLoading(true);setError('');setPageIndex(0);setAnswers({}); setSubmitted(false); setErrors({});nonceRef.current=crypto.randomUUID();
-  uploadTasksRef.current.clear();setUploadStates({});
+  uploadTasksRef.current.clear();attemptedUploadsRef.current.clear();setUploadStates({});
   getPublic(slug,controller.signal).then(data=>{if(!controller.signal.aborted)setForm(data);}).catch(e=>{if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Formulaire indisponible.');}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
   return()=>controller.abort();
  },[slug]);
@@ -176,7 +177,8 @@ export function PublicFormPage(){
   if(!form||submitted)return;
   for(const [questionId,value] of Object.entries(answers)){
    if(value&&typeof value==='object'&&!Array.isArray(value)&&value.kind==='audio-draft'&&
-     uploadTasksRef.current.get(questionId)?.file!==value.file){
+     attemptedUploadsRef.current.get(questionId)!==value.file){
+    attemptedUploadsRef.current.set(questionId,value.file);
     void uploadDraft(questionId,value,form).catch(()=>{});
    }
   }
