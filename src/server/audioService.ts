@@ -157,7 +157,7 @@ export async function cleanupAbandonedAudio(){
   try{
    await blobs.delete(key);
    const count=Math.ceil(Number(rec.declared_bytes)/AUDIO_PART_BYTES);
-   await Promise.allSettled(Array.from({length:count},(_,i)=>blobs.delete(parts(key,i))));
+   await Promise.all(Array.from({length:count},(_,i)=>blobs.delete(parts(key,i))));
    await db.execute(sql`UPDATE fs_audio_uploads SET status='expired' WHERE id=${id}::uuid AND status IN ('issued','verified')`);
    removed++;
   }catch(e){console.error('Abandoned audio cleanup',id,e instanceof Error?e.name:'unknown');}
@@ -165,10 +165,12 @@ export async function cleanupAbandonedAudio(){
  const deleted=await db.execute(sql`SELECT af.id,af.storage_key FROM fs_audio_files af
  JOIN fs_answers a ON a.id=af.answer_id JOIN fs_submissions s ON s.id=a.submission_id
  WHERE s.deleted_at IS NOT NULL AND af.status<>'removed' LIMIT 30`);
+ let removedDeleted=0;
  for(const r of deleted.rows){
   try{await blobs.delete(String(r.storage_key));
     await db.execute(sql`UPDATE fs_audio_files SET status='removed',deleted_at=COALESCE(deleted_at,now()),transcript=NULL WHERE id=${String(r.id)}::uuid`);
+    removedDeleted++;
   }catch(e){console.error('Deleted audio cleanup',e instanceof Error?e.name:'unknown');}
  }
- return {removedAbandoned:removed,removedDeleted:deleted.rows.length};
+ return {removedAbandoned:removed,removedDeleted};
 }
