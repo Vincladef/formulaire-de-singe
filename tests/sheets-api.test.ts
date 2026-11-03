@@ -1,7 +1,7 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
 import {sheetsRestHandler} from '../src/server/sheetsRestApi';
 import {requireUser,UnauthorizedError} from '../src/server/auth';
-import {assertSheetOwner,createGoogleSpreadsheet,exchangeGoogleCode,getSheetsStatus,saveGoogleConnection,sheetsConfigured,syncGoogleSheets} from '../src/server/sheetsService';
+import {assertSheetOwner,createGoogleSpreadsheet,exchangeGoogleCode,getSheetsStatus,saveGoogleConnection,sheetsConfigured,legacySheetsConfigured,syncGoogleSheets} from '../src/server/sheetsService';
 
 vi.mock('../src/server/auth',()=>({
  requireUser:vi.fn(),
@@ -10,7 +10,7 @@ vi.mock('../src/server/auth',()=>({
 vi.mock('../src/server/sheetsService',()=>({
  assertSheetOwner:vi.fn(),createGoogleSpreadsheet:vi.fn(),exchangeGoogleCode:vi.fn(),
  getSheetsStatus:vi.fn(),saveGoogleConnection:vi.fn(),sheetsConfigured:vi.fn(),
- resetFailedSheets:vi.fn(),disconnectSheets:vi.fn(),syncGoogleSheets:vi.fn(),
+ resetFailedSheets:vi.fn(),disconnectSheets:vi.fn(),syncGoogleSheets:vi.fn(),legacySheetsConfigured:vi.fn(),
 }));
 const formId='5f6c7b8a-1234-4567-8a90-1234567890ab';
 const route='https://monk-form.netlify.app/api/integrations/google/';
@@ -19,6 +19,7 @@ beforeEach(()=>{
  vi.mocked(requireUser).mockResolvedValue('owner-id');
  vi.mocked(assertSheetOwner).mockResolvedValue({id:formId,title:'Questionnaire de test'});
  vi.mocked(sheetsConfigured).mockReturnValue(true);
+ vi.mocked(legacySheetsConfigured).mockReturnValue(true);
  vi.mocked(getSheetsStatus).mockResolvedValue({configured:true,connected:true,spreadsheetUrl:'https://docs.google.com/spreadsheets/d/sheet123/edit',lastSyncedAt:null,lastError:null,pending:0});
  vi.mocked(syncGoogleSheets).mockResolvedValue({claimed:2,done:2,failed:0});
  vi.mocked(exchangeGoogleCode).mockResolvedValue({access:'access',refresh:'refresh'});
