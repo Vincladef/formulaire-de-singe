@@ -86,7 +86,7 @@ export async function requestFormTranscription(userId:string,formId:string){
  attempts=0,next_attempt_at=now(),error=NULL,force=false,updated_at=now()
  WHERE fs_audio_transcription_jobs.status IN ('failed','done')
  RETURNING audio_id`);
- return {queued:result.rows.length,...await getTranscriptionSummary(userId,formId)};
+ return {...await getTranscriptionSummary(userId,formId),newlyQueued:result.rows.length};
 }
 export async function requestAudioTranscription(userId:string,audioId:string,force=false){
  if(!UUID.test(audioId))throw new TranscriptionFault(400,'Identifiant audio invalide.');
