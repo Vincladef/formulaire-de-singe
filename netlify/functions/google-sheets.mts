@@ -10,6 +10,7 @@ export default (request:Request,context:Context)=>sheetsRestHandler(request,form
 export const config:Config={
  path:['/api/integrations/google/callback','/api/integrations/google/:formId',
   '/api/integrations/google/:formId/start','/api/integrations/google/:formId/retry',
-  '/api/integrations/google/:formId/sync'],
+  '/api/integrations/google/:formId/sync',
+  '/api/integrations/google/composio/verify','/api/integrations/google/composio/complete'],
  method:['GET','POST','DELETE'],
 };

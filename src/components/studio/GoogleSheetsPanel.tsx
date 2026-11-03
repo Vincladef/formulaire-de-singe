@@ -25,8 +25,11 @@ export function GoogleSheetsPanel({formId,owner=true}:{formId:string;owner?:bool
  async function connect(){
   setBusy('connect');setError('');
   try{
-   const data=await api<{authorizationUrl:string}>(formId,'POST','/start');
-   // Authorization is completed on Google's site. Never transmit tokens to the browser.
+   const data=await api<{authorizationUrl?:string;connected?:boolean}>(formId,'POST','/start');
+   if(data.connected){await load();setBusy('');return;}
+   if(!data.authorizationUrl)throw new Error('Le lien Google Sheets n’a pas été créé.');
+   // The signed-in owner returns here after a provider-managed OAuth consent.
+   window.sessionStorage.setItem('monk-google-pending-form',formId);
    window.location.assign(data.authorizationUrl);
   }catch(e){setError(e instanceof Error?e.message:'Connexion indisponible.');setBusy('');}
  }
@@ -60,9 +63,9 @@ export function GoogleSheetsPanel({formId,owner=true}:{formId:string;owner?:bool
   </div>
   {error&&<p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p>}
   {!status&&!error&&<p className="mt-4 text-sm text-[#7b9281]"><LoaderCircle size={16} className="mr-2 inline animate-spin"/> Vérification de la connexion…</p>}
-  {status&&!status.configured&&<p className="mt-4 rounded-lg bg-[#fff7e7] p-3 text-sm leading-6 text-[#8e723a]" role="status"><strong>Connexion Google à activer.</strong> Le module est installé, mais le serveur n’a pas encore ses identifiants OAuth Google. Le propriétaire de l’application doit autoriser l’API Google Sheets dans Google Cloud, créer un client OAuth Web et terminer sa configuration sur Netlify. Le bouton pourra être utilisé dès que ces paramètres seront installés.</p>}
+  {status&&!status.configured&&<p className="mt-4 rounded-lg bg-[#fff7e7] p-3 text-sm leading-6 text-[#8e723a]" role="status"><strong>Connexion Google à activer.</strong> La connexion simplifiée est en cours d’activation pour ce site. Vous n’avez aucune configuration Google Cloud à effectuer ; vous pourrez sélectionner votre compte Google ici dès que le service sera prêt.</p>}
   {status&&!status.connected&&<button type="button" disabled={!!busy||!status.configured} onClick={()=>void connect()} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#337450] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
-   {busy==='connect'?<LoaderCircle size={16} className="animate-spin"/>:<Link2 size={16}/>} Connecter Google Sheets et créer une feuille
+   {busy==='connect'?<LoaderCircle size={16} className="animate-spin"/>:<Link2 size={16}/>} Connecter Google Sheets
   </button>}
   {status?.connected&&<div className="mt-5 space-y-3 border-t border-[#edf2eb] pt-4">
    {status.spreadsheetUrl&&<a className="inline-flex items-center gap-1.5 font-semibold text-[#387951] underline underline-offset-4" target="_blank" rel="noopener noreferrer" href={status.spreadsheetUrl}>Ouvrir mon Google Sheet <ExternalLink size={15}/></a>}
@@ -74,6 +77,6 @@ export function GoogleSheetsPanel({formId,owner=true}:{formId:string;owner?:bool
     <button type="button" disabled={!!busy} onClick={()=>void disconnect()} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-[#a56f69] hover:bg-red-50"><Unplug size={14}/> Déconnecter</button>
    </div>
   </div>}
-  <p className="mt-4 text-xs leading-5 text-[#98a79b]">La connexion Google est limitée aux feuilles de calcul. Les audios restent privés ; seule une indication est exportée.</p>
+  <p className="mt-4 text-xs leading-5 text-[#98a79b]">L’application crée un Google Sheet dans votre compte après autorisation ; vos réponses précédentes y sont ajoutées. Les fichiers audio restent privés ; seule leur présence apparaît dans la feuille.</p>
  </section>;
 }

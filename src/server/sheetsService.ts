@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { getDb } from './db/client';
+import { composioConfigured,googleSheetsComposioJSON } from './composioService';
 
 const SHEET_NAME='Réponses';
 const ROOT='https://sheets.googleapis.com/v4/spreadsheets';
@@ -12,10 +13,11 @@ function credentials(){
  if(bytes.length!==32)throw new Error('La clé de chiffrement Google Sheets doit contenir 32 octets.');
  return {id,secret,key:bytes};
 }
-export function sheetsConfigured(){
+export function legacySheetsConfigured(){
  try{credentials();return Boolean(process.env.GOOGLE_SHEETS_REDIRECT_URI&&process.env.GOOGLE_SHEETS_STATE_SECRET&&process.env.GOOGLE_SHEETS_STATE_SECRET.length>=32);}
  catch{return false;}
 }
+export function sheetsConfigured(){return composioConfigured()||legacySheetsConfigured();}
 export function encryptRefreshToken(plain:string){
  const {key}=credentials();
  const iv=randomBytes(12);
@@ -68,11 +70,21 @@ export async function createGoogleSpreadsheet(access:string,title:string){
 }
 export async function saveGoogleConnection(formId:string,ownerId:string,sheetId:string,refresh:string){
  const db=getDb(),encrypted=encryptRefreshToken(refresh);
- await db.execute(sql`INSERT INTO fs_google_sheets(form_id,owner_id,spreadsheet_id,encrypted_refresh_token)
-  VALUES (${formId}::uuid,${ownerId},${sheetId},${encrypted})
+ await db.execute(sql`INSERT INTO fs_google_sheets(form_id,owner_id,spreadsheet_id,encrypted_refresh_token,provider,composio_account_id)
+  VALUES (${formId}::uuid,${ownerId},${sheetId},${encrypted},'legacy',NULL)
   ON CONFLICT(form_id) DO UPDATE SET owner_id=excluded.owner_id,spreadsheet_id=excluded.spreadsheet_id,
-   encrypted_refresh_token=excluded.encrypted_refresh_token,created_at=now(),last_synced_at=NULL,last_error=NULL`);
+   encrypted_refresh_token=excluded.encrypted_refresh_token,provider='legacy',composio_account_id=NULL,created_at=now(),last_synced_at=NULL,last_error=NULL`);
  // A new spreadsheet must receive even previously delivered rows.
+ await db.execute(sql`DELETE FROM fs_sheet_deliveries WHERE form_id=${formId}::uuid`);
+}
+export async function saveComposioConnection(formId:string,ownerId:string,sheetId:string,accountId:string){
+ const db=getDb();
+ await db.execute(sql`INSERT INTO fs_google_sheets(form_id,owner_id,spreadsheet_id,encrypted_refresh_token,provider,composio_account_id)
+  VALUES (${formId}::uuid,${ownerId},${sheetId},NULL,'composio',${accountId})
+  ON CONFLICT(form_id) DO UPDATE SET owner_id=excluded.owner_id,spreadsheet_id=excluded.spreadsheet_id,
+   encrypted_refresh_token=NULL,provider='composio',composio_account_id=excluded.composio_account_id,
+   created_at=now(),last_synced_at=NULL,last_error=NULL`);
+ // Never reuse prior delivery markers with a freshly created spreadsheet.
  await db.execute(sql`DELETE FROM fs_sheet_deliveries WHERE form_id=${formId}::uuid`);
 }
 export async function getSheetsStatus(userId:string,formId:string){
@@ -118,7 +130,7 @@ function valueToText(value:unknown,hasAudio:boolean){
  return String(value);
 }
 type Delivery={submission_id:string;form_id:string};
-type SheetConnection={spreadsheet_id:string;encrypted_refresh_token:string};
+type SheetConnection={spreadsheet_id:string;owner_id:string;provider:string;composio_account_id:string|null;encrypted_refresh_token:string|null};
 export async function syncGoogleSheets(maxItems=10,onlyFormId?:string){
  const db=getDb();
  // Reconcile independently from HTTP submission success, including older responses.
@@ -148,7 +160,17 @@ export async function syncGoogleSheets(maxItems=10,onlyFormId?:string){
   }catch(error){
    failed++;
    const reason=(error instanceof Error?error.message:'Erreur inconnue').slice(0,220);
-   await db.execute(sql`UPDATE fs_sheet_deliveries SET state='pending',last_error=${reason} WHERE submission_id=${item.submission_id}::uuid`);
+   const quota=reason.includes('Quota gratuit')||reason.includes('Quota Google Sheets');
+   // A free-plan cap is not a permanent failure: delay until tomorrow and
+   // try again even if earlier attempts exhausted the regular retry budget.
+   if(quota){
+    await db.execute(sql`UPDATE fs_sheet_deliveries
+     SET state='processing',attempts=0,claimed_at=now()+interval '1 day',last_error=${reason}
+     WHERE submission_id=${item.submission_id}::uuid`);
+   }else{
+    await db.execute(sql`UPDATE fs_sheet_deliveries SET state='pending',last_error=${reason}
+     WHERE submission_id=${item.submission_id}::uuid`);
+   }
    await db.execute(sql`UPDATE fs_google_sheets SET last_error=${reason} WHERE form_id=${item.form_id}::uuid`);
   }
  }
@@ -156,15 +178,24 @@ export async function syncGoogleSheets(maxItems=10,onlyFormId?:string){
 }
 async function syncOne(item:Delivery){
  const db=getDb();
- const r=await db.execute(sql`SELECT spreadsheet_id,encrypted_refresh_token FROM fs_google_sheets WHERE form_id=${item.form_id}::uuid`);
+ const r=await db.execute(sql`SELECT spreadsheet_id,owner_id,provider,composio_account_id,encrypted_refresh_token FROM fs_google_sheets WHERE form_id=${item.form_id}::uuid`);
  const conn=r.rows[0] as SheetConnection|undefined;
  if(!conn)throw new Error('Connexion supprimée');
- const access=await refreshAccess(decryptRefreshToken(conn.encrypted_refresh_token));
+ let access:string|null=null;
+ if(conn.provider==='legacy'){
+  if(!conn.encrypted_refresh_token)throw new Error('Jeton Google manquant.');
+  access=await refreshAccess(decryptRefreshToken(conn.encrypted_refresh_token));
+ }else if(conn.provider==='composio'){
+  if(!composioConfigured()||!conn.composio_account_id)throw new Error('Connexion Google Sheets indisponible.');
+ }else throw new Error('Fournisseur Google Sheets inconnu.');
+ const query=<T>(url:string,init?:RequestInit):Promise<T>=>conn.provider==='composio'
+  ?googleSheetsComposioJSON<T>(conn.owner_id,conn.composio_account_id!,url,init)
+  :googleJSON<T>(url,access!,init);
  const root=ROOT+'/'+encodeURIComponent(conn.spreadsheet_id)+'/values/';
  const range=(r:string)=>root+encodeURIComponent("'"+SHEET_NAME+"'!"+r);
- const headersResult=await googleJSON<{values?:string[][]}>(range('1:1'),access);
+ const headersResult=await query<{values?:string[][]}>(range('1:1'));
  const headers=headersResult.values?.[0]?.length?headersResult.values[0]:['ID soumission','Date UTC'];
- const seen=await googleJSON<{values?:string[][]}>(range('A2:A'),access);
+ const seen=await query<{values?:string[][]}>(range('A2:A'));
  if((seen.values??[]).some(row=>row[0]===item.submission_id))return;
  const meta=await db.execute(sql`SELECT submitted_at FROM fs_submissions WHERE id=${item.submission_id}::uuid
  AND status='submitted' AND deleted_at IS NULL LIMIT 1`);
@@ -182,11 +213,11 @@ async function syncOne(item:Delivery){
   cells.set(key,valueToText(answer.value,Boolean(answer.has_audio)));
   if(!headers.includes(key))headers.push(key);
  }
- if(headers.length>(headersResult.values?.[0]?.length??0))await googleJSON(range('1:1')+'?valueInputOption=RAW',access,{
+ if(headers.length>(headersResult.values?.[0]?.length??0))await query(range('1:1')+'?valueInputOption=RAW',{
   method:'PUT',body:JSON.stringify({values:[headers]})
  });
  const row=headers.map((h,i)=>i===0?item.submission_id:i===1?new Date(String(submittedAt)).toISOString():(cells.get(h)??''));
- await googleJSON(range('A1')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',access,{
+ await query(range('A1')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
   method:'POST',body:JSON.stringify({values:[row]})
  });
 }
