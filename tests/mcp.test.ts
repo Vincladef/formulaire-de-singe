@@ -27,7 +27,7 @@ const mock={
   createdAt:new Date(0).toISOString(),updatedAt:new Date(0).toISOString()}]),
  create:vi.fn(async()=>({id:formId,title:'Mon enquête',slug:'mon-enquete',draftId})),
  get:vi.fn(async()=>detail()),
- save:vi.fn(async()=>({versionId:draftId,revision:3})),
+ save:vi.fn(async(_userId:string,_formId:string,_input:unknown)=>({versionId:draftId,revision:3})),
  publish:vi.fn(async()=>({publishedId:draftId,draftId:crypto.randomUUID()})),
  move:vi.fn(async()=>({id:formId,folderId})),
  rename:vi.fn(async()=>({id:formId,title:'Nouveau titre'})),
