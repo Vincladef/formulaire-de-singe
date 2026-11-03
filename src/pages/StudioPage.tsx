@@ -198,11 +198,13 @@ export function StudioPage(){
  function addPage(){setSaveState('pending');setPages(p=>[...p,makePage()]);setPageIndex(pages.length);setQuestionId(null);}
  async function deletePage(){if(pages.length<2||!(await askDialog({kind:'confirm',title:'Supprimer cette page ?',description:'La page et toutes ses questions seront retirées du brouillon.',confirmLabel:'Supprimer la page',danger:true})))return;
    setSaveState('pending');setPages(p=>p.filter((_,i)=>i!==pageIndex));setPageIndex(0);setQuestionId(null);}
- async function createFolder(){
-  const name=await askDialog({kind:'text',title:'Nouveau dossier',description:'Les formulaires pourront y être déplacés depuis leur menu.',initialValue:'',confirmLabel:'Créer'});
+ async function createFolder(parentId:string|null=null){
+  const name=await askDialog({kind:'text',title:parentId?'Nouveau sous-dossier':'Nouveau dossier',
+   description:parentId?'Ce dossier sera créé à l’intérieur du dossier sélectionné.':'Crée un dossier pour ranger tes formulaires.',
+   initialValue:'',confirmLabel:'Créer'});
   if(!name?.trim())return;
   setOperation(true);setError('');
-  try{const created=await request<FolderInfo>('/api/folders','POST',{name:name.trim()});await refreshFolders();setSelectedFolder(created.id);}
+  try{const created=await request<FolderInfo>('/api/folders','POST',{name:name.trim(),parentId});await refreshFolders();setSelectedFolder(created.id);}
   catch(e){setError(e instanceof Error?e.message:'Création du dossier impossible.');}
   finally{setOperation(false);}
  }
@@ -215,7 +217,7 @@ export function StudioPage(){
   finally{setOperation(false);}
  }
  async function deleteFolder(folder:FolderInfo){
-  const answer=await askDialog({kind:'confirm',title:'Supprimer ce dossier ?',description:'Les formulaires contenus dans « '+folder.name+' » seront conservés dans « Sans dossier ».',confirmLabel:'Supprimer le dossier',danger:true});
+  const answer=await askDialog({kind:'confirm',title:'Supprimer ce dossier ?',description:'Les formulaires seront conservés dans « Sans dossier » ; ses sous-dossiers resteront accessibles à la racine.',confirmLabel:'Supprimer le dossier',danger:true});
   if(!answer)return;
   setOperation(true);setError('');
   try{await request('/api/folders/'+folder.id,'DELETE');await Promise.all([refreshFolders(),refreshList()]);
@@ -223,11 +225,38 @@ export function StudioPage(){
   }catch(e){setError(e instanceof Error?e.message:'Suppression du dossier impossible.');}
   finally{setOperation(false);}
  }
- async function moveForm(folderId:string|null){
-  if(!moveTarget||operation)return;
+ async function moveForm(folderId:string|null,formId=moveTarget?.id){
+  if(!formId||operation)return;
+  const original=items.find(x=>x.id===formId);
+  if(!original||original.role!=='owner')return;
+  if((original.folderId??null)===folderId){setMoveTarget(null);return;}
   setOperation(true);setError('');
-  try{await request('/api/forms/'+moveTarget.id+'/folder','PATCH',{folderId});await refreshList();setMoveTarget(null);}
-  catch(e){setError(e instanceof Error?e.message:'Déplacement impossible.');}
+  try{
+   await request('/api/forms/'+formId+'/folder','PATCH',{folderId});await refreshList();
+   setUndoMove({kind:'form',id:formId,original:original.folderId??null,name:original.title});
+   setMoveTarget(null);
+  }catch(e){setError(e instanceof Error?e.message:'Déplacement impossible.');}
+  finally{setOperation(false);}
+ }
+ async function moveFolderTree(folderId:string,parentId:string|null){
+  if(operation||folderId===parentId)return;
+  const folder=folders.find(f=>f.id===folderId);if(!folder)return;
+  if((folder.parentId??null)===parentId)return;
+  setOperation(true);setError('');
+  try{
+   await request('/api/folders/'+folderId+'/move','PATCH',{parentId});await refreshFolders();
+   setUndoMove({kind:'folder',id:folderId,original:folder.parentId??null,name:folder.name});
+  }catch(e){setError(e instanceof Error?e.message:'Impossible de déplacer ce dossier.');}
+  finally{setOperation(false);}
+ }
+ async function undoLastMove(){
+  if(!undoMove||operation)return;
+  setOperation(true);setError('');
+  try{
+   if(undoMove.kind==='form'){await request('/api/forms/'+undoMove.id+'/folder','PATCH',{folderId:undoMove.original});await refreshList();}
+   else{await request('/api/folders/'+undoMove.id+'/move','PATCH',{parentId:undoMove.original});await refreshFolders();}
+   setUndoMove(null);
+  }catch(e){setError(e instanceof Error?e.message:'Annulation impossible.');}
   finally{setOperation(false);}
  }
  const allVisibleItems=items.filter(i=>showArchived?!!i.archivedAt:!i.archivedAt);
