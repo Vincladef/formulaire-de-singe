@@ -57,7 +57,7 @@ export async function sheetsRestHandler(request:Request,onConnected?:(formId:str
    onConnected?.(state.formId);
    const headers=new Headers({'Cache-Control':'no-store'});
    headers.append('Set-Cookie',clearA);headers.append('Set-Cookie',clearB);
-   return json({ok:true,data:{connected:true,formId:state.formId}},200,headers);
+   return Response.json({ok:true,data:{connected:true,formId:state.formId}},{status:200,headers});
   }catch(error){
    console.error('Composio Google callback',error instanceof Error?error.name:'Unknown');
    // Keep credentials out of error responses; the user can retry from the Studio.
