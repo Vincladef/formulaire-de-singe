@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Archive, ArrowLeft, BarChart3, CheckCircle2, ChevronRight, CircleAlert, Clock3, Copy, Eye, FileText, Files, Folder, FolderPlus, GripVertical, LayoutDashboard, LoaderCircle, Plus, Search, Save, Send, X } from 'lucide-react';
+import { Archive, ArrowLeft, BarChart3, CheckCircle2, ChevronRight, CircleAlert, Clock3, Copy, Eye, FileText, Files, Folder, GripVertical, LayoutDashboard, LoaderCircle, Plus, Search, Save, Send, X } from 'lucide-react';
 import {formatParisDate,formatParisDateTime} from '../shared/presentation';
 import { getAccessToken } from '../authClient';
 import type { FormDetail, FormSummary } from '../shared/formApi';
@@ -300,6 +300,7 @@ export function StudioPage(){
    </div>}
    {error&&<div role="alert" className="mb-5 flex items-start justify-between gap-2 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button title="Fermer le message" onClick={()=>setError('')}><X size={16}/></button></div>}
    {operation&&<p className="mb-3 text-xs text-[#607265]" role="status">Opération en cours…</p>}
+   {undoMove&&!detail&&<div role="status" className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#d9e9d7] bg-[#ecf5ea] px-4 py-2.5 text-sm text-[#42684c]"><span>« {undoMove.name} » a été déplacé.</span><button type="button" disabled={operation} onClick={()=>void undoLastMove()} className="font-bold underline underline-offset-4 disabled:opacity-40">Annuler</button></div>}
    {!detail ? <div className="grid items-start gap-4 lg:grid-cols-[250px_minmax(0,1fr)]">
     <FolderSidebar folders={folders} selected={selectedFolder} formCounts={folderCounts} allCount={allVisibleItems.length}
      onSelect={setSelectedFolder} onCreate={()=>void createFolder(null)} onCreateChild={id=>void createFolder(id)}
@@ -378,10 +379,10 @@ export function StudioPage(){
        </span>}{published&&<><a className={light} target="_blank" rel="noopener noreferrer" href={`/f/${encodeURIComponent(detail.slug)}`}><Eye size={16}/> Voir le lien public</a><button className={light} onClick={()=>{void (async()=>{try{await navigator.clipboard.writeText(`${window.location.origin}/f/${encodeURIComponent(detail.slug)}`);}catch{setError("Copie impossible. Utilise le lien public.");}})();}}><Copy size={15}/> Copier le lien</button></>}<button className={light} onClick={()=>{setActiveTab('questions');setPreview(v=>!v);}}><Eye size={16}/>{preview?'Éditer':'Aperçu'}</button><button className={cta} disabled={!editable||operation||saveState==='saving'||saveState==='error'} onClick={()=>void publishForm()}><Send size={15}/> Publier</button></div>
       </div>
       <nav aria-label="Sections du formulaire" className="mb-5 flex gap-1.5 overflow-x-auto border-b border-[#dfe8dc] pb-2 sm:gap-2">
-        {(['questions','results','integrations','settings'] as const).map(tab=><button key={tab} type="button"
+        {(['overview','questions','results','integrations','settings'] as const).filter(tab=>published||tab!=='overview').map(tab=><button key={tab} type="button"
          aria-current={activeTab===tab?'page':undefined} onClick={()=>{setPreview(false);setActiveTab(tab);}}
          className={`shrink-0 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${activeTab===tab?'bg-[#e2f0e0] text-[#2d7246]':'text-[#47674e] hover:bg-[#eef5ed]'}`}>
-          {{questions:'Éditeur',results:'Résultats',integrations:'Intégrations',settings:'Paramètres'}[tab]}
+          {{overview:'Vue d’ensemble',questions:'Éditeur',results:'Résultats',integrations:'Intégrations',settings:'Paramètres'}[tab]}
         </button>)}
        </nav>
        {detail.archivedAt&&<p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Ce formulaire est archivé ; son contenu ne peut pas être modifié.</p>}
