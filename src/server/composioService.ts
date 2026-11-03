@@ -88,9 +88,10 @@ async function sheetsJSON<T>(neonId:string,accountId:string,url:string,method='G
  type Reply={status?:number;data?:T|{status?:number;data?:T};successful?:boolean;error?:unknown};
  const raw=await request<Reply>('/tools/execute/proxy','POST',{
   connected_account_id:accountId,user_id:composioUserId(neonId),
-  endpoint:parsed.origin+parsed.pathname,method,
+  // Preserve Google query parameters directly in the absolute endpoint URL.
+  // Composio's proxy rejects our former parameters array on values.update (400).
+  endpoint:parsed.origin+parsed.pathname+parsed.search,method,
   ...(body!==undefined?{body}:{}),
-  parameters:[...parsed.searchParams].map(([name,value])=>({name,value,in:'query'})),
  });
  const nested=raw.data&&typeof raw.data==='object'&&'status' in raw.data
   ?raw.data as {status?:number;data?:T}:null;
