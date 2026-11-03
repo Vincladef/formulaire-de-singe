@@ -6,6 +6,7 @@ import { draftPayloadSchema, makePage, type QuestionType, type StudioPageData, t
 import { DocumentCanvas, type DocumentCanvasHandle } from '../components/studio/DocumentCanvas';
 import { StudioSidebar, type SidebarMode } from '../components/studio/StudioSidebar';
 import { ResultsPanel } from '../components/studio/ResultsPanel';
+import { GoogleSheetsPanel } from '../components/studio/GoogleSheetsPanel';
 import { StudioPreview } from '../components/studio/StudioPreview';
 import { FormItemMenu } from '../components/studio/FormItemMenu';
 import { FolderSidebar, type FolderInfo } from '../components/studio/FolderSidebar';
@@ -33,7 +34,8 @@ export function StudioPage(){
  const [pageIndex,setPageIndex]=useState(0);
  const [questionId,setQuestionId]=useState<string|null>(null);
  const [preview,setPreview]=useState(false);
- const [activeTab,setActiveTab]=useState<'questions'|'results'|'settings'>('questions');
+ const [activeTab,setActiveTab]=useState<'questions'|'results'|'integrations'|'settings'>('questions');
+ const [googleOutcome,setGoogleOutcome]=useState<'connected'|'error'|null>(null);
  const [sideMode,setSideMode]=useState<SidebarMode>('add');
  const [sidebarOpen,setSidebarOpen]=useState(false);
  const [saveState,setSaveState]=useState<SaveState>('saved');
@@ -62,7 +64,7 @@ export function StudioPage(){
    .catch(e=>{if(active)setError(String(e instanceof Error?e.message:e));}).finally(()=>{if(active)setListBusy(false);});
    return()=>{active=false;};},[]);
 
- async function openForm(id:string){
+ const openForm=useCallback(async(id:string,tab:'questions'|'results'|'integrations'|'settings'='questions')=>{
    setOperation(true);setError('');
    try{
      const form=await request<FormDetail>(`/api/forms/${id}`);
@@ -70,9 +72,18 @@ export function StudioPage(){
      draftRef.current=draft?.id??null;revisionRef.current=draft?.revision??0;
      const next:StudioPageData[]=draft?.pages.map(p=>({id:p.id,title:p.title,description:p.description,
        questions:p.questions.map(q=>({id:q.id,type:q.type as QuestionType,label:q.label,description:q.description,required:q.required,settings:q.settings,options:q.options.map(o=>({id:o.id,value:o.value,label:o.label}))}))})) ?? [];
-     savedRef.current=JSON.stringify(next);setPages(next.length?next:[makePage()]);setPageIndex(0);setQuestionId(null);setPreview(false);setActiveTab('questions');setSideMode('add');setSaveState('saved');
+     savedRef.current=JSON.stringify(next);setPages(next.length?next:[makePage()]);setPageIndex(0);setQuestionId(null);setPreview(false);setActiveTab(tab);setSideMode('add');setSaveState('saved');
    }catch(e){setError(e instanceof Error?e.message:'Chargement impossible');}finally{setOperation(false);}
- }
+ },[]);
+ useEffect(()=>{
+  const params=new URLSearchParams(window.location.search);
+  const formId=params.get('google_form');
+  const outcome=params.get('google');
+  if(!formId||!['connected','error'].includes(outcome??'')||!/^[0-9a-f-]{36}$/i.test(formId))return;
+  setGoogleOutcome(outcome as 'connected'|'error');
+  window.history.replaceState(window.history.state,'',window.location.pathname);
+  void openForm(formId,'integrations');
+ },[openForm]);
  async function createForm(){
    const name=await askDialog({kind:'text',title:'Nouveau formulaire',description:'Donne un nom à ton questionnaire. Tu pourras le modifier ensuite.',initialValue:'Mon nouveau formulaire',confirmLabel:'Créer'});if(!name?.trim())return;
    setOperation(true);setError('');try{const result=await request<{id:string}>('/api/forms','POST',{title:name.trim()});
@@ -228,14 +239,20 @@ export function StudioPage(){
        </span>}{published&&<><a className={light} target="_blank" rel="noopener noreferrer" href={`/f/${encodeURIComponent(detail.slug)}`}><Eye size={16}/> Voir le lien public</a><button className={light} onClick={()=>{void (async()=>{try{await navigator.clipboard.writeText(`${window.location.origin}/f/${encodeURIComponent(detail.slug)}`);}catch{setError("Copie impossible. Utilise le lien public.");}})();}}><Copy size={15}/> Copier le lien</button></>}<button className={light} onClick={()=>{setActiveTab('questions');setPreview(v=>!v);}}><Eye size={16}/>{preview?'Éditer':'Aperçu'}</button><button className={cta} disabled={!editable||operation||saveState==='saving'||saveState==='error'} onClick={()=>void publishForm()}><Send size={15}/> Publier</button></div>
       </div>
       <nav aria-label="Sections du formulaire" className="mb-5 flex gap-1.5 overflow-x-auto border-b border-[#dfe8dc] pb-2 sm:gap-2">
-        {(['questions','results','settings'] as const).map(tab=><button key={tab} type="button"
+        {(['questions','results','integrations','settings'] as const).map(tab=><button key={tab} type="button"
          aria-current={activeTab===tab?'page':undefined} onClick={()=>{setPreview(false);setActiveTab(tab);}}
          className={`shrink-0 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${activeTab===tab?'bg-[#e2f0e0] text-[#2d7246]':'text-[#47674e] hover:bg-[#eef5ed]'}`}>
-          {{questions:'Éditeur',results:'Résultats',settings:'Paramètres'}[tab]}
+          {{questions:'Éditeur',results:'Résultats',integrations:'Intégrations',settings:'Paramètres'}[tab]}
         </button>)}
        </nav>
        {detail.archivedAt&&<p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Ce formulaire est archivé ; son contenu ne peut pas être modifié.</p>}
-      {activeTab==='results'?<ResultsPanel formId={detail.id}/>:
+      {activeTab==='results'?<ResultsPanel formId={detail.id} onOpenIntegrations={()=>setActiveTab('integrations')}/>: 
+       activeTab==='integrations'?<div className="max-w-2xl space-y-4">
+        {googleOutcome==='connected'&&<p role="status" className="rounded-xl border border-[#cde6d0] bg-[#edf8ef] p-4 text-sm font-medium text-[#2e7048]">Compte Google autorisé. Le tableur a été créé ; vous pouvez l’ouvrir depuis cette page.</p>}
+        {googleOutcome==='error'&&<p role="alert" className="rounded-xl border border-[#f4d6cf] bg-[#fff2ef] p-4 text-sm text-[#9b4735]">La connexion Google Sheets n’a pas abouti. Vérifiez votre compte Google, puis réessayez.</p>}
+        <GoogleSheetsPanel key={detail.id} formId={detail.id} owner={detail.role==='owner'}/>
+        {detail.role!=='owner'&&<p className="text-sm text-[#647969]">Seul le propriétaire de ce formulaire peut gérer la synchronisation Google Sheets.</p>}
+       </div> :
        activeTab==='settings'?<section className="max-w-xl space-y-4 rounded-2xl border border-[#e2eade] bg-white p-6">
         <h2 className="text-xl font-bold text-[#31553c]">Paramètres du formulaire</h2>
         <p className="text-sm text-[#607265]">Nom : {detail.title}</p>

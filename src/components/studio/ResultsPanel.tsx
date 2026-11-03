@@ -80,7 +80,7 @@ function ChoiceChart({question,answers}:{question:string;answers:ResultAnswer[]}
   </div>)}</div>
  </article>;
 }
-export function ResultsPanel({formId}:{formId:string}){
+export function ResultsPanel({formId,onOpenIntegrations}:{formId:string;onOpenIntegrations?:()=>void}){
  const [data,setData]=useState<FormResults|null>(null),[loading,setLoading]=useState(true);
  const [busy,setBusy]=useState(''),[error,setError]=useState(''),[progress,setProgress]=useState(''),[view,setView]=useState<'summary'|'individual'>('summary');
  const [player,setPlayer]=useState<{id:string;url:string}|null>(null);
@@ -150,6 +150,7 @@ export function ResultsPanel({formId}:{formId:string}){
   <div className="flex flex-wrap items-center justify-between gap-3">
    <div><h2 className="font-display text-2xl font-bold text-[#2d5038]">Résultats</h2><p className="mt-1 text-sm text-[#7e907f]">Réponses et enregistrements de ce formulaire.</p></div>
    <div className="flex flex-wrap items-center gap-2">
+    {onOpenIntegrations&&<button type="button" onClick={onOpenIntegrations} className="inline-flex items-center gap-2 rounded-xl border border-[#bcd9bd] bg-[#ebf6ea] px-3 py-2 text-xs font-semibold text-[#2a6c40] hover:bg-[#dff0dd]"><FileSpreadsheet size={15}/> Synchroniser avec Google Sheets</button>}
     {(['csv','xlsx','zip'] as const).map(type=><button key={type} disabled={!!busy||loading}
       onClick={()=>void doExport(type)} className="inline-flex items-center gap-1.5 rounded-xl border border-[#dce7db] bg-white px-3 py-2 text-xs font-semibold text-[#3a6950] hover:bg-[#eff6ef] disabled:opacity-50">
       {busy===type?<LoaderCircle size={14} className="animate-spin"/>:type==='xlsx'?<FileSpreadsheet size={14}/>:<Download size={14}/>}
