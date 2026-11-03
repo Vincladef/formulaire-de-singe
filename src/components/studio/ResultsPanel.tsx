@@ -220,18 +220,52 @@ export function ResultsPanel({formId,onOpenIntegrations}:{formId:string;onOpenIn
       {type==='zip'?'ZIP + audios MP3':type.toUpperCase()}</button>)}
    </div>
   </div>
-  {transcriptionSettings&&<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#dce9d9] bg-white px-4 py-3">
-    <div className="flex items-start gap-3"><Mic2 className="mt-0.5 text-[#3e7854]" size={19}/><div>
-     <p className="text-sm font-semibold text-[#31573c]">Transcription audio · Cloudflare Whisper</p>
-     <p className="mt-1 text-xs text-[#788979]">À la demande, ou automatique après réception des réponses. L’audio est transmis à Cloudflare uniquement si vous lancez la transcription ou activez l’option. L’offre gratuite bloque tout dépassement.</p>
-    </div></div>
-    <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-[#426b50]">
-     <input type="checkbox" checked={transcriptionSettings.automatic} disabled={!transcriptionSettings.canManage||!transcriptionSettings.available||!!busy}
-      onChange={e=>void toggleAutomatic(e.target.checked)} className="h-4 w-4 accent-[#38774e]"/>
-     Transcrire automatiquement
-    </label>
+  {transcriptionSummary&&<section aria-label="Transcription audio" className="rounded-xl border border-[#dce9d9] bg-white px-4 py-3 sm:px-5">
+   <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="flex min-w-0 items-start gap-3">
+     <Mic2 className="mt-0.5 shrink-0 text-[#3e7854]" size={20}/>
+     <div>
+      <div className="flex items-center gap-2">
+       <h3 className="text-sm font-bold text-[#31573c]">Transcription audio</h3>
+       <details className="relative">
+        <summary aria-label="Informations sur la transcription" title="Informations sur la transcription"
+         className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full text-[#758977] hover:bg-[#eff5ed] [&::-webkit-details-marker]:hidden"><Info size={16}/></summary>
+        <div className="absolute left-0 top-8 z-30 w-72 rounded-xl border border-[#e0eadf] bg-white p-3 text-xs leading-5 text-[#53705c] shadow-lg">
+         Transcription réalisée avec Cloudflare Whisper Large V3 Turbo. Les audios sont envoyés à Cloudflare seulement après votre demande. L’offre gratuite a un quota quotidien ; au-delà, le traitement attend sans achat. Le texte généré par IA peut contenir des erreurs ; conservez les fichiers originaux.
+        </div>
+       </details>
+      </div>
+      <p className="mt-0.5 text-xs text-[#788979]">Transformez vos enregistrements en texte, à la demande.</p>
+      <p className="mt-2 text-xs font-medium text-[#52735c]">
+       {transcriptionSummary.total} audio{transcriptionSummary.total>1?'s':''} au total · {transcriptionSummary.done} transcrit{transcriptionSummary.done>1?'s':''} · {transcriptionSummary.actionable} à transcrire
+      </p>
+     </div>
+    </div>
+    {transcriptionSummary.actionable>0&&transcriptionSummary.available&&transcriptionSummary.canManage?
+     <button type="button" disabled={!!busy} onClick={()=>void transcribeAll()}
+      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#2f6546] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#255339] disabled:opacity-50">
+      {busy==='bulk'?<LoaderCircle size={16} className="animate-spin"/>:<Mic2 size={16}/>}
+      {busy==='bulk'?'Lancement…':'Transcrire '+transcriptionSummary.actionable+' audio'+(transcriptionSummary.actionable>1?'s':'')}
+     </button>:
+     transcriptionSummary.total>0&&transcriptionSummary.queued===0&&transcriptionSummary.done===transcriptionSummary.total?
+      <p role="status" className="flex items-center gap-2 text-sm font-semibold text-[#2d7048]"><CheckCircle2 size={18}/> Tous les audios sont transcrits</p>:
+      null}
+   </div>
+   {transcriptionSummary.queued>0&&<div className="mt-4 space-y-2 border-t border-[#edf1e9] pt-3" role="status" aria-live="polite">
+    <div className="flex justify-between gap-2 text-xs font-medium text-[#4c7256]">
+     <span><LoaderCircle size={13} className="mr-1 inline animate-spin"/> Transcription en cours ; vous pouvez quitter cette page.</span>
+     <span className="tabular-nums">{transcriptionSummary.done} / {transcriptionSummary.total}</span>
+    </div>
+    <div className="h-1.5 overflow-hidden rounded-full bg-[#e8efe5]">
+     <div className="h-full rounded-full bg-[#72a17d] transition-all"
+      style={{width:(100*transcriptionSummary.done/Math.max(1,transcriptionSummary.total))+'%'}}/>
+    </div>
    </div>}
-   {error&&<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+   {transcriptionSummary.quotaDelayed>0&&<p role="status" className="mt-3 text-xs text-[#986d34]">Quota gratuit Cloudflare atteint. {transcriptionSummary.quotaDelayed} audio(s) attendent le renouvellement quotidien ; les transcriptions terminées sont conservées.</p>}
+   {transcriptionSummary.failed>0&&!transcriptionSummary.queued&&<p className="mt-3 text-xs text-[#986d34]">{transcriptionSummary.failed} audio(s) à relancer. Utilisez le bouton global ou l’action individuelle.</p>}
+   {bulkStarted&&transcriptionSummary.total>0&&transcriptionSummary.queued===0&&transcriptionSummary.actionable===0&&<p className="mt-2 text-xs text-[#628469]">Le texte est consultable dans Participations et dans les prochains exports.</p>}
+  </section>}
+    {error&&<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
   {progress&&<p role="status" className="flex items-center gap-2 rounded-xl bg-[#eef5ec] p-3 text-sm text-[#356344]"><LoaderCircle size={16} className="animate-spin"/>{progress}</p>}
   {loading?<p role="status" className="text-sm text-[#72917a]"><LoaderCircle size={17} className="inline animate-spin"/> Chargement des réponses…</p>:
    data&&<>
@@ -249,9 +283,9 @@ export function ResultsPanel({formId,onOpenIntegrations}:{formId:string;onOpenIn
      <div className="space-y-3">{questions.filter(x=>['single_choice','multiple_choice','select'].includes(x.type)).map(q=><ChoiceChart key={q.label} question={q.label} answers={q.answers}/>)}
       {questions.length===0&&<p className="rounded-xl bg-white p-5 text-sm text-[#7d917f]">Aucune réponse reçue pour le moment.</p>}</div>:
      <div className="space-y-3">{data.submissions.map(sub=><article key={sub.id} className="rounded-xl border border-[#e1e8df] bg-white p-4">
-      <p className="text-xs font-semibold text-[#7c8f7f]">{sub.submittedAt?new Date(sub.submittedAt).toLocaleString('fr-FR'):'Date inconnue'}</p>
+      <p className="text-xs font-semibold text-[#7c8f7f]">{sub.submittedAt?formatParisDateTime(sub.submittedAt)+' · Paris':'Date inconnue'}</p>
       {sub.answers.map(ans=><div className="mt-3 border-t border-[#f0f3ef] pt-3" key={ans.questionId}>
-       <p className="text-xs font-semibold text-[#637b68]">{ans.question}</p><p className="mt-1 whitespace-pre-wrap text-sm text-[#36503b]">{formatted(ans)}</p>
+       <p className="text-xs font-semibold text-[#637b68]">{ans.question}</p><p className="mt-1 whitespace-pre-wrap text-sm text-[#36503b]">{ans.audioId?"Enregistrement audio"+(ans.durationMs?" ("+Math.ceil(ans.durationMs/1000)+" s)":""):formatted(ans)}</p>
        {ans.audioId&&<><div className="mt-2 flex flex-wrap gap-2"><button className="rounded-lg border border-[#d8e7db] px-3 py-2 text-xs font-semibold text-[#397450]"
          disabled={!!busy} onClick={()=>void play(ans.audioId!)}>{busy===ans.audioId?'Chargement…':'Écouter la réponse'}</button>
         <button className="inline-flex items-center gap-1.5 rounded-lg border border-[#d8e7db] px-3 py-2 text-xs font-semibold text-[#397450] disabled:opacity-50"
