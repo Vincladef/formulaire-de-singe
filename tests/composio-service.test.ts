@@ -2,7 +2,7 @@ import {beforeEach,afterEach,describe,it,expect,vi} from 'vitest';
 import {authConfigId,startComposioGoogle,completeComposioGoogle,createComposioSpreadsheet,googleSheetsComposioJSON,verifyComposioAccount} from '../src/server/composioService';
 
 const fetchMock=vi.fn();
-beforeEach(()=>{vi.stubEnv('COMPOSIO_API_KEY','test-key-never-real');vi.stubGlobal('fetch',fetchMock);fetchMock.mockReset();});
+beforeEach(()=>{vi.stubEnv('COMPOSIO_API_KEY','test-key-never-real');vi.stubEnv('COMPOSIO_OAUTH_VERIFIER_ENABLED','true');vi.stubGlobal('fetch',fetchMock);fetchMock.mockReset();});
 afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();});
 
 const result=(data:unknown,status=200)=>({ok:status>=200&&status<300,status,json:async()=>data});
