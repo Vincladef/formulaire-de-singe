@@ -35,7 +35,8 @@ export function StudioPage(){
  const [questionId,setQuestionId]=useState<string|null>(null);
  const [preview,setPreview]=useState(false);
  const [activeTab,setActiveTab]=useState<'questions'|'results'|'integrations'|'settings'>('questions');
- const [googleOutcome,setGoogleOutcome]=useState<'connected'|'error'|null>(null);
+ const [googleOutcome,setGoogleOutcome]=useState<'connected'|'error'|'verifying'|null>(null);
+ const managedVerificationStarted=useRef(false);
  const [sideMode,setSideMode]=useState<SidebarMode>('add');
  const [sidebarOpen,setSidebarOpen]=useState(false);
  const [saveState,setSaveState]=useState<SaveState>('saved');
@@ -79,10 +80,30 @@ export function StudioPage(){
   const params=new URLSearchParams(window.location.search);
   const formId=params.get('google_form');
   const outcome=params.get('google');
-  if(!formId||!['connected','error'].includes(outcome??'')||!/^[0-9a-f-]{36}$/i.test(formId))return;
+  if(outcome==='verifying'){
+   if(managedVerificationStarted.current)return;
+   managedVerificationStarted.current=true;
+   setGoogleOutcome('verifying');
+   window.history.replaceState(window.history.state,'',window.location.pathname);
+   void (async()=>{
+    const confirmed=await request<{connected:true;formId:string}>('/api/integrations/google/composio/complete','POST');
+    window.sessionStorage.removeItem('monk-google-pending-form');
+    await openForm(confirmed.formId,'integrations');
+    setGoogleOutcome('connected');
+   })().catch(()=>{
+    setGoogleOutcome('error');
+    const pending=window.sessionStorage.getItem('monk-google-pending-form');
+    if(pending&&/^[0-9a-f-]{36}$/i.test(pending))void openForm(pending,'integrations');
+   });
+   return;
+  }
+  if(!['connected','error'].includes(outcome??''))return;
+  const resumeId=(formId&&/^[0-9a-f-]{36}$/i.test(formId))
+   ?formId:window.sessionStorage.getItem('monk-google-pending-form');
   setGoogleOutcome(outcome as 'connected'|'error');
+  window.sessionStorage.removeItem('monk-google-pending-form');
   window.history.replaceState(window.history.state,'',window.location.pathname);
-  void openForm(formId,'integrations');
+  if(resumeId&&/^[0-9a-f-]{36}$/i.test(resumeId))void openForm(resumeId,'integrations');
  },[openForm]);
  async function createForm(){
    const name=await askDialog({kind:'text',title:'Nouveau formulaire',description:'Donne un nom à ton questionnaire. Tu pourras le modifier ensuite.',initialValue:'Mon nouveau formulaire',confirmLabel:'Créer'});if(!name?.trim())return;
@@ -248,6 +269,7 @@ export function StudioPage(){
        {detail.archivedAt&&<p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Ce formulaire est archivé ; son contenu ne peut pas être modifié.</p>}
       {activeTab==='results'?<ResultsPanel formId={detail.id} onOpenIntegrations={()=>setActiveTab('integrations')}/>: 
        activeTab==='integrations'?<div className="max-w-2xl space-y-4">
+        {googleOutcome==='verifying'&&<p role="status" className="rounded-xl bg-[#eff6ec] p-4 text-sm text-[#2f6546]">Vérification de votre compte Google et création du tableur…</p>}
         {googleOutcome==='connected'&&<p role="status" className="rounded-xl border border-[#cde6d0] bg-[#edf8ef] p-4 text-sm font-medium text-[#2e7048]">Compte Google autorisé. Le tableur a été créé ; vous pouvez l’ouvrir depuis cette page.</p>}
         {googleOutcome==='error'&&<p role="alert" className="rounded-xl border border-[#f4d6cf] bg-[#fff2ef] p-4 text-sm text-[#9b4735]">La connexion Google Sheets n’a pas abouti. Vérifiez votre compte Google, puis réessayez.</p>}
         <GoogleSheetsPanel key={detail.id} formId={detail.id} owner={detail.role==='owner'}/>
