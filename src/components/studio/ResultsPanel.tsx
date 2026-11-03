@@ -1,13 +1,14 @@
 import { useEffect,useMemo,useState } from 'react';
 import { zipSync,strToU8 } from 'fflate';
-import { BarChart3,Download,FileSpreadsheet,Headphones,LoaderCircle,Mic2 } from 'lucide-react';
+import { BarChart3,Download,FileSpreadsheet,Headphones,LoaderCircle,Mic2,Info,CheckCircle2,Copy,Ellipsis } from 'lucide-react';
+import {audioPlaybackUrl,formatParisDateTime} from '../../shared/presentation';
 import { getAccessToken } from '../../authClient';
 import type { FormResults,ResultAnswer,ResultSubmission } from '../../server/resultsService';
 import { exportAudioAsMp3 } from '../../shared/mp3Export';
 type Result<T>={ok:true;data:T}|{ok:false;error:{message:string}};
 const formatted=(a:ResultAnswer)=>{
  if(a.audioId){const text=a.value&&typeof a.value==='object'&&!Array.isArray(a.value)&&'text' in a.value&&typeof a.value.text==='string'?a.value.text.trim():'';
-  return `Enregistrement audio${a.durationMs?' ('+Math.ceil(a.durationMs/1000)+' s)':''}${text?' ; Texte saisi : '+text:''}${a.transcript?' ; Transcription : '+a.transcript:''}`;
+  return `Enregistrement audio${a.durationMs?' ('+Math.ceil(a.durationMs/1000)+' s)':''} ; Écouter : ${audioPlaybackUrl(a.audioId)}${text?' ; Texte saisi : '+text:''}${a.transcript?' ; Transcription : '+a.transcript:''}`;
  }
  if(Array.isArray(a.value))return a.value.map(v=>human(v)).join(' ; ');
  if(typeof a.value==='string')return human(a.value);
@@ -20,10 +21,15 @@ function dataset(items:ResultSubmission[]){
  const questions=new Map<string,string>();
  for(const item of items)for(const answer of item.answers)questions.set(answer.questionId,answer.question);
  const columns=[...questions].map(([id,label])=>({id,label}));
- const headers=['Participation','Date',...columns.map(c=>c.label+' ('+c.id.slice(0,8)+')')];
- const rows=items.map(item=>[item.id,item.submittedAt??'',...columns.map(c=>formatted(item.answers.find(a=>a.questionId===c.id)??{questionId:c.id,question:c.label,type:'',value:null,audioId:null,durationMs:null}))]);
+ const headers=['Participation','Date de participation (Paris)',...columns.map(c=>c.label+' ('+c.id.slice(0,8)+')')];
+ const rows=items.map(item=>[item.id,formatParisDateTime(item.submittedAt),...columns.map(c=>formatted(item.answers.find(a=>a.questionId===c.id)??{questionId:c.id,question:c.label,type:'',value:null,audioId:null,durationMs:null}))]);
+ const hyperlinks=items.flatMap((s,i)=>s.answers.flatMap(a=>{
+  if(!a.audioId)return [];
+  const index=columns.findIndex(c=>c.id===a.questionId);if(index<0)return [];
+  return [{row:i+2,column:index+3,url:audioPlaybackUrl(a.audioId)}];
+ }));
  const csv='\uFEFF'+[headers,...rows].map(r=>r.map(escapeCSV).join(';')).join('\r\n');
- return {headers,rows,csv,columns};
+ return {headers,rows,csv,columns,hyperlinks};
 }
 function download(name:string,data:Blob){
  const url=URL.createObjectURL(data);
@@ -31,12 +37,12 @@ function download(name:string,data:Blob){
  document.body.appendChild(link);link.click();link.remove();
  setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
-function xlsxBytes(headers:string[],rows:string[][]){
+function xlsxBytes(headers:string[],rows:string[][],hyperlinks:Array<{row:number;column:number;url:string}>){
  const enc=(value:string)=>String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
  const col=(index:number)=>{let n=index+1,out='';while(n){n--;out=String.fromCharCode(65+n%26)+out;n=Math.floor(n/26);}return out;};
  const values=[headers,...rows];
  const xml='<?xml version="1.0" encoding="utf-8" standalone="yes"?>'+
-  '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'+
+  '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetData>'+
   values.map((row,i)=>'<row r="'+(i+1)+'">'+row.map((v,j)=>'<c r="'+col(j)+(i+1)+'" t="inlineStr"><is><t xml:space="preserve">'+enc(v)+'</t></is></c>').join('')+'</row>').join('')+'</sheetData></worksheet>';
  return zipSync({
   '[Content_Types].xml':strToU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'),
@@ -134,7 +140,7 @@ export function ResultsPanel({formId,onOpenIntegrations}:{formId:string;onOpenIn
    const all=await fetchAll(formId),sheet=dataset(all);
    const name='reponses-'+formId.slice(0,8);
    if(format==='csv')download(name+'.csv',new Blob([sheet.csv],{type:'text/csv;charset=utf-8'}));
-   if(format==='xlsx')download(name+'.xlsx',new Blob([xlsxBytes(sheet.headers,sheet.rows) as BlobPart],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+   if(format==='xlsx')download(name+'.xlsx',new Blob([xlsxBytes(sheet.headers,sheet.rows,sheet.hyperlinks) as BlobPart],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
    if(format==='zip'){
     const archive:Record<string,Uint8Array>={'reponses.csv':strToU8(sheet.csv),
       'reponses.json':strToU8(JSON.stringify(all,null,2))};
