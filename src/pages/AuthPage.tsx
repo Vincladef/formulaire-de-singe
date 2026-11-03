@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { authClient } from '../authClient';
 
 export function AuthPage() {
@@ -11,6 +11,10 @@ export function AuthPage() {
   const [loading,setLoading] = useState(false);
   const [googleLoading,setGoogleLoading] = useState(false);
   const navigate = useNavigate();
+  const location=useLocation();
+  const requestedReturn=new URLSearchParams(location.search).get('returnTo');
+  // Only our own ChatGPT consent screen can be used as a post-login destination.
+  const returnTo=requestedReturn?.startsWith('/autoriser-chatgpt?')?requestedReturn:'/studio';
   async function submit(event: FormEvent) {
     event.preventDefault(); setLoading(true);setError('');
     try {
@@ -19,7 +23,7 @@ export function AuthPage() {
         ? await authClient.signUp.email({email,password,name})
         : await authClient.signIn.email({email,password});
       if (result.error) throw new Error(result.error.message || 'Échec de la connexion');
-      navigate('/studio', {replace:true});
+      navigate(returnTo, {replace:true});
     } catch (e) {setError(e instanceof Error ? e.message : 'Connexion impossible');}
     finally {setLoading(false);}
   }
@@ -32,7 +36,7 @@ export function AuthPage() {
       // Neon Auth gère le flux OAuth Google et la session ; aucune clé Google côté client.
       const result = await authClient.signIn.social({
         provider: 'google',
-        callbackURL: `${window.location.origin}/studio`,
+        callbackURL: `${window.location.origin}${returnTo}`,
       });
       if (result.error) throw new Error(result.error.message || 'Connexion Google impossible');
       // Le SDK réalise normalement la redirection OAuth automatiquement.
