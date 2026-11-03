@@ -146,7 +146,7 @@ export async function runTranscriptionQueue(){
   const transcript=result.result?.text?.trim()??'';
   if(result.success===false||!transcript)throw new TranscriptionFault(422,'Aucun texte intelligible détecté.');
   await db.execute(sql`UPDATE fs_audio_files SET transcript=${transcript},
-   transcript_source='cloudflare-whisper-large-v3-turbo',transcript_updated_at=now()
+   transcript_source='whisper',transcript_updated_at=now()
    WHERE id=${audioId}::uuid AND transcript IS NULL AND deleted_at IS NULL`);
   // Revisit previously exported Sheets rows when their transcript becomes available.
   await db.execute(sql`UPDATE fs_sheet_deliveries d SET state='pending',attempts=0,claimed_at=NULL,last_error=NULL
