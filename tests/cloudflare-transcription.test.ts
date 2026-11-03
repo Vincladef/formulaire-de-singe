@@ -68,7 +68,7 @@ describe('Transcription Cloudflare gratuite',()=>{
   vi.mocked(getDb).mockReturnValue({execute} as never);
   const result=await runTranscriptionQueue();
   expect(result).toMatchObject({claimed:0,done:0});
-  expect(execute).toHaveBeenCalledTimes(2);
+  expect(execute).toHaveBeenCalledTimes(1);
   expect(getStore).not.toHaveBeenCalled();
  });
 });
