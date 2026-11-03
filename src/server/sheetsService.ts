@@ -242,14 +242,23 @@ async function syncOne(item:Delivery){
   const match=written.updates?.updatedRange?.match(/![A-Z]+([0-9]+)/i);
   rowNumber=match?Number(match[1]):(seen.values??[]).length+2;
  }
- // Only server-produced audio URLs use USER_ENTERED; participant data stays RAW.
- // This creates real, labelled Google Sheets hyperlinks without formula injection.
- const column=(index:number)=>{let n=index+1,out='';while(n){n--;out=String.fromCharCode(65+n%26)+out;n=Math.floor(n/26);}return out;};
- for(const link of links){
-  const i=headers.indexOf(link.header);if(i<0)continue;
-  const formula='=HYPERLINK("'+link.url.replace(/"/g,'""')+'","🎧 Écouter l’enregistrement")';
-  await query(range(column(i)+rowNumber)+'?valueInputOption=USER_ENTERED',{
-   method:'PUT',body:JSON.stringify({values:[[formula]]})
+ // A real rich-text hyperlink avoids regional formula separators and preserves
+ // participant-supplied text as RAW data (no spreadsheet-formula injection).
+ if(links.length){
+  const metadata=await query<{sheets?:Array<{properties?:{title?:string;sheetId?:number}}>}>(ROOT+'/'+encodeURIComponent(conn.spreadsheet_id)+'?fields=sheets(properties(title,sheetId))');
+  const sheetId=metadata.sheets?.find(s=>s.properties?.title===SHEET_NAME)?.properties?.sheetId;
+  if(typeof sheetId!=='number')throw new Error('Onglet Réponses introuvable pour les liens audio.');
+  await query(ROOT+'/'+encodeURIComponent(conn.spreadsheet_id)+':batchUpdate',{
+   method:'POST',body:JSON.stringify({requests:links.map(link=>({
+    updateCells:{
+     start:{sheetId,rowIndex:rowNumber-1,columnIndex:headers.indexOf(link.header)},
+     rows:[{values:[{
+      userEnteredValue:{stringValue:'🎧 Écouter l’enregistrement'},
+      textFormatRuns:[{startIndex:0,format:{link:{uri:link.url}}}]
+     }]}],
+     fields:'userEnteredValue,textFormatRuns'
+    }
+   }))})
   });
  }
 }
