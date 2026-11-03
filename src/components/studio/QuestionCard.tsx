@@ -98,7 +98,7 @@ export function QuestionCard({question,index,questionNumber,selected,onSelect,on
     {!readOnly&&question.options.length>2&&<button type="button" aria-label={`Retirer le choix ${i+1}`} onClick={()=>onUpdate?.({...question,options:question.options.filter(x=>x.id!==o.id)})} className="p-1 text-[#98483f] opacity-30 hover:opacity-100"><Trash2 size={14}/></button>}
    </div>)}
    {!readOnly&&<div className="mt-2 flex gap-3 text-xs"><button type="button" onClick={addChoice} disabled={question.options.length>=100} className="text-[#418157]">+ Choix</button>{!hasOther&&<button type="button" onClick={addOther} className="text-[#607265]">+ Autre</button>}</div>}</div>}
-   {audioMode(question.type,question.settings)!=='text'&&<div className="mt-3 flex items-center gap-2 rounded-lg bg-[#edf5ef] px-3 py-2 text-xs text-[#47745a]"><Mic size={15}/> Réponse vocale possible <span className="ml-auto">{Math.round(audioLimits(question.settings).maxSeconds/60)} min max.</span></div>}
+   {audioMode(question.type,question.settings)!=='text'&&<div className="mt-3 flex items-center gap-2 rounded-lg bg-[#edf5ef] px-3 py-2 text-xs text-[#47745a]"><Mic size={15}/> {question.type==='audio'&&question.settings.allowTextSupplement===true?'Audio + texte':'Réponse vocale possible'} <span className="ml-auto">{Math.round(audioLimits(question.settings).maxSeconds/60)} min max.</span></div>}
   </div>}
   {!readOnly&&selected&&<div className="mt-2 flex items-center justify-end gap-1.5">
    {onOpenSettings&&<button type="button" onClick={onOpenSettings} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-semibold text-[#41674e] hover:bg-[#e7f0e6]"><Settings2 size={16}/> Options</button>}
