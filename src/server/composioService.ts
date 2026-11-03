@@ -82,16 +82,28 @@ async function sheetsJSON<T>(neonId:string,accountId:string,url:string,method='G
  const parsed=new URL(url);
  if(parsed.origin!=='https://sheets.googleapis.com'||!parsed.pathname.startsWith('/v4/spreadsheets'))
   throw new Error('Destination Google Sheets non autorisée.');
- const result=await request<{status:number;data:T}>('/tools/execute/proxy','POST',{
+ // Composio's proxy has returned two JSON shapes across API generations:
+ // {status,data} and {successful:true,data:{status,data}}. A successful
+ // transport response is not necessarily a successful Google API response.
+ type Reply={status?:number;data?:T|{status?:number;data?:T};successful?:boolean;error?:unknown};
+ const raw=await request<Reply>('/tools/execute/proxy','POST',{
   connected_account_id:accountId,user_id:composioUserId(neonId),
   endpoint:parsed.origin+parsed.pathname,method,
   ...(body!==undefined?{body}:{}),
   parameters:[...parsed.searchParams].map(([name,value])=>({name,value,in:'query'})),
  });
- if(result.status===429)throw new Error('Quota Google Sheets momentanément atteint. Les réponses seront réessayées.');
- if(result.status<200||result.status>=300)
-  throw new Error('Google Sheets a répondu HTTP '+result.status);
- return result.data;
+ const nested=raw.data&&typeof raw.data==='object'&&'status' in raw.data
+  ?raw.data as {status?:number;data?:T}:null;
+ const status=nested?.status??raw.status;
+ const data=nested?.data??raw.data;
+ if(raw.successful===false||typeof status!=='number'){
+  console.error('Google Sheets proxy returned an unexpected response envelope');
+  throw new Error('Réponse du service Google Sheets incomplète. Réessayez.');
+ }
+ if(status===429)throw new Error('Quota Google Sheets momentanément atteint. Les réponses seront réessayées.');
+ if(status<200||status>=300)throw new Error('Google Sheets a répondu HTTP '+status);
+ if(data===undefined||data===null)throw new Error('Google Sheets a répondu sans données.');
+ return data as T;
 }
 export async function createComposioSpreadsheet(neonId:string,accountId:string,title:string):Promise<string>{
  const result=await sheetsJSON<{spreadsheetId:string}>(neonId,accountId,SHEETS,'POST',{
