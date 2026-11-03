@@ -201,3 +201,29 @@ La conversion s'effectue dans le navigateur connecté au moment de l'export, san
 **Dépendance tierce :** @breezystack/lamejs 1.2.7, encodeur JavaScript sous licence LGPL-3.0. Le code source est disponible sur https://github.com/gideonstele/lamejs. La bibliothèque est utilisée sans modification ; ses obligations LGPL de redistribution et de remplacement doivent être respectées par les distributeurs.
 
 Tests : tests/mp3-export.test.ts. Recette manuelle : exporter du WebM depuis Chrome/Edge, lire le MP3 dans un lecteur externe, vérifier que tous les fichiers du dossier audios/ du ZIP sont des MP3 lisibles ; tester aussi un MP3 importé, un M4A Safari et une réponse longue.
+
+
+## Connecter Monk Form à ChatGPT
+
+Le serveur MCP est disponible sur **https://monk-form.netlify.app/mcp**. Il utilise OAuth 2.1 avec PKCE S256 et les comptes Neon Auth déjà utilisés dans le Studio.
+
+**Configuration initiale :**
+1. Dans ChatGPT, ouvre **Plugins**, puis **Ajouter un serveur MCP personnalisé**.
+2. Entre l'adresse `https://monk-form.netlify.app/mcp`, choisis **OAuth / CIMD (Client ID Metadata Document)**, puis crée et installe le plugin.
+3. Quand la page « Autoriser ChatGPT ? » apparaît, connecte-toi au compte Monk Form concerné. Vérifie les permissions et sélectionne **Autoriser ChatGPT**.
+4. Dans un nouveau chat, sélectionne le plugin Monk Form, puis demande par exemple : « Crée un formulaire de 15 questions sur l'anxiété sociale, avec des échelles de Likert, deux réponses audio, une introduction et range-le dans Recherche. »
+
+**Outils :** `list_forms`, `get_form`, `list_folders`, `create_form`, `create_form_with_content`, `replace_form_draft`, `rename_form`, `create_folder`, `rename_folder`, `move_form_to_folder` et `publish_form`.
+
+**Confidentialité et sécurité :**
+- `create_form_with_content` crée un brouillon privé complet, jamais une publication automatique. Le contenu est validé et enregistré côté serveur ; une erreur entraîne la suppression logique du formulaire incomplet.
+- `replace_form_draft` exige la révision exacte du brouillon. Une modification concurrente produit un conflit explicite et n'écrase rien.
+- `publish_form` nécessite un `confirm: true` et la révision actuelle, après validation explicite de l'utilisateur. La publication est l'étape qui crée un lien public.
+- Les permissions OAuth sont séparées : `forms:read`, `forms:write`, `forms:publish`. ChatGPT ne reçoit pas les mots de passe ou JWT Neon Auth ; il reçoit ses propres jetons OAuth opaques.
+- Les codes d'autorisation expirent en 5 minutes et sont à usage unique, protégés par PKCE S256 et associés au client/redirect de ChatGPT vérifiés avec CIMD. Les accès durent une heure ; les jetons de renouvellement sont valables au maximum 30 jours et tournent à chaque utilisation. Seuls des condensats SHA-256 des jetons sont conservés dans Neon.
+- **Révocation :** Monk Form > Mon compte > Mes connexions. Une révocation invalide immédiatement l'accès de ChatGPT et son jeton de renouvellement, sans effacer aucun formulaire.
+- Les dossiers et formulaires restent toujours limités à l'identité vérifiée du compte connecté. Les jetons ne sont jamais passés en paramètres aux outils MCP.
+
+**Découverte OAuth :** `/.well-known/oauth-protected-resource` et `/.well-known/oauth-authorization-server`. Autorisation à `/oauth/authorize` (consentement sur `/autoriser-chatgpt`) ; échange/renouvellement à `/oauth/token`. La liaison nécessite une action explicite du propriétaire de son compte ChatGPT ; déployer le code n'installe pas le plugin sur son compte.
+
+**Tests :** `npm run test:mcp`, `npm run check`. Test fonctionnel final avec ChatGPT indispensable pour vérifier le parcours OAuth dans le véritable client.
