@@ -17,7 +17,7 @@ function parsed<T>(schema:z.ZodSchema<T>, input:unknown):T{
 }
 export type FolderSummary={id:string;name:string;parentId?:string|null;createdAt:string};
 const serialize=(f:{id:string;name:string;parentId:string|null;createdAt:Date})=>({id:f.id,name:f.name,parentId:f.parentId,createdAt:f.createdAt.toISOString()});
-type TreeFolder={id:string;parentId:string|null};
+type TreeFolder={id:string;parentId?:string|null};
 function folderChain(list:TreeFolder[],id:string):string[]|null{
  const map=new Map(list.map(f=>[f.id,f])),chain:string[]=[],visited=new Set<string>();
  let current:string|null=id;
@@ -27,7 +27,7 @@ function folderChain(list:TreeFolder[],id:string):string[]|null{
   const node=map.get(current);
   if(!node)return null;
   chain.push(current);
-  current=node.parentId;
+  current=node.parentId??null;
  }
  return chain;
 }
