@@ -1,4 +1,5 @@
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import {AudioPlaybackPage} from './pages/AudioPlaybackPage';
 import { authClient } from './authClient';
 import { SiteHeader } from './components/SiteHeader';
 import { HomePage } from './pages/HomePage';
@@ -31,6 +32,7 @@ function AppShell() {
           <Route path="/f/:slug" element={<PublicFormPage />} />
           <Route path="/studio" element={<ProtectedStudio><StudioPage /></ProtectedStudio>} />
           <Route path="/studio/audios" element={<ProtectedStudio><AudioResponsesPage /></ProtectedStudio>} />
+          <Route path="/studio/audio/:id" element={<ProtectedStudio><AudioPlaybackPage /></ProtectedStudio>} />
           <Route path="/studio/connexions" element={<ProtectedStudio><ConnectedAppsPage /></ProtectedStudio>} />
           <Route path="/autoriser-chatgpt" element={<McpAuthorizePage/>} />
           <Route path="*" element={<main className="mx-auto max-w-3xl px-5 py-28 text-center"><h1 className="font-display text-4xl font-extrabold text-[#254231]">Cette page n'existe pas.</h1><p className="mt-5 text-[#738576]">Peut-être s'est-elle égarée dans la jungle.</p><Link className="mt-6 inline-block font-semibold underline underline-offset-4" to="/">Retour à l'accueil</Link></main>} />
