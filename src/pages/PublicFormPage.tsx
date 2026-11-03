@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { sanitizeDocumentHtml } from '../shared/richText';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, FileQuestion, LoaderCircle } from 'lucide-react';
 import { AudioRecorder } from '../components/AudioRecorder';
-import { audioMode, type UploadedAudio, AUDIO_PART_BYTES } from '../shared/audio';
+import { audioMode, type AudioDraft, type UploadedAudio, AUDIO_PART_BYTES } from '../shared/audio';
 import { type AnswerValues, type PublicForm, type PublicQuestion, toSubmissionAnswers, validateAnswers, isAnswered, OTHER_VALUE, isOtherAnswer } from '../shared/publicForm';
 
 type ApiResult<T>={ok:true;data:T}|{ok:false;error:{code:string;message:string}};
@@ -16,7 +16,7 @@ async function getPublic(slug:string,signal:AbortSignal):Promise<PublicForm>{
  if(!payload.ok)throw new Error(payload.error.message);
  return payload.data;
 }
-export function QuestionField({question,value,onChange,error}: {question:PublicQuestion;value:AnswerValues[string];onChange:(value:AnswerValues[string])=>void;error?:string}){
+export function QuestionField({question,value,onChange,error,audioStatus}: {question:PublicQuestion;value:AnswerValues[string];onChange:(value:AnswerValues[string])=>void;error?:string;audioStatus?:'uploading'|'ready'|'error'}){
  const describedBy=`description-${question.id}`;
  const errorId=`error-${question.id}`;
  const ariaDesc=[question.description?describedBy:null,error?errorId:null].filter(Boolean).join(' ')||undefined;
@@ -28,6 +28,8 @@ export function QuestionField({question,value,onChange,error}: {question:PublicQ
  const [preferAudio,setPreferAudio]=useState(false);
  const vocal=mode==='audio'||(mode==='either'&&preferAudio);
  const draft=value&&typeof value==='object'&&!Array.isArray(value)&&value.kind==='audio-draft'?value:undefined;
+ const audioWithText=question.type==='audio'&&question.settings?.allowTextSupplement===true;
+ const supplement=typeof value==='string'?value:value&&typeof value==='object'&&!Array.isArray(value)?value.text??'':'';
  const common={id:question.id,'aria-invalid':!!error,'aria-describedby':ariaDesc,required:question.required} as const;
  return <div className={question.type==='statement'?'px-1 py-2 sm:px-3':'rounded-2xl border border-[#e1e9df] bg-white p-5 sm:p-7'}>
   {question.type==='statement' ? <>
@@ -67,9 +69,16 @@ export function QuestionField({question,value,onChange,error}: {question:PublicQ
         onChange={e=>{const next=OTHER_VALUE+':'+e.target.value;
          onChange(Array.isArray(value)?[...value.filter(v=>!isOtherAnswer(v)),next]:next);
         }}/>}
-    {vocal&&value&&typeof value==='object'&&!Array.isArray(value)&&value.kind==='audio'&&
-      <p className="rounded-xl bg-[#eaf4e8] p-3 text-sm">Enregistrement prêt pour l'envoi.</p>}
-    {vocal&&<AudioRecorder value={draft} onChange={onChange} maxSeconds={question.maxAudioSeconds??600} maxBytes={question.maxAudioBytes??15*1048576}/>}
+    {vocal&&<AudioRecorder value={draft} onChange={next=>onChange(next?(audioWithText?{...next,text:supplement}:next):(audioWithText?supplement||undefined:undefined))} maxSeconds={question.maxAudioSeconds??600} maxBytes={question.maxAudioBytes??15*1048576}/>}
+    {vocal&&draft&&audioStatus&&<p role="status" className="mt-2 text-xs text-[#607265]">{audioStatus==='ready'?'Audio prêt pour l’envoi.':audioStatus==='uploading'?'Transfert sécurisé de l’audio en cours…':'Transfert interrompu ; une nouvelle tentative aura lieu lors de l’envoi.'}</p>}
+    {audioWithText&&<label className="mt-4 block text-sm font-medium text-[#315c3f]">Réponse écrite (facultative)
+      <textarea className={fieldStyle+' mt-2 min-h-20 resize-y'} rows={2} maxLength={500}
+        aria-label="Réponse écrite complémentaire" placeholder="Vous pouvez aussi écrire quelques mots…"
+        value={supplement} onChange={e=>{const text=e.target.value;
+          onChange(value&&typeof value==='object'&&!Array.isArray(value)?{...value,text}:text||undefined);
+        }}/>
+      <span className="mt-1 block text-xs font-normal text-[#607265]">Vous pouvez répondre par audio, par texte, ou avec les deux.</span>
+    </label>}
    </div>
    {error&&<p id={errorId} role="alert" className="mt-3 flex items-start gap-2 text-sm font-medium text-[#ad5e4e]"><CircleAlert size={16} className="mt-0.5 shrink-0"/>{error}</p>}
   </>}
@@ -95,6 +104,8 @@ export function PublicFormPage(){
   
   
  const [submitting,setSubmitting]=useState(false);
+ const [uploadStates,setUploadStates]=useState<Record<string,'uploading'|'ready'|'error'>>({});
+ const uploadTasksRef=useRef(new Map<string,{file:Blob;promise:Promise<UploadedAudio>}>());
  const [submitted,setSubmitted]=useState(false);
   
  const nonceRef=useRef(crypto.randomUUID());
@@ -102,6 +113,7 @@ export function PublicFormPage(){
  useEffect(()=>{
   const controller=new AbortController();
   setForm(null);setLoading(true);setError('');setPageIndex(0);setAnswers({}); setSubmitted(false); setErrors({});nonceRef.current=crypto.randomUUID();
+  uploadTasksRef.current.clear();setUploadStates({});
   getPublic(slug,controller.signal).then(data=>{if(!controller.signal.aborted)setForm(data);}).catch(e=>{if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Formulaire indisponible.');}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
   return()=>controller.abort();
  },[slug]);
@@ -117,39 +129,69 @@ export function PublicFormPage(){
   return true;
  }
  function next(){if(!validatePage())return;setPageIndex(index=>Math.min(index+1,(form?.pages.length??1)-1));window.scrollTo?.({top:0,behavior:'smooth'});}
+ async function uploadDraft(questionId:string,draft:AudioDraft,currentForm:PublicForm):Promise<UploadedAudio>{
+  const previous=uploadTasksRef.current.get(questionId);
+  if(previous?.file===draft.file)return previous.promise;
+  const promise=(async()=>{
+   const api=`/api/public/forms/${encodeURIComponent(currentForm.slug)}/audio`;
+   const prepare=await fetch(`${api}/prepare`,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({versionId:currentForm.versionId,questionId,clientNonce:nonceRef.current,
+     mimeType:draft.file.type,byteSize:draft.file.size,durationMs:draft.durationMs})});
+   const prep=await prepare.json() as ApiResult<{uploadId:string;claimToken:string;partBytes:number;partCount:number}>;
+   if(!prep.ok)throw new Error(prep.error.message);
+   const {uploadId,claimToken,partCount}=prep.data;
+   let nextPart=0;
+   await Promise.all(Array.from({length:Math.min(3,partCount)},async()=>{
+    while(nextPart<partCount){
+     const i=nextPart++;
+     const chunk=draft.file.slice(i*AUDIO_PART_BYTES,Math.min((i+1)*AUDIO_PART_BYTES,draft.file.size));
+     const response=await fetch(`${api}/${uploadId}/parts/${i}`,{
+      method:'POST',headers:{'Content-Type':'application/octet-stream',
+       'x-audio-nonce':nonceRef.current,'x-audio-claim':claimToken},body:chunk});
+     if(!response.ok)throw new Error(`Transfert audio interrompu (portion ${i+1}/${partCount}).`);
+    }
+   }));
+   const finish=await fetch(`${api}/complete`,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({uploadId,claimToken,clientNonce:nonceRef.current})});
+   const confirmed=await finish.json() as ApiResult<{verified:boolean}>;
+   if(!confirmed.ok||!confirmed.data.verified)
+    throw new Error(confirmed.ok?'Le fichier audio est incomplet.':confirmed.error.message);
+   return {kind:'audio',uploadId,claimToken};
+  })();
+  uploadTasksRef.current.set(questionId,{file:draft.file,promise});
+  setUploadStates(s=>({...s,[questionId]:'uploading'}));
+  void promise.then(()=>{
+   if(uploadTasksRef.current.get(questionId)?.file===draft.file)setUploadStates(s=>({...s,[questionId]:'ready'}));
+  },()=>{
+   if(uploadTasksRef.current.get(questionId)?.file===draft.file){
+    uploadTasksRef.current.delete(questionId);
+    setUploadStates(s=>({...s,[questionId]:'error'}));
+   }
+  });
+  return promise;
+ }
+ // Prepare each recording as soon as it is completed, while the respondent fills in the form.
+ useEffect(()=>{
+  if(!form||submitted)return;
+  for(const [questionId,value] of Object.entries(answers)){
+   if(value&&typeof value==='object'&&!Array.isArray(value)&&value.kind==='audio-draft'&&
+     uploadTasksRef.current.get(questionId)?.file!==value.file){
+    void uploadDraft(questionId,value,form).catch(()=>{});
+   }
+  }
+ },[answers,form,submitted]);
  async function send(){
   if(!form||inFlightRef.current)return;
   const issue=validateAnswers(form,answers);setErrors(issue);
   if(Object.keys(issue).length){const first=form.pages.findIndex(p=>p.questions.some(q=>issue[q.id]));if(first>=0)setPageIndex(first);setError('Certaines questions demandent une réponse.');return;}
- 
   inFlightRef.current=true;setSubmitting(true);setError('');
   try{
    const readyValues:AnswerValues={...answers};
-   for(const [questionId,value] of Object.entries(readyValues)){
-    if(!value||typeof value!=='object'||Array.isArray(value)||value.kind!=='audio-draft')continue;
-    const draft=value;
-    const api=`/api/public/forms/${encodeURIComponent(form.slug)}/audio`;
-    const prepare=await fetch(`${api}/prepare`,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({versionId:form.versionId,questionId,clientNonce:nonceRef.current,
-        mimeType:draft.file.type,byteSize:draft.file.size,durationMs:draft.durationMs})});
-    const prep=await prepare.json() as ApiResult<{uploadId:string;claimToken:string;partBytes:number;partCount:number}>;
-    if(!prep.ok)throw new Error(prep.error.message);
-    const {uploadId,claimToken,partCount}=prep.data;
-    for(let i=0;i<partCount;i++){
-      const chunk=draft.file.slice(i*AUDIO_PART_BYTES,Math.min((i+1)*AUDIO_PART_BYTES,draft.file.size));
-      const result=await fetch(`${api}/${uploadId}/parts/${i}`,{
-        method:'POST',headers:{'Content-Type':'application/octet-stream',
-         'x-audio-nonce':nonceRef.current,'x-audio-claim':claimToken},body:chunk});
-      if(!result.ok)throw new Error(`Envoi audio interrompu à la partie ${i+1}/${partCount}. Réessayez.`);
-    }
-    const finish=await fetch(`${api}/complete`,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({uploadId,claimToken,clientNonce:nonceRef.current})});
-    const confirmed=await finish.json() as ApiResult<{verified:boolean}>;
-    if(!confirmed.ok||!confirmed.data.verified)
-      throw new Error(confirmed.ok?'Le fichier audio est incomplet.':confirmed.error.message);
-    readyValues[questionId]={kind:'audio',uploadId,claimToken} satisfies UploadedAudio;
-   }
-   setAnswers(readyValues);
+   await Promise.all(Object.entries(readyValues).map(async([questionId,value])=>{
+    if(!value||typeof value!=='object'||Array.isArray(value)||value.kind!=='audio-draft')return;
+    const ready=await uploadDraft(questionId,value,form);
+    readyValues[questionId]=value.text?{...ready,text:value.text}:ready;
+   }));
    const response=await fetch(`/api/public/forms/${encodeURIComponent(form.slug)}/submissions`,{
     method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({versionId:form.versionId,clientNonce:nonceRef.current,website:'',answers:toSubmissionAnswers(form,readyValues)}),
    });
@@ -171,11 +213,11 @@ export function PublicFormPage(){
     {(form.pages.length>1||(page?.title&&page.title!=='Nouvelle page'))&&<h2 className={'font-display font-bold text-[#35583f] '+(pageIndex===0?'mt-9 text-2xl':'text-3xl')}>{page?.title||`Page ${pageIndex+1}`}</h2>}
     {page?.description&&<p className="mt-3 whitespace-pre-line text-sm leading-7 text-[#607265]">{page.description}</p>}
    </header>
-   <div className="space-y-4">{page?.questions.map(q=><QuestionField key={q.id} question={q} value={answers[q.id]} onChange={v=>setAnswer(q.id,v)} error={errors[q.id]}/>)}</div>
+   <div className="space-y-4">{page?.questions.map(q=><QuestionField key={q.id} question={q} value={answers[q.id]} onChange={v=>setAnswer(q.id,v)} error={errors[q.id]} audioStatus={uploadStates[q.id]}/>)}</div>
    {error&&<div role="alert" className="mt-6 flex gap-3 rounded-2xl border border-[#f0d4cc] bg-[#fff8f4] p-4 text-sm text-[#aa594d]"><CircleAlert className="shrink-0" size={19}/>{error}</div>}
    <nav aria-label="Navigation dans le formulaire" className="mt-9 flex flex-wrap items-center justify-between gap-4">
     {pageIndex>0?<button type="button" className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-semibold text-[#42664b] hover:bg-[#edf4eb]" onClick={()=>{setError('');setPageIndex(i=>i-1);}}><ArrowLeft size={18}/> Retour</button>:<span/>}
-    {pageIndex<form.pages.length-1?<button type="button" className={solid} onClick={next}>Continuer <ArrowRight size={18}/></button>:<button type="button" disabled={submitting} className={solid} onClick={()=>void send()}>{submitting?<LoaderCircle className="animate-spin" size={18}/>:<Check size={18}/>} {submitting?'Envoi en cours…':'Envoyer mes réponses'}</button>}
+    {pageIndex<form.pages.length-1?<button type="button" className={solid} onClick={next}>Continuer <ArrowRight size={18}/></button>:<button type="button" disabled={submitting} className={solid} onClick={()=>void send()}>{submitting?<LoaderCircle className="animate-spin" size={18}/>:<Check size={18}/>} {submitting?'Finalisation de l’envoi…':'Envoyer mes réponses'}</button>}
    </nav>
    
   </div>
