@@ -262,8 +262,36 @@ export function StudioPage(){
  const allVisibleItems=items.filter(i=>showArchived?!!i.archivedAt:!i.archivedAt);
  const folderCounts:Record<string,number>={uncategorized:0};
  for(const item of allVisibleItems){const id=item.folderId??'uncategorized';folderCounts[id]=(folderCounts[id]??0)+1;}
- const activeItems=allVisibleItems.filter(i=>selectedFolder==='all'||(selectedFolder==='uncategorized'?!i.folderId:i.folderId===selectedFolder));
- const folderTitle=selectedFolder==='all'?'Tous les formulaires':selectedFolder==='uncategorized'?'Sans dossier':folders.find(f=>f.id===selectedFolder)?.name??'Dossier';
+ const folderById=new Map(folders.map(f=>[f.id,f]));
+ const folderPath:FolderInfo[]=[];
+ if(folderById.has(selectedFolder)){
+  let current=folderById.get(selectedFolder),seen=new Set<string>();
+  while(current&&!seen.has(current.id)){
+   seen.add(current.id);folderPath.unshift(current);
+   current=current.parentId?folderById.get(current.parentId):undefined;
+  }
+ }
+ const searchNormalized=searchTerm.trim().toLocaleLowerCase('fr');
+ const searchMatch=(item:FormSummary)=>{
+  if(!searchNormalized)return false;
+  let parent=item.folderId,labels:string[]=[];const seen=new Set<string>();
+  while(parent&&!seen.has(parent)){
+   seen.add(parent);const folder=folderById.get(parent);
+   if(!folder)break;labels.push(folder.name);parent=folder.parentId??null;
+  }
+  return [item.title,...labels].join(' ').toLocaleLowerCase('fr').includes(searchNormalized);
+ };
+ const sortedItems=[...allVisibleItems].sort((a,b)=>sortMode==='name'
+  ?a.title.localeCompare(b.title,'fr')
+  :new Date(b.updatedAt).getTime()-new Date(a.updatedAt).getTime());
+ const activeItems=sortedItems.filter(i=>searchNormalized?searchMatch(i):
+  selectedFolder==='all'||selectedFolder==='recent'||(selectedFolder==='uncategorized'?!i.folderId:i.folderId===selectedFolder))
+  .slice(0,selectedFolder==='recent'&&!searchNormalized?15:undefined);
+ const childFolders=!searchNormalized&&folderById.has(selectedFolder)?
+  folders.filter(f=>(f.parentId??null)===selectedFolder).sort((a,b)=>a.name.localeCompare(b.name,'fr')):[];
+ const folderTitle=searchNormalized?'Résultats de recherche':selectedFolder==='all'?'Tous les formulaires':
+  selectedFolder==='recent'?'Récents':selectedFolder==='uncategorized'?'Sans dossier':
+  folderById.get(selectedFolder)?.name??'Dossier';
  return <main className="min-h-[calc(100vh-90px)] bg-[#f6f8f4] px-4 py-7 text-[#2b4836] sm:px-7">
   <div className="mx-auto max-w-[1550px]">
    {!detail&&<div className="mb-6 flex flex-wrap items-center justify-between gap-3">
