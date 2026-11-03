@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate,useLocation } from 'react-router-dom';
 import { authClient } from '../authClient';
 
 export function ProtectedStudio({children}:{children:ReactNode}) {
@@ -8,8 +8,13 @@ export function ProtectedStudio({children}:{children:ReactNode}) {
   return <SessionGate>{children}</SessionGate>;
 }
 function SessionGate({children}:{children:ReactNode}) {
+  const location=useLocation();
   const session = authClient!.useSession();
   if (session.isPending) return <main role="status" className="p-20 text-center">Vérification de la session…</main>;
-  if (!session.data?.user) return <Navigate to="/connexion" replace/>;
+  if (!session.data?.user) {
+   const destination=/^\/studio\/audio\/[0-9a-f-]{36}$/i.test(location.pathname)
+    ?'/connexion?returnTo='+encodeURIComponent(location.pathname):'/connexion';
+   return <Navigate to={destination} replace/>;
+  }
   return <>{children}</>;
 }
