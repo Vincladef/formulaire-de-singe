@@ -1,7 +1,7 @@
 import { UnauthorizedError, requireUser } from './auth';
 import { folderActions, FolderNotFoundError, FolderValidationError } from './folderService';
 
-type FolderActions = Pick<typeof folderActions,'list'|'create'|'rename'|'delete'|'moveFolder'>;
+type FolderActions = Pick<typeof folderActions,'list'|'create'|'rename'|'delete'> & {moveFolder?:typeof folderActions.moveFolder};
 type IdentityProvider=(request:Request)=>Promise<string>;
 function reply(data:unknown,status=200):Response{
  return Response.json(data,{status,headers:{'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
@@ -24,7 +24,7 @@ export function createFoldersHandler(actions:FolderActions=folderActions,identit
    const id=match[1];
    if(request.method==='GET'&&!id)return reply({ok:true,data:await actions.list(userId)});
    if(request.method==='POST'&&!id)return reply({ok:true,data:await actions.create(userId,await bodyJson(request))},201);
-   if(request.method==='PATCH'&&id&&match[2]==='/move')return reply({ok:true,data:await actions.moveFolder(userId,id,await bodyJson(request))});
+   if(request.method==='PATCH'&&id&&match[2]==='/move'&&actions.moveFolder)return reply({ok:true,data:await actions.moveFolder(userId,id,await bodyJson(request))});
    if(request.method==='PATCH'&&id&&!match[2])return reply({ok:true,data:await actions.rename(userId,id,await bodyJson(request))});
    if(request.method==='DELETE'&&id)return reply({ok:true,data:await actions.delete(userId,id)});
    return reply({ok:false,error:{code:'METHOD_NOT_ALLOWED',message:'Méthode non autorisée.'}},405);
