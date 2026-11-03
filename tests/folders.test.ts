@@ -10,7 +10,8 @@ const foldersStub={
  list:vi.fn().mockResolvedValue([{id:folderId,name:'Recherche',createdAt:now}]),
  create:vi.fn().mockResolvedValue({id:folderId,name:'Recherche',createdAt:now}),
  rename:vi.fn().mockResolvedValue({id:folderId,name:'Publications',createdAt:now}),
- delete:vi.fn().mockResolvedValue({id:folderId})
+ delete:vi.fn().mockResolvedValue({id:folderId}),
+ moveFolder:vi.fn().mockResolvedValue({id:folderId,parentId:null})
 };
 function req(url:string,method:string,body?:unknown,authorized=true){
  return new Request('https://monk-form.example'+url,{method,headers:{
@@ -39,6 +40,12 @@ describe('dossiers protégés du Studio',()=>{
   expect(foldersStub.rename).toHaveBeenCalledWith('owner-user',folderId,{name:'Publications'});
   expect((await handle(req('/api/folders/'+folderId,'DELETE'))).status).toBe(200);
   expect(foldersStub.delete).toHaveBeenCalledWith('owner-user',folderId);
+ });
+ it('déplace un dossier sous le même compte, sans accepter de changement anonyme',async()=>{
+  const result=await handle(req('/api/folders/'+folderId+'/move','PATCH',{parentId:null}));
+  expect(result.status).toBe(200);
+  expect(foldersStub.moveFolder).toHaveBeenCalledWith('owner-user',folderId,{parentId:null});
+  expect((await handle(req('/api/folders/'+folderId+'/move','PATCH',{parentId:null},false))).status).toBe(401);
  });
  it('rejette les méthodes et routes inconnues',async()=>{
   expect((await handle(req('/api/folders','PATCH',{name:'Oups'}))).status).toBe(405);
