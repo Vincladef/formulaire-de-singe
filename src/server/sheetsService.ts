@@ -194,7 +194,10 @@ async function syncOne(item:Delivery){
  const root=ROOT+'/'+encodeURIComponent(conn.spreadsheet_id)+'/values/';
  const range=(r:string)=>root+encodeURIComponent("'"+SHEET_NAME+"'!"+r);
  const headersResult=await query<{values?:string[][]}>(range('1:1'));
- const headers=headersResult.values?.[0]?.length?headersResult.values[0]:['ID soumission','Date UTC'];
+ // Copy the row; mutating the provider's result made the length comparison
+ // below always false and silently skipped writing question-column headers.
+ const existingHeaders=headersResult.values?.[0]??[];
+ const headers=existingHeaders.length?[...existingHeaders]:['ID soumission','Date UTC'];
  const seen=await query<{values?:string[][]}>(range('A2:A'));
  if((seen.values??[]).some(row=>row[0]===item.submission_id))return;
  const meta=await db.execute(sql`SELECT submitted_at FROM fs_submissions WHERE id=${item.submission_id}::uuid
@@ -213,7 +216,7 @@ async function syncOne(item:Delivery){
   cells.set(key,valueToText(answer.value,Boolean(answer.has_audio)));
   if(!headers.includes(key))headers.push(key);
  }
- if(headers.length>(headersResult.values?.[0]?.length??0))await query(range('1:1')+'?valueInputOption=RAW',{
+ if(headers.length>existingHeaders.length)await query(range('1:1')+'?valueInputOption=RAW',{
   method:'PUT',body:JSON.stringify({values:[headers]})
  });
  const row=headers.map((h,i)=>i===0?item.submission_id:i===1?new Date(String(submittedAt)).toISOString():(cells.get(h)??''));
