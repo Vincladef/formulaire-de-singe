@@ -8,7 +8,7 @@ afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();});
 const result=(data:unknown,status=200)=>({ok:status>=200&&status<300,status,json:async()=>data});
 describe('Composio managed Sheets adapter',()=>{
  it('crée une configuration OAuth gérée et produit un lien autorisé',async()=>{
-  fetchMock.mockImplementation(async(url:string,init:RequestInit)=>{
+  fetchMock.mockImplementation(async(url:string)=>{
    if(url.includes('auth_configs?'))return result({items:[]});
    if(url.endsWith('/auth_configs'))return result({auth_config:{id:'ac_abcdef'}},201);
    if(url.endsWith('/connected_accounts/link'))return result({redirect_url:'https://connect.composio.dev/link/ln_example'},201);
