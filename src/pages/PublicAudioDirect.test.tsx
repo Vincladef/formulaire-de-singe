@@ -42,11 +42,13 @@ describe('Transfert direct des audios courts',()=>{
   fireEvent.click(screen.getByRole('button',{name:'Simuler un audio de 20 secondes'}));
   await waitFor(()=>expect(fetchMock.mock.calls.some(c=>String(c[0]).endsWith('/audio/direct'))).toBe(true));
   const direct=fetchMock.mock.calls.find(c=>String(c[0]).endsWith('/audio/direct'));
+  if(!direct)throw new Error('Aucun transfert direct constaté');
   expect(direct[1].headers['x-audio-duration-ms']).toBe('20000');
   expect(direct[1].body.size).toBeLessThan(3*1024*1024);
   fireEvent.click(screen.getByRole('button',{name:/Envoyer mes réponses/i}));
   expect(await screen.findByText(/Merci pour votre participation/i)).toBeInTheDocument();
   const submission=fetchMock.mock.calls.find(c=>String(c[0]).endsWith('/submissions'));
+  if(!submission)throw new Error('Aucune soumission constatée');
   expect(JSON.parse(submission[1].body).answers).toEqual([{questionId,value:{
    kind:'audio',uploadId,claimToken,text:'Un commentaire',
   }}]);
