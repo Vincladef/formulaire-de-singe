@@ -9,6 +9,15 @@ type Props={
  onMove:(folderId:string|null)=>void;
  onClose:()=>void;
 };
+function orderFolders(folders:FolderInfo[]){
+ const ordered:Array<{folder:FolderInfo;depth:number}>=[],seen=new Set<string>();
+ const visit=(parentId:string|null,depth:number)=>{
+  for(const f of folders.filter(x=>(x.parentId??null)===parentId).sort((a,b)=>a.name.localeCompare(b.name,'fr'))){
+   if(seen.has(f.id))continue;seen.add(f.id);ordered.push({folder:f,depth});visit(f.id,depth+1);
+  }
+ };
+ visit(null,0);return ordered;
+}
 export function FolderMoveDialog({formTitle,folders,current,busy,onMove,onClose}:Props){
  const firstRef=useRef<HTMLButtonElement>(null);
  const dialogRef=useRef<HTMLDivElement>(null);
@@ -17,8 +26,9 @@ export function FolderMoveDialog({formTitle,folders,current,busy,onMove,onClose}
   firstRef.current?.focus();
   return()=>oldFocus?.focus();
  },[]);
- const row=(id:string|null,label:string)=>(
+ const row=(id:string|null,label:string,depth=0)=>(
   <button type="button" key={id??'root'} disabled={busy} onClick={()=>onMove(id)}
+   style={{paddingLeft:12+depth*18}}
    className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm transition hover:bg-[#edf5ec] disabled:opacity-60 ${current===id?'bg-[#e8f3e6] font-semibold text-[#2c6e42]':'text-[#40614a]'}`}>
    {id?<Folder size={18}/>:<FileInput size={18}/>}
    <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -45,7 +55,7 @@ export function FolderMoveDialog({formTitle,folders,current,busy,onMove,onClose}
    <div className="mt-5 max-h-[55vh] space-y-1 overflow-y-auto">
     {row(null,'Sans dossier')}
     {folders.length>0&&<div className="mx-2 my-2 border-t border-[#e4ece1]"/>}
-    {folders.map(folder=>row(folder.id,folder.name))}
+    {orderFolders(folders).map(({folder,depth})=>row(folder.id,folder.name,depth))}
    </div>
    <p className="mt-4 flex items-center gap-2 border-t border-[#e5eee3] pt-3 text-xs text-[#647c68]"><FolderOpen size={15}/> Sélectionne un dossier pour déplacer le formulaire.</p>
   </div>
