@@ -6,10 +6,10 @@ export type FolderInfo={id:string;name:string;createdAt:string;parentId?:string|
 type Props={
  folders:FolderInfo[];selected:string;formCounts:Record<string,number>;allCount:number;
  onSelect:(id:string)=>void;onCreate:()=>void;onRename:(folder:FolderInfo)=>void;onDelete:(folder:FolderInfo)=>void;
- onCreateChild?:(id:string)=>void;onMoveFolder?:(id:string,parentId:string|null)=>void;
+ onCreateChild?:(id:string)=>void;onMoveFolder?:(id:string,parentId:string|null)=>void;onChooseParent?:(id:string)=>void;
  onMoveForm?:(id:string,folderId:string|null)=>void;
 };
-export function FolderSidebar({folders,selected,formCounts,allCount,onSelect,onCreate,onRename,onDelete,onCreateChild,onMoveFolder,onMoveForm}:Props){
+export function FolderSidebar({folders,selected,formCounts,allCount,onSelect,onCreate,onRename,onDelete,onCreateChild,onMoveFolder,onMoveForm,onChooseParent}:Props){
  const [expanded,setExpanded]=useState<string[]>([]);
  const [hoverTarget,setHoverTarget]=useState<string|null>(null);
  const map=useMemo(()=>new Map(folders.map(f=>[f.id,f])),[folders]);
@@ -61,7 +61,7 @@ export function FolderSidebar({folders,selected,formCounts,allCount,onSelect,onC
      </summary>
      <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-[#dce6d9] bg-white p-1.5 shadow-xl">
       {depth<2&&onCreateChild&&<button type="button" className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left text-sm hover:bg-[#edf4ea]" onClick={e=>{e.currentTarget.closest('details')?.removeAttribute('open');onCreateChild(folder.id);}}><Plus size={15}/> Sous-dossier</button>}
-      {onMoveFolder&&<button type="button" className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left text-sm hover:bg-[#edf4ea]" onClick={e=>{e.currentTarget.closest('details')?.removeAttribute('open');onMoveFolder(folder.id,null);}}><FolderInput size={15}/> Déplacer à la racine</button>}
+      {onChooseParent&&<button type="button" className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left text-sm hover:bg-[#edf4ea]" onClick={e=>{e.currentTarget.closest('details')?.removeAttribute('open');onChooseParent(folder.id);}}><FolderInput size={15}/> Déplacer vers…</button>}
       <button type="button" className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left text-sm text-[#45684f] hover:bg-[#edf4ea]" onClick={e=>{e.currentTarget.closest('details')?.removeAttribute('open');onRename(folder);}}><Pencil size={15}/> Renommer</button>
       <button type="button" className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left text-sm text-[#a05248] hover:bg-red-50" onClick={e=>{e.currentTarget.closest('details')?.removeAttribute('open');onDelete(folder);}}><Trash2 size={15}/> Supprimer</button>
      </div>
