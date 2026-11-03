@@ -42,14 +42,19 @@ export function buildMcpServer(
   name:string,title:string,description:string,inputSchema:T,scope:'forms:read'|'forms:write'|'forms:publish',
   handler:(args:z.infer<z.ZodObject<T>>)=>Promise<unknown>,
  )=>{
+  // SDK v1 tool callback uses a broad ShapeOutput generic. Validate the
+  // exact schema at runtime before passing it to our strongly typed handler.
+  const callback=async (args:Record<string,unknown>):Promise<CallToolResult>=>{
+   if(!authorized(scope))return authHint();
+   try{
+    const parsed=z.object(inputSchema).parse(args) as z.infer<z.ZodObject<T>>;
+    return toolResult(await handler(parsed));
+   }catch(error){return toolError(error);}
+  };
   server.registerTool(name,{
    title,description,inputSchema,
    _meta:security([scope]),
-  },async (args):Promise<CallToolResult>=>{
-   if(!authorized(scope))return authHint();
-   try{return toolResult(await handler(args as z.infer<z.ZodObject<T>>));}
-   catch(error){return toolError(error);}
-  });
+  },callback as unknown as Parameters<typeof server.registerTool>[2]);
  };
 
  register('list_forms','Lister mes formulaires',
