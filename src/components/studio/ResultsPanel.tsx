@@ -6,7 +6,7 @@ import { getAccessToken } from '../../authClient';
 import type { FormResults,ResultAnswer,ResultSubmission } from '../../server/resultsService';
 import { exportAudioAsMp3 } from '../../shared/mp3Export';
 type Result<T>={ok:true;data:T}|{ok:false;error:{message:string}};
-type AudioSummary={available:boolean;canManage:boolean;total:number;done:number;queued:number;failed:number;actionable:number;quotaDelayed:number};
+type AudioSummary={available:boolean;canManage:boolean;total:number;done:number;queued:number;failed:number;actionable:number;unsupported:number;quotaDelayed:number};
 const formatted=(a:ResultAnswer)=>{
  if(a.audioId){const text=a.value&&typeof a.value==='object'&&!Array.isArray(a.value)&&'text' in a.value&&typeof a.value.text==='string'?a.value.text.trim():'';
   return `Enregistrement audio${a.durationMs?' ('+Math.ceil(a.durationMs/1000)+' s)':''} ; Écouter : ${audioPlaybackUrl(a.audioId)}${text?' ; Texte saisi : '+text:''}${a.transcript?' ; Transcription : '+a.transcript:''}`;
@@ -262,6 +262,7 @@ export function ResultsPanel({formId,onOpenIntegrations}:{formId:string;onOpenIn
     </div>
    </div>}
    {transcriptionSummary.quotaDelayed>0&&<p role="status" className="mt-3 text-xs text-[#986d34]">Quota gratuit Cloudflare atteint. {transcriptionSummary.quotaDelayed} audio(s) attendent le renouvellement quotidien ; les transcriptions terminées sont conservées.</p>}
+   {transcriptionSummary.unsupported>0&&<p className="mt-3 text-xs text-[#986d34]">{transcriptionSummary.unsupported} enregistrement(s) dépassent 18 Mio et nécessitent un fichier plus court pour Cloudflare.</p>}
    {transcriptionSummary.failed>0&&!transcriptionSummary.queued&&<p className="mt-3 text-xs text-[#986d34]">{transcriptionSummary.failed} audio(s) à relancer. Utilisez le bouton global ou l’action individuelle.</p>}
    {bulkStarted&&transcriptionSummary.total>0&&transcriptionSummary.queued===0&&transcriptionSummary.actionable===0&&<p className="mt-2 text-xs text-[#628469]">Le texte est consultable dans Participations et dans les prochains exports.</p>}
   </section>}
