@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Archive, ArrowLeft, CheckCircle2, CircleAlert, Clock3, Copy, Eye, Files, LoaderCircle, Plus, Save, Send, X } from 'lucide-react';
+import { Archive, ArrowLeft, BarChart3, CheckCircle2, ChevronRight, CircleAlert, Clock3, Copy, Eye, FileText, Files, Folder, GripVertical, LayoutDashboard, LoaderCircle, Plus, Search, Save, Send, X } from 'lucide-react';
+import {formatParisDate,formatParisDateTime} from '../shared/presentation';
 import { getAccessToken } from '../authClient';
 import type { FormDetail, FormSummary } from '../shared/formApi';
 import { draftPayloadSchema, makePage, type QuestionType, type StudioPageData, type StudioQuestion } from '../shared/studio';
@@ -34,7 +35,8 @@ export function StudioPage(){
  const [pageIndex,setPageIndex]=useState(0);
  const [questionId,setQuestionId]=useState<string|null>(null);
  const [preview,setPreview]=useState(false);
- const [activeTab,setActiveTab]=useState<'questions'|'results'|'integrations'|'settings'>('questions');
+ const [activeTab,setActiveTab]=useState<'overview'|'questions'|'results'|'integrations'|'settings'>('questions');
+ const [overviewResults,setOverviewResults]=useState<{total:number;submissions:Array<{id:string;submittedAt:string|null;answers:unknown[]}>}|null>(null);
  const [googleOutcome,setGoogleOutcome]=useState<'connected'|'error'|'verifying'|null>(null);
  const managedVerificationStarted=useRef(false);
  const [sideMode,setSideMode]=useState<SidebarMode>('add');
@@ -45,7 +47,12 @@ export function StudioPage(){
  const [showArchived,setShowArchived]=useState(false);
  const [folders,setFolders]=useState<FolderInfo[]>([]);
  const [selectedFolder,setSelectedFolder]=useState('all');
+ const [searchTerm,setSearchTerm]=useState('');
+ const [sortMode,setSortMode]=useState<'recent'|'name'>('recent');
+ const searchRef=useRef<HTMLInputElement>(null);
+ const [undoMove,setUndoMove]=useState<{kind:'form'|'folder';id:string;original:string|null;name:string}|null>(null);
  const [moveTarget,setMoveTarget]=useState<FormSummary|null>(null);
+ const [folderMoveTarget,setFolderMoveTarget]=useState<FolderInfo|null>(null);
  const [dialog,setDialog]=useState<StudioDialogIntent|null>(null);
  const dialogResolver=useRef<((answer:string|null)=>void)|null>(null);
  function askDialog(intent:StudioDialogIntent):Promise<string|null>{return new Promise(resolve=>{dialogResolver.current?.(null);dialogResolver.current=resolve;setDialog(intent);});}
@@ -65,7 +72,7 @@ export function StudioPage(){
    .catch(e=>{if(active)setError(String(e instanceof Error?e.message:e));}).finally(()=>{if(active)setListBusy(false);});
    return()=>{active=false;};},[]);
 
- const openForm=useCallback(async(id:string,tab:'questions'|'results'|'integrations'|'settings'='questions')=>{
+ const openForm=useCallback(async(id:string,tab?:'overview'|'questions'|'results'|'integrations'|'settings')=>{
    setOperation(true);setError('');
    try{
      const form=await request<FormDetail>(`/api/forms/${id}`);
@@ -73,7 +80,7 @@ export function StudioPage(){
      draftRef.current=draft?.id??null;revisionRef.current=draft?.revision??0;
      const next:StudioPageData[]=draft?.pages.map(p=>({id:p.id,title:p.title,description:p.description,
        questions:p.questions.map(q=>({id:q.id,type:q.type as QuestionType,label:q.label,description:q.description,required:q.required,settings:q.settings,options:q.options.map(o=>({id:o.id,value:o.value,label:o.label}))}))})) ?? [];
-     savedRef.current=JSON.stringify(next);setPages(next.length?next:[makePage()]);setPageIndex(0);setQuestionId(null);setPreview(false);setActiveTab(tab);setSideMode('add');setSaveState('saved');
+     savedRef.current=JSON.stringify(next);setPages(next.length?next:[makePage()]);setPageIndex(0);setQuestionId(null);setPreview(false);setActiveTab(tab??(form.versions.some(v=>v.status==='published')?'overview':'questions'));setSideMode('add');setSaveState('saved');
    }catch(e){setError(e instanceof Error?e.message:'Chargement impossible');}finally{setOperation(false);}
  },[]);
  useEffect(()=>{
@@ -105,10 +112,26 @@ export function StudioPage(){
   window.history.replaceState(window.history.state,'',window.location.pathname);
   if(resumeId&&/^[0-9a-f-]{36}$/i.test(resumeId))void openForm(resumeId,'integrations');
  },[openForm]);
+ useEffect(()=>{
+  const onShortcut=(event:KeyboardEvent)=>{
+   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'&&!detail){
+    event.preventDefault();searchRef.current?.focus();
+   }
+  };
+  window.addEventListener('keydown',onShortcut);
+  return()=>window.removeEventListener('keydown',onShortcut);
+ },[detail]);
+ useEffect(()=>{
+  if(!detail||activeTab!=='overview')return;
+  let active=true;setOverviewResults(null);
+  void request<{total:number;submissions:Array<{id:string;submittedAt:string|null;answers:unknown[]}>}>(
+   '/api/forms/'+detail.id+'/results?page=0&limit=5').then(x=>{if(active)setOverviewResults(x);}).catch(()=>{});
+  return()=>{active=false;};
+ },[detail,activeTab]);
  async function createForm(){
    const name=await askDialog({kind:'text',title:'Nouveau formulaire',description:'Donne un nom à ton questionnaire. Tu pourras le modifier ensuite.',initialValue:'Mon nouveau formulaire',confirmLabel:'Créer'});if(!name?.trim())return;
    setOperation(true);setError('');try{const result=await request<{id:string}>('/api/forms','POST',{title:name.trim()});
-     if(selectedFolder!=='all'&&selectedFolder!=='uncategorized')await request(`/api/forms/${result.id}/folder`,'PATCH',{folderId:selectedFolder});
+     if(folders.some(folder=>folder.id===selectedFolder))await request(`/api/forms/${result.id}/folder`,'PATCH',{folderId:selectedFolder});
      await refreshList();await openForm(result.id);}
    catch(e){setError(e instanceof Error?e.message:'Création impossible');}finally{setOperation(false);}
  }
@@ -176,11 +199,13 @@ export function StudioPage(){
  function addPage(){setSaveState('pending');setPages(p=>[...p,makePage()]);setPageIndex(pages.length);setQuestionId(null);}
  async function deletePage(){if(pages.length<2||!(await askDialog({kind:'confirm',title:'Supprimer cette page ?',description:'La page et toutes ses questions seront retirées du brouillon.',confirmLabel:'Supprimer la page',danger:true})))return;
    setSaveState('pending');setPages(p=>p.filter((_,i)=>i!==pageIndex));setPageIndex(0);setQuestionId(null);}
- async function createFolder(){
-  const name=await askDialog({kind:'text',title:'Nouveau dossier',description:'Les formulaires pourront y être déplacés depuis leur menu.',initialValue:'',confirmLabel:'Créer'});
+ async function createFolder(parentId:string|null=null){
+  const name=await askDialog({kind:'text',title:parentId?'Nouveau sous-dossier':'Nouveau dossier',
+   description:parentId?'Ce dossier sera créé à l’intérieur du dossier sélectionné.':'Crée un dossier pour ranger tes formulaires.',
+   initialValue:'',confirmLabel:'Créer'});
   if(!name?.trim())return;
   setOperation(true);setError('');
-  try{const created=await request<FolderInfo>('/api/folders','POST',{name:name.trim()});await refreshFolders();setSelectedFolder(created.id);}
+  try{const created=await request<FolderInfo>('/api/folders','POST',{name:name.trim(),parentId});await refreshFolders();setSelectedFolder(created.id);}
   catch(e){setError(e instanceof Error?e.message:'Création du dossier impossible.');}
   finally{setOperation(false);}
  }
@@ -193,7 +218,7 @@ export function StudioPage(){
   finally{setOperation(false);}
  }
  async function deleteFolder(folder:FolderInfo){
-  const answer=await askDialog({kind:'confirm',title:'Supprimer ce dossier ?',description:'Les formulaires contenus dans « '+folder.name+' » seront conservés dans « Sans dossier ».',confirmLabel:'Supprimer le dossier',danger:true});
+  const answer=await askDialog({kind:'confirm',title:'Supprimer ce dossier ?',description:'Les formulaires rangés directement ici iront dans « Sans dossier ». Les sous-dossiers conserveront leurs formulaires et remonteront à la racine.',confirmLabel:'Supprimer le dossier',danger:true});
   if(!answer)return;
   setOperation(true);setError('');
   try{await request('/api/folders/'+folder.id,'DELETE');await Promise.all([refreshFolders(),refreshList()]);
@@ -201,18 +226,89 @@ export function StudioPage(){
   }catch(e){setError(e instanceof Error?e.message:'Suppression du dossier impossible.');}
   finally{setOperation(false);}
  }
- async function moveForm(folderId:string|null){
-  if(!moveTarget||operation)return;
+ async function moveForm(folderId:string|null,formId=moveTarget?.id){
+  if(!formId||operation)return;
+  const original=items.find(x=>x.id===formId);
+  if(!original||original.role!=='owner')return;
+  if((original.folderId??null)===folderId){setMoveTarget(null);return;}
   setOperation(true);setError('');
-  try{await request('/api/forms/'+moveTarget.id+'/folder','PATCH',{folderId});await refreshList();setMoveTarget(null);}
-  catch(e){setError(e instanceof Error?e.message:'Déplacement impossible.');}
+  try{
+   await request('/api/forms/'+formId+'/folder','PATCH',{folderId});await refreshList();
+   setUndoMove({kind:'form',id:formId,original:original.folderId??null,name:original.title});
+   setMoveTarget(null);
+  }catch(e){setError(e instanceof Error?e.message:'Déplacement impossible.');}
+  finally{setOperation(false);}
+ }
+ async function moveFolderTree(folderId:string,parentId:string|null){
+  if(operation||folderId===parentId)return;
+  const folder=folders.find(f=>f.id===folderId);if(!folder)return;
+  if((folder.parentId??null)===parentId)return;
+  setOperation(true);setError('');
+  try{
+   await request('/api/folders/'+folderId+'/move','PATCH',{parentId});await refreshFolders();
+   setFolderMoveTarget(null);
+   setUndoMove({kind:'folder',id:folderId,original:folder.parentId??null,name:folder.name});
+  }catch(e){setError(e instanceof Error?e.message:'Impossible de déplacer ce dossier.');}
+  finally{setOperation(false);}
+ }
+ async function undoLastMove(){
+  if(!undoMove||operation)return;
+  setOperation(true);setError('');
+  try{
+   if(undoMove.kind==='form'){await request('/api/forms/'+undoMove.id+'/folder','PATCH',{folderId:undoMove.original});await refreshList();}
+   else{await request('/api/folders/'+undoMove.id+'/move','PATCH',{parentId:undoMove.original});await refreshFolders();}
+   setUndoMove(null);
+  }catch(e){setError(e instanceof Error?e.message:'Annulation impossible.');}
   finally{setOperation(false);}
  }
  const allVisibleItems=items.filter(i=>showArchived?!!i.archivedAt:!i.archivedAt);
  const folderCounts:Record<string,number>={uncategorized:0};
- for(const item of allVisibleItems){const id=item.folderId??'uncategorized';folderCounts[id]=(folderCounts[id]??0)+1;}
- const activeItems=allVisibleItems.filter(i=>selectedFolder==='all'||(selectedFolder==='uncategorized'?!i.folderId:i.folderId===selectedFolder));
- const folderTitle=selectedFolder==='all'?'Tous les formulaires':selectedFolder==='uncategorized'?'Sans dossier':folders.find(f=>f.id===selectedFolder)?.name??'Dossier';
+ for(const item of allVisibleItems){
+  let id=item.folderId??'uncategorized';const seen=new Set<string>();
+  while(id&&!seen.has(id)){
+   seen.add(id);folderCounts[id]=(folderCounts[id]??0)+1;
+   id=folders.find(folder=>folder.id===id)?.parentId??'';
+  }
+ }
+ const folderById=new Map(folders.map(f=>[f.id,f]));
+ const blockedFolderTargets=folderMoveTarget?folders.filter(candidate=>{
+  let current:FolderInfo|undefined=candidate;const visited=new Set<string>();
+  while(current&&!visited.has(current.id)){
+   if(current.id===folderMoveTarget.id)return true;
+   visited.add(current.id);current=current.parentId?folderById.get(current.parentId):undefined;
+  }
+  return false;
+ }).map(f=>f.id):[];
+ const folderPath:FolderInfo[]=[];
+ if(folderById.has(selectedFolder)){
+  let current=folderById.get(selectedFolder);const seen=new Set<string>();
+  while(current&&!seen.has(current.id)){
+   seen.add(current.id);folderPath.unshift(current);
+   current=current.parentId?folderById.get(current.parentId):undefined;
+  }
+ }
+ const searchNormalized=searchTerm.trim().toLocaleLowerCase('fr');
+ const searchMatch=(item:FormSummary)=>{
+  if(!searchNormalized)return false;
+  let parent=item.folderId;const labels:string[]=[];const seen=new Set<string>();
+  while(parent&&!seen.has(parent)){
+   seen.add(parent);const folder=folderById.get(parent);
+   if(!folder)break;labels.push(folder.name);parent=folder.parentId??null;
+  }
+  return [item.title,...labels].join(' ').toLocaleLowerCase('fr').includes(searchNormalized);
+ };
+ const sortedItems=[...allVisibleItems].sort((a,b)=>sortMode==='name'
+  ?a.title.localeCompare(b.title,'fr')
+  :new Date(b.updatedAt).getTime()-new Date(a.updatedAt).getTime());
+ const activeItems=sortedItems.filter(i=>searchNormalized?searchMatch(i):
+  selectedFolder==='all'||selectedFolder==='recent'||(selectedFolder==='uncategorized'?!i.folderId:i.folderId===selectedFolder))
+  .slice(0,selectedFolder==='recent'&&!searchNormalized?15:undefined);
+ const childFolders=(searchNormalized?folders.filter(f=>f.name.toLocaleLowerCase('fr').includes(searchNormalized)):
+  folderById.has(selectedFolder)?folders.filter(f=>(f.parentId??null)===selectedFolder):[])
+  .sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+ const folderTitle=searchNormalized?'Résultats de recherche':selectedFolder==='all'?'Tous les formulaires':
+  selectedFolder==='recent'?'Récents':selectedFolder==='uncategorized'?'Sans dossier':
+  folderById.get(selectedFolder)?.name??'Dossier';
  return <main className="min-h-[calc(100vh-90px)] bg-[#f6f8f4] px-4 py-7 text-[#2b4836] sm:px-7">
   <div className="mx-auto max-w-[1550px]">
    {!detail&&<div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -221,29 +317,70 @@ export function StudioPage(){
    </div>}
    {error&&<div role="alert" className="mb-5 flex items-start justify-between gap-2 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700"><span>{error}</span><button title="Fermer le message" onClick={()=>setError('')}><X size={16}/></button></div>}
    {operation&&<p className="mb-3 text-xs text-[#607265]" role="status">Opération en cours…</p>}
+   {undoMove&&!detail&&<div role="status" className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#d9e9d7] bg-[#ecf5ea] px-4 py-2.5 text-sm text-[#42684c]"><span>« {undoMove.name} » a été déplacé.</span><button type="button" disabled={operation} onClick={()=>void undoLastMove()} className="font-bold underline underline-offset-4 disabled:opacity-40">Annuler</button></div>}
    {!detail ? <div className="grid items-start gap-4 lg:grid-cols-[250px_minmax(0,1fr)]">
     <FolderSidebar folders={folders} selected={selectedFolder} formCounts={folderCounts} allCount={allVisibleItems.length}
-      onSelect={setSelectedFolder} onCreate={()=>void createFolder()} onRename={folder=>void renameFolder(folder)} onDelete={folder=>void deleteFolder(folder)}/>
+     onSelect={setSelectedFolder} onCreate={()=>void createFolder(null)} onCreateChild={id=>void createFolder(id)}
+     onRename={folder=>void renameFolder(folder)} onDelete={folder=>void deleteFolder(folder)}
+     onMoveFolder={(id,parentId)=>void moveFolderTree(id,parentId)}
+     onChooseParent={id=>setFolderMoveTarget(folders.find(f=>f.id===id)??null)}
+     onMoveForm={(id,folderId)=>void moveForm(folderId,id)}/>
     <section aria-label="Mes formulaires" className="min-w-0 rounded-2xl border border-[#e1e9de] bg-white px-4 py-3 sm:px-6">
      <div className="flex flex-wrap items-center justify-between gap-2 py-2">
-       <h2 className="min-w-0 truncate text-base font-bold text-[#31543d]">{folderTitle}</h2>
-       <button className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-medium text-[#3f6049] hover:bg-[#eef5ed]" onClick={()=>setShowArchived(v=>!v)}>
-        <Archive size={16}/>{showArchived?'Afficher les formulaires':'Archives'}
-       </button>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm">
+       <button type="button" className="rounded-lg px-1.5 py-2 text-[#66816c] hover:bg-[#eff5ed]" onClick={()=>setSelectedFolder('all')}>Bibliothèque</button>
+       <ChevronRight size={15} className="text-[#9aaa9c]"/>
+       {folderPath.length>0?folderPath.map((folder,i)=><span key={folder.id} className="inline-flex min-w-0 items-center gap-1">
+        <button type="button" onClick={()=>setSelectedFolder(folder.id)} className="max-w-44 truncate rounded-lg px-1.5 py-2 font-semibold text-[#31543d] hover:bg-[#edf5eb]">{folder.name}</button>
+        {i<folderPath.length-1&&<ChevronRight size={15} className="text-[#9aaa9c]"/>}
+       </span>):<h2 className="min-w-0 truncate px-1.5 text-base font-bold text-[#31543d]">{folderTitle}</h2>}
+      </div>
+      <button className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-medium text-[#3f6049] hover:bg-[#eef5ed]" onClick={()=>setShowArchived(v=>!v)}>
+       <Archive size={16}/>{showArchived?'Afficher les formulaires':'Archives'}
+      </button>
      </div>
+     <div className="mb-3 mt-1 flex flex-wrap items-center gap-2">
+      <label className="flex min-h-11 min-w-[190px] flex-1 items-center gap-2 rounded-xl border border-[#e3ebe1] bg-[#fafcf9] px-3 text-[#74907a] focus-within:border-[#8bb594] focus-within:ring-2 focus-within:ring-[#cbe5ce]">
+       <Search size={17} className="shrink-0"/>
+       <input ref={searchRef} value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} aria-label="Rechercher des formulaires et dossiers"
+        placeholder="Rechercher un formulaire ou un dossier" className="min-w-0 flex-1 bg-transparent py-2 text-sm text-[#31533c] outline-none placeholder:text-[#99a99c]"/>
+       <kbd className="hidden shrink-0 rounded-md border border-[#e3ebe0] bg-white px-1.5 py-0.5 text-[10px] text-[#849888] sm:block">Ctrl K</kbd>
+      </label>
+      <select aria-label="Trier les formulaires" value={sortMode} onChange={e=>setSortMode(e.target.value as 'recent'|'name')}
+       className="min-h-11 rounded-xl border border-[#e3ebe1] bg-white px-3 text-xs font-semibold text-[#587360]">
+       <option value="recent">Modifiés récemment</option><option value="name">Nom A-Z</option>
+      </select>
+     </div>
+     {childFolders.length>0&&<div className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+      {childFolders.map(folder=><button type="button" key={folder.id} onClick={()=>setSelectedFolder(folder.id)}
+       className="flex min-h-12 items-center gap-3 rounded-xl border border-[#e4ede1] bg-[#f9fbf8] px-3 text-left text-sm text-[#426c4c] hover:bg-[#eaf3e8]">
+       <Folder size={18} className="shrink-0"/><span className="min-w-0 flex-1 truncate font-semibold">{folder.name}</span>
+       <span className="text-xs text-[#7b8e7d]">{folderCounts[folder.id]??0}</span>
+       <ChevronRight size={15} className="text-[#9bab9c]"/>
+      </button>)}
+     </div>}
      {listBusy?<p role="status" className="py-12 text-center text-[#607265]">Chargement des formulaires…</p>:
-      activeItems.length===0?<div className="py-14 text-center"><Files className="mx-auto text-[#638d6e]" size={34}/>
-       <p className="mt-3 font-semibold text-[#36583e]">{showArchived?'Aucune archive':selectedFolder==='all'?'Aucun formulaire pour le moment':'Ce dossier est vide'}</p>
-       <p className="mt-2 text-sm text-[#607265]">{showArchived?'Les formulaires archivés apparaîtront ici.':selectedFolder==='all'?'Crée ton premier questionnaire avec le bouton en haut.':'Déplace un formulaire ici depuis son menu « ⋯ ».'}</p>
+      activeItems.length===0&&childFolders.length===0?<div className="py-14 text-center"><Files className="mx-auto text-[#638d6e]" size={34}/>
+       <p className="mt-3 font-semibold text-[#36583e]">{searchTerm?'Aucun résultat pour cette recherche':showArchived?'Aucune archive':selectedFolder==='all'?'Aucun formulaire pour le moment':'Ce dossier est vide'}</p>
+       <p className="mt-2 text-sm text-[#607265]">{showArchived?'Les formulaires archivés apparaîtront ici.':selectedFolder==='all'?'Crée ton premier questionnaire avec le bouton en haut.':'Déplace un formulaire ici en le faisant glisser ou depuis le menu « ⋯ ».'}</p>
       </div>:
       <div className="divide-y divide-[#e5ece3]">{activeItems.map(item=>
-       <div key={item.id} className="flex items-center gap-2 py-1">
-        <button type="button" onClick={()=>void openForm(item.id)} className="flex min-h-20 min-w-0 flex-1 items-center gap-3 rounded-xl px-2 text-left hover:bg-[#f3f8f2] focus-visible:outline-2 focus-visible:outline-[#37784b] sm:px-4">
-         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e9f2e7] text-[#3c7650]"><Files size={20}/></span>
-         <span className="min-w-0 flex-1"><span className="block truncate text-base font-semibold text-[#284b36]">{item.title}</span>
-          <span className="mt-1 block text-xs text-[#607265]">{item.published?'Publié':'Brouillon'} · Modifié le {new Date(item.updatedAt).toLocaleDateString('fr-FR')}</span>
+       <div key={item.id} draggable={item.role==='owner'} onDragStart={e=>{if(item.role==='owner'){e.dataTransfer.setData('application/x-monk-form',item.id);e.dataTransfer.effectAllowed='move';}}}
+        className="group flex items-center gap-2 py-1">
+        <span className="hidden text-[#a6b9a9] group-hover:text-[#64846e] sm:block" title="Glisser vers un dossier"><GripVertical size={16}/></span>
+        <button type="button" onClick={()=>void openForm(item.id)} className="flex min-h-20 min-w-0 flex-1 items-center gap-3 rounded-xl px-2 text-left hover:bg-[#f3f8f2] focus-visible:outline-2 focus-visible:outline-[#37784b] sm:px-3">
+         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e9f2e7] text-[#3c7650]"><FileText size={20}/></span>
+         <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-[#284b36] sm:text-base">{item.title}</span>
+          <span className="mt-1 block text-xs text-[#607265]">{item.published?'Publié':'Brouillon'} · Modifié le {formatParisDate(item.updatedAt)}</span>
          </span>
         </button>
+        <button type="button" aria-label="Voir les résultats du formulaire" title="Ouvrir les résultats" onClick={()=>void openForm(item.id,'results')}
+         className="flex min-w-[74px] flex-col items-center rounded-lg px-2 py-2 text-[#477452] hover:bg-[#edf5e9]">
+         <span className="text-lg font-bold tabular-nums">{item.submissionCount??0}</span>
+         <span className="text-[10px] text-[#7a8f7e]">{item.submissionCount===1?'participation':'participations'}</span>
+        </button>
+        <button type="button" aria-label="Modifier le formulaire" title="Modifier le formulaire" onClick={()=>void openForm(item.id,'questions')}
+         className="hidden min-h-10 items-center gap-1.5 rounded-lg px-2 text-xs text-[#55735e] hover:bg-[#edf4ea] focus-visible:inline-flex sm:inline-flex"><FileText size={15}/> Modifier</button>
         <FormItemMenu title={item.title} archived={showArchived}
          onMove={item.role==='owner'?()=>setMoveTarget(item):undefined}
          onDuplicate={()=>void duplicateForm(item.id)}
@@ -260,14 +397,41 @@ export function StudioPage(){
        </span>}{published&&<><a className={light} target="_blank" rel="noopener noreferrer" href={`/f/${encodeURIComponent(detail.slug)}`}><Eye size={16}/> Voir le lien public</a><button className={light} onClick={()=>{void (async()=>{try{await navigator.clipboard.writeText(`${window.location.origin}/f/${encodeURIComponent(detail.slug)}`);}catch{setError("Copie impossible. Utilise le lien public.");}})();}}><Copy size={15}/> Copier le lien</button></>}<button className={light} onClick={()=>{setActiveTab('questions');setPreview(v=>!v);}}><Eye size={16}/>{preview?'Éditer':'Aperçu'}</button><button className={cta} disabled={!editable||operation||saveState==='saving'||saveState==='error'} onClick={()=>void publishForm()}><Send size={15}/> Publier</button></div>
       </div>
       <nav aria-label="Sections du formulaire" className="mb-5 flex gap-1.5 overflow-x-auto border-b border-[#dfe8dc] pb-2 sm:gap-2">
-        {(['questions','results','integrations','settings'] as const).map(tab=><button key={tab} type="button"
+        {(['overview','questions','results','integrations','settings'] as const).filter(tab=>published||tab!=='overview').map(tab=><button key={tab} type="button"
          aria-current={activeTab===tab?'page':undefined} onClick={()=>{setPreview(false);setActiveTab(tab);}}
          className={`shrink-0 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${activeTab===tab?'bg-[#e2f0e0] text-[#2d7246]':'text-[#47674e] hover:bg-[#eef5ed]'}`}>
-          {{questions:'Éditeur',results:'Résultats',integrations:'Intégrations',settings:'Paramètres'}[tab]}
+          {{overview:'Vue d’ensemble',questions:'Éditeur',results:'Résultats',integrations:'Intégrations',settings:'Paramètres'}[tab]}
         </button>)}
        </nav>
        {detail.archivedAt&&<p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Ce formulaire est archivé ; son contenu ne peut pas être modifié.</p>}
-      {activeTab==='results'?<ResultsPanel formId={detail.id} onOpenIntegrations={()=>setActiveTab('integrations')}/>: 
+      {activeTab==='overview'?<section aria-label="Vue d’ensemble du formulaire" className="space-y-5">
+       <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h2 className="flex items-center gap-2 font-display text-2xl font-bold text-[#315a40]"><LayoutDashboard size={23}/> Vue d’ensemble</h2>
+         <p className="mt-1 text-sm text-[#708575]">Suivez les participations et retrouvez les actions essentielles.</p></div>
+        <button type="button" className={cta} onClick={()=>setActiveTab('results')}><BarChart3 size={16}/> Consulter les résultats</button>
+       </div>
+       <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-[#e2ebde] bg-white p-5"><p className="text-3xl font-bold tabular-nums">{overviewResults?.total??items.find(i=>i.id===detail.id)?.submissionCount??0}</p><p className="mt-1 text-xs text-[#758d78]">Participations</p></div>
+        <div className="rounded-xl border border-[#e2ebde] bg-white p-5"><p className="text-xl font-bold text-[#315e42]">{published?'Publié':'Brouillon'}</p><p className="mt-1 text-xs text-[#758d78]">État de publication</p></div>
+        <div className="rounded-xl border border-[#e2ebde] bg-white p-5"><p className="text-3xl font-bold tabular-nums">{countQuestions(pages)}</p><p className="mt-1 text-xs text-[#758d78]">Questions du brouillon</p></div>
+       </div>
+       <div className="rounded-xl border border-[#e2ebde] bg-white p-5">
+        <div className="mb-4 flex items-center justify-between gap-2"><h3 className="font-bold text-[#315b3f]">Dernières participations</h3>
+         <button type="button" onClick={()=>setActiveTab('results')} className="text-xs font-semibold text-[#33754b] hover:underline">Toutes les réponses</button></div>
+        {!overviewResults?<p className="text-sm text-[#829486]">Chargement des participations…</p>:
+         overviewResults.submissions.length===0?<p className="text-sm text-[#829486]">Aucune réponse pour le moment.</p>:
+         <div className="divide-y divide-[#edf1ea]">{overviewResults.submissions.map((sub,i)=><button key={sub.id} type="button" onClick={()=>setActiveTab('results')}
+          className="flex min-h-12 w-full items-center justify-between gap-2 text-left text-sm text-[#4f7558] hover:bg-[#f5faf3]">
+          <span>Participation {overviewResults.total-i}</span><span className="text-xs text-[#778b79]">{formatParisDateTime(sub.submittedAt)}</span>
+         </button>)}</div>}
+       </div>
+       <div className="flex flex-wrap gap-2">
+        <button type="button" className={light} onClick={()=>setActiveTab('questions')}><FileText size={16}/> Modifier les questions</button>
+        <button type="button" className={light} onClick={()=>setActiveTab('integrations')}><Copy size={16}/> Intégrations</button>
+       </div>
+      </section>:
+      activeTab==='results'?<ResultsPanel formId={detail.id} onOpenIntegrations={()=>setActiveTab('integrations')}/>:
+ 
        activeTab==='integrations'?<div className="max-w-2xl space-y-4">
         {googleOutcome==='verifying'&&<p role="status" className="rounded-xl bg-[#eff6ec] p-4 text-sm text-[#2f6546]">Vérification de votre compte Google et création du tableur…</p>}
         {googleOutcome==='connected'&&<p role="status" className="rounded-xl border border-[#cde6d0] bg-[#edf8ef] p-4 text-sm font-medium text-[#2e7048]">Compte Google autorisé. Le tableur a été créé ; vous pouvez l’ouvrir depuis cette page.</p>}
@@ -309,5 +473,7 @@ export function StudioPage(){
   </div>
    {dialog&&<StudioDialog intent={dialog} onResolve={resolveDialog}/>}
    {moveTarget&&<FolderMoveDialog formTitle={moveTarget.title} folders={folders} current={moveTarget.folderId??null} busy={operation} onMove={id=>void moveForm(id)} onClose={()=>setMoveTarget(null)}/>}
+   {folderMoveTarget&&<FolderMoveDialog mode="folder" formTitle={folderMoveTarget.name} folders={folders} current={folderMoveTarget.parentId??null}
+    blockedIds={blockedFolderTargets} busy={operation} onMove={id=>void moveFolderTree(folderMoveTarget.id,id)} onClose={()=>setFolderMoveTarget(null)}/>}
  </main>;
 }

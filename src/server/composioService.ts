@@ -113,7 +113,7 @@ export async function createComposioSpreadsheet(neonId:string,accountId:string,t
  });
  if(!result?.spreadsheetId)throw new Error('Google n’a pas créé le tableur.');
  await sheetsJSON(neonId,accountId,SHEETS+'/'+encodeURIComponent(result.spreadsheetId)+'/values/'+encodeURIComponent("'Réponses'!A1:B1")+'?valueInputOption=RAW','PUT',{
-  values:[['ID soumission','Date UTC']],
+  values:[['ID soumission','Date de participation (Paris)']],
  });
  return result.spreadsheetId;
 }
@@ -132,7 +132,7 @@ export async function prepareExistingComposioSpreadsheet(neonId:string,accountId
   const current=await sheetsJSON<{values?:string[][]}>(neonId,accountId,url+'/values/'+encodeURIComponent("'Réponses'!A1:B1"));
   const first=current.values?.[0]??[];
   if(first.length>0){
-   if(first[0]!=='ID soumission'||first[1]!=='Date UTC')
+   if(first[0]!=='ID soumission'||!['Date UTC','Date de participation (Paris)'].includes(first[1]))
     throw new Error('L’onglet Réponses contient déjà des données incompatibles. Choisissez un autre tableur.');
    return;
   }
@@ -142,7 +142,7 @@ export async function prepareExistingComposioSpreadsheet(neonId:string,accountId
   });
  }
  await sheetsJSON(neonId,accountId,url+'/values/'+encodeURIComponent("'Réponses'!A1:B1")+'?valueInputOption=RAW','PUT',{
-  values:[['ID soumission','Date UTC']],
+  values:[['ID soumission','Date de participation (Paris)']],
  });
 }
 export async function googleSheetsComposioJSON<T>(neonId:string,accountId:string,url:string,init?:RequestInit):Promise<T>{

@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { getDb } from './db/client';
 import { composioConfigured,googleSheetsComposioJSON } from './composioService';
+import {audioPlaybackUrl,formatParisDateTime} from '../shared/presentation';
 
 const SHEET_NAME='Réponses';
 const ROOT='https://sheets.googleapis.com/v4/spreadsheets';
@@ -64,7 +65,7 @@ export async function createGoogleSpreadsheet(access:string,title:string){
  });
  if(!created.spreadsheetId)throw new Error('Google n’a pas créé la feuille.');
  await googleJSON(ROOT+'/'+encodeURIComponent(created.spreadsheetId)+'/values/'+encodeURIComponent("'"+SHEET_NAME+"'!A1:B1")+'?valueInputOption=RAW',access,{
-  method:'PUT',body:JSON.stringify({values:[['ID soumission','Date UTC']]})
+  method:'PUT',body:JSON.stringify({values:[['ID soumission','Date de participation (Paris)']]})
  });
  return created.spreadsheetId;
 }
@@ -197,35 +198,67 @@ async function syncOne(item:Delivery){
  // Copy the row; mutating the provider's result made the length comparison
  // below always false and silently skipped writing question-column headers.
  const existingHeaders=headersResult.values?.[0]??[];
- const headers=existingHeaders.length?[...existingHeaders]:['ID soumission','Date UTC'];
+ const headers=existingHeaders.length?[...existingHeaders]:['ID soumission','Date de participation (Paris)'];
+ if(headers[1]==='Date UTC'||!headers[1])headers[1]='Date de participation (Paris)';
  const seen=await query<{values?:string[][]}>(range('A2:A'));
  const existingRowIndex=(seen.values??[]).findIndex(row=>row[0]===item.submission_id);
  const meta=await db.execute(sql`SELECT submitted_at FROM fs_submissions WHERE id=${item.submission_id}::uuid
  AND status='submitted' AND deleted_at IS NULL LIMIT 1`);
  const submittedAt=meta.rows[0]?.submitted_at;
  if(!submittedAt)throw new Error('Participation indisponible');
- const answers=await db.execute(sql`SELECT q.id,q.label,a.value,(af.id IS NOT NULL) AS has_audio,af.transcript
+ const answers=await db.execute(sql`SELECT q.id,q.label,a.value,(af.id IS NOT NULL) AS has_audio,af.transcript,af.id AS audio_id
  FROM fs_answers a JOIN fs_questions q ON q.id=a.question_id
  LEFT JOIN fs_audio_files af ON af.answer_id=a.id AND af.status='uploaded' AND af.deleted_at IS NULL
  WHERE a.submission_id=${item.submission_id}::uuid ORDER BY q.position`);
  const cells=new Map<string,string>();
+ const links:Array<{header:string;url:string}>=[];
  for(const answer of answers.rows){
   const identity='['+String(answer.id)+']';
   // Keep the same column when a published question is renamed later.
   const key=headers.find(h=>h.endsWith(identity))??String(answer.label)+' '+identity;
   cells.set(key,valueToText(answer.value,Boolean(answer.has_audio),answer.transcript==null?null:String(answer.transcript)));
   if(!headers.includes(key))headers.push(key);
+  if(answer.audio_id){
+   const linkKey='🎧 Écouter '+identity;
+   if(!headers.includes(linkKey))headers.push(linkKey);
+   cells.set(linkKey,'🎧 Écouter l’enregistrement');
+   links.push({header:linkKey,url:audioPlaybackUrl(String(answer.audio_id))});
+  }
  }
- if(headers.length>existingHeaders.length)await query(range('1:1')+'?valueInputOption=RAW',{
+ if(headers.length>existingHeaders.length||headers[1]!==existingHeaders[1])await query(range('1:1')+'?valueInputOption=RAW',{
   method:'PUT',body:JSON.stringify({values:[headers]})
  });
- const row=headers.map((h,i)=>i===0?item.submission_id:i===1?new Date(String(submittedAt)).toISOString():(cells.get(h)??''));
+ const row=headers.map((h,i)=>i===0?item.submission_id:i===1?formatParisDateTime(String(submittedAt)):(cells.get(h)??''));
+ let rowNumber=existingRowIndex+2;
  if(existingRowIndex>=0){
-  // A previously delivered participation may gain an audio transcript later.
-  await query(range('A'+(existingRowIndex+2))+'?valueInputOption=RAW',{
+  // A previous participation may receive an audio transcript later.
+  await query(range('A'+rowNumber)+'?valueInputOption=RAW',{
    method:'PUT',body:JSON.stringify({values:[row]})
   });
- }else await query(range('A1')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
-  method:'POST',body:JSON.stringify({values:[row]})
- });
+ }else{
+  const written=await query<{updates?:{updatedRange?:string}}>(range('A1')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
+   method:'POST',body:JSON.stringify({values:[row]})
+  });
+  const match=written.updates?.updatedRange?.match(/![A-Z]+([0-9]+)/i);
+  rowNumber=match?Number(match[1]):(seen.values??[]).length+2;
+ }
+ // A real rich-text hyperlink avoids regional formula separators and preserves
+ // participant-supplied text as RAW data (no spreadsheet-formula injection).
+ if(links.length){
+  const metadata=await query<{sheets?:Array<{properties?:{title?:string;sheetId?:number}}>}>(ROOT+'/'+encodeURIComponent(conn.spreadsheet_id)+'?fields=sheets(properties(title,sheetId))');
+  const sheetId=metadata.sheets?.find(s=>s.properties?.title===SHEET_NAME)?.properties?.sheetId;
+  if(typeof sheetId!=='number')throw new Error('Onglet Réponses introuvable pour les liens audio.');
+  await query(ROOT+'/'+encodeURIComponent(conn.spreadsheet_id)+':batchUpdate',{
+   method:'POST',body:JSON.stringify({requests:links.map(link=>({
+    updateCells:{
+     start:{sheetId,rowIndex:rowNumber-1,columnIndex:headers.indexOf(link.header)},
+     rows:[{values:[{
+      userEnteredValue:{stringValue:'🎧 Écouter l’enregistrement'},
+      textFormatRuns:[{startIndex:0,format:{link:{uri:link.url}}}]
+     }]}],
+     fields:'userEnteredValue,textFormatRuns'
+    }
+   }))})
+  });
+ }
 }

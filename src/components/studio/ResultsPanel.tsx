@@ -1,13 +1,16 @@
-import { useEffect,useMemo,useState } from 'react';
+import { useCallback,useEffect,useMemo,useState } from 'react';
 import { zipSync,strToU8 } from 'fflate';
-import { BarChart3,Download,FileSpreadsheet,Headphones,LoaderCircle,Mic2 } from 'lucide-react';
+import {xlsxBytes} from '../../shared/xlsx';
+import { BarChart3,Download,FileSpreadsheet,Headphones,LoaderCircle,Mic2,Info,CheckCircle2,Copy,Ellipsis } from 'lucide-react';
+import {audioPlaybackUrl,formatParisDateTime} from '../../shared/presentation';
 import { getAccessToken } from '../../authClient';
 import type { FormResults,ResultAnswer,ResultSubmission } from '../../server/resultsService';
 import { exportAudioAsMp3 } from '../../shared/mp3Export';
 type Result<T>={ok:true;data:T}|{ok:false;error:{message:string}};
+type AudioSummary={available:boolean;canManage:boolean;total:number;done:number;queued:number;failed:number;actionable:number;unsupported:number;quotaDelayed:number};
 const formatted=(a:ResultAnswer)=>{
  if(a.audioId){const text=a.value&&typeof a.value==='object'&&!Array.isArray(a.value)&&'text' in a.value&&typeof a.value.text==='string'?a.value.text.trim():'';
-  return `Enregistrement audio${a.durationMs?' ('+Math.ceil(a.durationMs/1000)+' s)':''}${text?' ; Texte saisi : '+text:''}${a.transcript?' ; Transcription : '+a.transcript:''}`;
+  return `Enregistrement audio${a.durationMs?' ('+Math.ceil(a.durationMs/1000)+' s)':''} ; Écouter : ${audioPlaybackUrl(a.audioId)}${text?' ; Texte saisi : '+text:''}${a.transcript?' ; Transcription : '+a.transcript:''}`;
  }
  if(Array.isArray(a.value))return a.value.map(v=>human(v)).join(' ; ');
  if(typeof a.value==='string')return human(a.value);
@@ -20,31 +23,21 @@ function dataset(items:ResultSubmission[]){
  const questions=new Map<string,string>();
  for(const item of items)for(const answer of item.answers)questions.set(answer.questionId,answer.question);
  const columns=[...questions].map(([id,label])=>({id,label}));
- const headers=['Participation','Date',...columns.map(c=>c.label+' ('+c.id.slice(0,8)+')')];
- const rows=items.map(item=>[item.id,item.submittedAt??'',...columns.map(c=>formatted(item.answers.find(a=>a.questionId===c.id)??{questionId:c.id,question:c.label,type:'',value:null,audioId:null,durationMs:null}))]);
+ const headers=['Participation','Date de participation (Paris)',...columns.map(c=>c.label+' ('+c.id.slice(0,8)+')')];
+ const rows=items.map(item=>[item.id,formatParisDateTime(item.submittedAt),...columns.map(c=>formatted(item.answers.find(a=>a.questionId===c.id)??{questionId:c.id,question:c.label,type:'',value:null,audioId:null,durationMs:null}))]);
+ const hyperlinks=items.flatMap((s,i)=>s.answers.flatMap(a=>{
+  if(!a.audioId)return [];
+  const index=columns.findIndex(c=>c.id===a.questionId);if(index<0)return [];
+  return [{row:i+2,column:index+3,url:audioPlaybackUrl(a.audioId)}];
+ }));
  const csv='\uFEFF'+[headers,...rows].map(r=>r.map(escapeCSV).join(';')).join('\r\n');
- return {headers,rows,csv,columns};
+ return {headers,rows,csv,columns,hyperlinks};
 }
 function download(name:string,data:Blob){
  const url=URL.createObjectURL(data);
  const link=document.createElement('a');link.href=url;link.download=name;
  document.body.appendChild(link);link.click();link.remove();
  setTimeout(()=>URL.revokeObjectURL(url),1500);
-}
-function xlsxBytes(headers:string[],rows:string[][]){
- const enc=(value:string)=>String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
- const col=(index:number)=>{let n=index+1,out='';while(n){n--;out=String.fromCharCode(65+n%26)+out;n=Math.floor(n/26);}return out;};
- const values=[headers,...rows];
- const xml='<?xml version="1.0" encoding="utf-8" standalone="yes"?>'+
-  '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'+
-  values.map((row,i)=>'<row r="'+(i+1)+'">'+row.map((v,j)=>'<c r="'+col(j)+(i+1)+'" t="inlineStr"><is><t xml:space="preserve">'+enc(v)+'</t></is></c>').join('')+'</row>').join('')+'</sheetData></worksheet>';
- return zipSync({
-  '[Content_Types].xml':strToU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'),
-  '_rels/.rels':strToU8('<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'),
-  'xl/workbook.xml':strToU8('<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Réponses" sheetId="1" r:id="rId1"/></sheets></workbook>'),
-  'xl/_rels/workbook.xml.rels':strToU8('<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'),
-  'xl/worksheets/sheet1.xml':strToU8(xml),
- },{level:5});
 }
 async function requestFormResults(formId:string,page:number):Promise<FormResults>{
  const token=await getAccessToken();if(!token)throw Error('Connexion expirée. Reconnectez-vous.');
@@ -84,42 +77,65 @@ export function ResultsPanel({formId,onOpenIntegrations}:{formId:string;onOpenIn
  const [data,setData]=useState<FormResults|null>(null),[loading,setLoading]=useState(true);
  const [busy,setBusy]=useState(''),[error,setError]=useState(''),[progress,setProgress]=useState(''),[view,setView]=useState<'summary'|'individual'>('summary');
  const [player,setPlayer]=useState<{id:string;url:string}|null>(null);
- const [transcriptionSettings,setTranscriptionSettings]=useState<{automatic:boolean;available:boolean;canManage:boolean}|null>(null);
+ const [transcriptionSummary,setTranscriptionSummary]=useState<AudioSummary|null>(null);
+ const [bulkStarted,setBulkStarted]=useState(false);
+ const refreshSummary=useCallback(async()=>{
+  const token=await getAccessToken();if(!token)throw Error('Session expirée.');
+  const res=await fetch('/api/forms/'+formId+'/audio-transcription',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+  const json=await res.json() as Result<AudioSummary>;
+  if(!json.ok)throw Error(json.error.message);
+  return json.data;
+ },[formId]);
  useEffect(()=>{let active=true;setLoading(true);setError('');setData(null);
   requestFormResults(formId,0).then(x=>{if(active)setData(x)}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Résultats indisponibles.')})
    .finally(()=>{if(active)setLoading(false)});
   return()=>{active=false};
  },[formId]);
  useEffect(()=>()=>{if(player)URL.revokeObjectURL(player.url);},[player]);
- useEffect(()=>{let active=true;setTranscriptionSettings(null);
-  void getAccessToken().then(token=>token?fetch('/api/forms/'+formId+'/audio-transcription',{headers:{Authorization:'Bearer '+token},cache:'no-store'}):null)
-  .then(r=>r?.json()).then((r:Result<{automatic:boolean;available:boolean;canManage:boolean}>|undefined)=>{if(active&&r?.ok)setTranscriptionSettings(r.data);})
-  .catch(()=>{});return()=>{active=false};},[formId]);
+ useEffect(()=>{let active=true;setTranscriptionSummary(null);setBulkStarted(false);
+  void refreshSummary().then(s=>{if(active)setTranscriptionSummary(s)}).catch(()=>{});
+  return()=>{active=false};
+ },[refreshSummary]);
  useEffect(()=>{
-  const pending=data?.submissions.some(s=>s.answers.some(a=>a.audioId&&['pending','processing'].includes(a.transcriptionStatus??'')));
-  if(!pending&&!transcriptionSettings?.automatic)return;
+  if(!transcriptionSummary?.queued)return;
   let active=true;
-  const timer=setInterval(()=>{void requestFormResults(formId,0).then(x=>{if(active)setData(x)}).catch(()=>{});},12000);
+  const timer=setInterval(()=>{
+   void Promise.all([requestFormResults(formId,0),refreshSummary()]).then(([results,summary])=>{
+    if(active){setData(results);setTranscriptionSummary(summary);}
+   }).catch(()=>{});
+  },11000);
   return()=>{active=false;clearInterval(timer)};
- },[formId,data,transcriptionSettings?.automatic]);
- async function transcribe(id:string){
+ },[formId,refreshSummary,transcriptionSummary?.queued]);
+ async function transcribe(id:string,force=false){
   if(busy)return;setBusy('transcribe:'+id);setError('');
-  try{const token=await getAccessToken();if(!token)throw Error('Session expirée.');
-   const res=await fetch('/api/audio/'+id+'/transcribe',{method:'POST',headers:{Authorization:'Bearer '+token}});
+  try{
+   const token=await getAccessToken();if(!token)throw Error('Session expirée.');
+   const res=await fetch('/api/audio/'+id+'/transcribe',{method:'POST',
+    headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({force})});
    const body=await res.json() as Result<{status:string}>;
    if(!body.ok)throw Error(body.error.message);
-   setData(current=>current?{...current,submissions:current.submissions.map(s=>({...s,answers:s.answers.map(a=>a.audioId===id?{...a,transcriptionStatus:'pending'}:a)}))}:current);
-  }catch(e){setError(e instanceof Error?e.message:'Transcription impossible.');}finally{setBusy('');}
+   setData(current=>current?{...current,submissions:current.submissions.map(s=>({...s,
+    answers:s.answers.map(a=>a.audioId===id?{...a,transcriptionStatus:'pending'}:a)}))}:current);
+   setTranscriptionSummary(await refreshSummary());
+  }catch(e){setError(e instanceof Error?e.message:'Transcription impossible.');}
+  finally{setBusy('');}
  }
- async function toggleAutomatic(automatic:boolean){
-  if(!transcriptionSettings?.canManage)return;
-  setBusy('auto');setError('');
-  try{const token=await getAccessToken();if(!token)throw Error('Session expirée.');
-   const res=await fetch('/api/forms/'+formId+'/audio-transcription',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({automatic})});
-   const body=await res.json() as Result<{automatic:boolean}>;
+ async function transcribeAll(){
+  if(busy||!transcriptionSummary?.canManage||!transcriptionSummary.actionable)return;
+  setBusy('bulk');setError('');setBulkStarted(true);
+  try{
+   const token=await getAccessToken();if(!token)throw Error('Session expirée.');
+   const res=await fetch('/api/forms/'+formId+'/audio-transcription/run',{method:'POST',headers:{Authorization:'Bearer '+token}});
+   const body=await res.json() as Result<AudioSummary>;
    if(!body.ok)throw Error(body.error.message);
-   setTranscriptionSettings(s=>s?{...s,automatic:body.data.automatic}:s);
-  }catch(e){setError(e instanceof Error?e.message:'Configuration impossible.');}finally{setBusy('');}
+   setTranscriptionSummary(body.data);
+   setData(await requestFormResults(formId,0));
+  }catch(e){setError(e instanceof Error?e.message:'Transcription groupée indisponible.');}
+  finally{setBusy('');}
+ }
+ async function copyTranscript(text:string){
+  try{await navigator.clipboard.writeText(text);}
+  catch{setError('Impossible de copier la transcription.');}
  }
  const questions=useMemo(()=>{
   const groups=new Map<string,{label:string;type:string;answers:ResultAnswer[]}>();
@@ -134,7 +150,7 @@ export function ResultsPanel({formId,onOpenIntegrations}:{formId:string;onOpenIn
    const all=await fetchAll(formId),sheet=dataset(all);
    const name='reponses-'+formId.slice(0,8);
    if(format==='csv')download(name+'.csv',new Blob([sheet.csv],{type:'text/csv;charset=utf-8'}));
-   if(format==='xlsx')download(name+'.xlsx',new Blob([xlsxBytes(sheet.headers,sheet.rows) as BlobPart],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+   if(format==='xlsx')download(name+'.xlsx',new Blob([xlsxBytes(sheet.headers,sheet.rows,sheet.hyperlinks) as BlobPart],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
    if(format==='zip'){
     const archive:Record<string,Uint8Array>={'reponses.csv':strToU8(sheet.csv),
       'reponses.json':strToU8(JSON.stringify(all,null,2))};
@@ -188,18 +204,53 @@ export function ResultsPanel({formId,onOpenIntegrations}:{formId:string;onOpenIn
       {type==='zip'?'ZIP + audios MP3':type.toUpperCase()}</button>)}
    </div>
   </div>
-  {transcriptionSettings&&<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#dce9d9] bg-white px-4 py-3">
-    <div className="flex items-start gap-3"><Mic2 className="mt-0.5 text-[#3e7854]" size={19}/><div>
-     <p className="text-sm font-semibold text-[#31573c]">Transcription audio · Cloudflare Whisper</p>
-     <p className="mt-1 text-xs text-[#788979]">À la demande, ou automatique après réception des réponses. L’audio est transmis à Cloudflare uniquement si vous lancez la transcription ou activez l’option. L’offre gratuite bloque tout dépassement.</p>
-    </div></div>
-    <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-[#426b50]">
-     <input type="checkbox" checked={transcriptionSettings.automatic} disabled={!transcriptionSettings.canManage||!transcriptionSettings.available||!!busy}
-      onChange={e=>void toggleAutomatic(e.target.checked)} className="h-4 w-4 accent-[#38774e]"/>
-     Transcrire automatiquement
-    </label>
+  {transcriptionSummary&&<section aria-label="Transcription audio" className="rounded-xl border border-[#dce9d9] bg-white px-4 py-3 sm:px-5">
+   <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="flex min-w-0 items-start gap-3">
+     <Mic2 className="mt-0.5 shrink-0 text-[#3e7854]" size={20}/>
+     <div>
+      <div className="flex items-center gap-2">
+       <h3 className="text-sm font-bold text-[#31573c]">Transcription audio</h3>
+       <details className="relative">
+        <summary aria-label="Informations sur la transcription" title="Informations sur la transcription"
+         className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full text-[#758977] hover:bg-[#eff5ed] [&::-webkit-details-marker]:hidden"><Info size={16}/></summary>
+        <div className="absolute left-0 top-8 z-30 w-72 rounded-xl border border-[#e0eadf] bg-white p-3 text-xs leading-5 text-[#53705c] shadow-lg">
+         Transcription réalisée avec Cloudflare Whisper Large V3 Turbo. Les audios sont envoyés à Cloudflare seulement après votre demande. L’offre gratuite a un quota quotidien ; au-delà, le traitement attend sans achat. Le texte généré par IA peut contenir des erreurs ; conservez les fichiers originaux.
+        </div>
+       </details>
+      </div>
+      <p className="mt-0.5 text-xs text-[#788979]">Transformez vos enregistrements en texte, à la demande.</p>
+      <p className="mt-2 text-xs font-medium text-[#52735c]">
+       {transcriptionSummary.total} audio{transcriptionSummary.total>1?'s':''} au total · {transcriptionSummary.done} transcrit{transcriptionSummary.done>1?'s':''} · {transcriptionSummary.actionable} à transcrire
+      </p>
+     </div>
+    </div>
+    {transcriptionSummary.actionable>0&&transcriptionSummary.available&&transcriptionSummary.canManage?
+     <button type="button" disabled={!!busy} onClick={()=>void transcribeAll()}
+      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#2f6546] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#255339] disabled:opacity-50">
+      {busy==='bulk'?<LoaderCircle size={16} className="animate-spin"/>:<Mic2 size={16}/>}
+      {busy==='bulk'?'Lancement…':'Transcrire '+transcriptionSummary.actionable+' audio'+(transcriptionSummary.actionable>1?'s':'')}
+     </button>:
+     transcriptionSummary.total>0&&transcriptionSummary.queued===0&&transcriptionSummary.done===transcriptionSummary.total?
+      <p role="status" className="flex items-center gap-2 text-sm font-semibold text-[#2d7048]"><CheckCircle2 size={18}/> Tous les audios sont transcrits</p>:
+      null}
+   </div>
+   {transcriptionSummary.queued>0&&<div className="mt-4 space-y-2 border-t border-[#edf1e9] pt-3" role="status" aria-live="polite">
+    <div className="flex justify-between gap-2 text-xs font-medium text-[#4c7256]">
+     <span><LoaderCircle size={13} className="mr-1 inline animate-spin"/> Transcription en cours ; vous pouvez quitter cette page.</span>
+     <span className="tabular-nums">{transcriptionSummary.done} / {transcriptionSummary.total}</span>
+    </div>
+    <div className="h-1.5 overflow-hidden rounded-full bg-[#e8efe5]">
+     <div className="h-full rounded-full bg-[#72a17d] transition-all"
+      style={{width:(100*transcriptionSummary.done/Math.max(1,transcriptionSummary.total))+'%'}}/>
+    </div>
    </div>}
-   {error&&<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+   {transcriptionSummary.quotaDelayed>0&&<p role="status" className="mt-3 text-xs text-[#986d34]">Quota gratuit Cloudflare atteint. {transcriptionSummary.quotaDelayed} audio(s) attendent le renouvellement quotidien ; les transcriptions terminées sont conservées.</p>}
+   {transcriptionSummary.unsupported>0&&<p className="mt-3 text-xs text-[#986d34]">{transcriptionSummary.unsupported} enregistrement(s) dépassent 18 Mio et nécessitent un fichier plus court pour Cloudflare.</p>}
+   {transcriptionSummary.failed>0&&!transcriptionSummary.queued&&<p className="mt-3 text-xs text-[#986d34]">{transcriptionSummary.failed} audio(s) à relancer. Utilisez le bouton global ou l’action individuelle.</p>}
+   {bulkStarted&&transcriptionSummary.total>0&&transcriptionSummary.queued===0&&transcriptionSummary.actionable===0&&<p className="mt-2 text-xs text-[#628469]">Le texte est consultable dans Participations et dans les prochains exports.</p>}
+  </section>}
+    {error&&<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
   {progress&&<p role="status" className="flex items-center gap-2 rounded-xl bg-[#eef5ec] p-3 text-sm text-[#356344]"><LoaderCircle size={16} className="animate-spin"/>{progress}</p>}
   {loading?<p role="status" className="text-sm text-[#72917a]"><LoaderCircle size={17} className="inline animate-spin"/> Chargement des réponses…</p>:
    data&&<>
@@ -217,9 +268,9 @@ export function ResultsPanel({formId,onOpenIntegrations}:{formId:string;onOpenIn
      <div className="space-y-3">{questions.filter(x=>['single_choice','multiple_choice','select'].includes(x.type)).map(q=><ChoiceChart key={q.label} question={q.label} answers={q.answers}/>)}
       {questions.length===0&&<p className="rounded-xl bg-white p-5 text-sm text-[#7d917f]">Aucune réponse reçue pour le moment.</p>}</div>:
      <div className="space-y-3">{data.submissions.map(sub=><article key={sub.id} className="rounded-xl border border-[#e1e8df] bg-white p-4">
-      <p className="text-xs font-semibold text-[#7c8f7f]">{sub.submittedAt?new Date(sub.submittedAt).toLocaleString('fr-FR'):'Date inconnue'}</p>
+      <p className="text-xs font-semibold text-[#7c8f7f]">{sub.submittedAt?formatParisDateTime(sub.submittedAt)+' · Paris':'Date inconnue'}</p>
       {sub.answers.map(ans=><div className="mt-3 border-t border-[#f0f3ef] pt-3" key={ans.questionId}>
-       <p className="text-xs font-semibold text-[#637b68]">{ans.question}</p><p className="mt-1 whitespace-pre-wrap text-sm text-[#36503b]">{formatted(ans)}</p>
+       <p className="text-xs font-semibold text-[#637b68]">{ans.question}</p><p className="mt-1 whitespace-pre-wrap text-sm text-[#36503b]">{ans.audioId?"Enregistrement audio"+(ans.durationMs?" ("+Math.ceil(ans.durationMs/1000)+" s)":""):formatted(ans)}</p>
        {ans.audioId&&<><div className="mt-2 flex flex-wrap gap-2"><button className="rounded-lg border border-[#d8e7db] px-3 py-2 text-xs font-semibold text-[#397450]"
          disabled={!!busy} onClick={()=>void play(ans.audioId!)}>{busy===ans.audioId?'Chargement…':'Écouter la réponse'}</button>
         <button className="inline-flex items-center gap-1.5 rounded-lg border border-[#d8e7db] px-3 py-2 text-xs font-semibold text-[#397450] disabled:opacity-50"
@@ -228,12 +279,23 @@ export function ResultsPanel({formId,onOpenIntegrations}:{formId:string;onOpenIn
          <div className="mt-3 rounded-xl border border-[#dbe8db] bg-[#f7faf5] p-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
            <p className="text-xs font-semibold text-[#3b6249]">Transcription</p>
-           {!ans.transcript&&transcriptionSettings?.available&&transcriptionSettings.canManage&&!['pending','processing'].includes(ans.transcriptionStatus??'')&&
+           {!ans.transcript&&transcriptionSummary?.available&&transcriptionSummary.canManage&&!['pending','processing'].includes(ans.transcriptionStatus??'')&&
             <button type="button" onClick={()=>void transcribe(ans.audioId!)} disabled={!!busy} className="rounded-lg border border-[#b8d8be] bg-white px-3 py-1.5 text-xs font-semibold text-[#336c46] hover:bg-[#e6f2e6] disabled:opacity-50">
              {busy==='transcribe:'+ans.audioId?'Envoi…':ans.transcriptionStatus==='failed'?'Réessayer':'Transcrire cet audio'}
             </button>}
+           {ans.transcript&&<details className="relative ml-auto">
+            <summary aria-label="Actions de transcription" title="Actions de transcription" className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-lg text-[#608068] hover:bg-[#e7f1e5] [&::-webkit-details-marker]:hidden"><Ellipsis size={17}/></summary>
+            <div className="absolute right-0 top-9 z-20 w-48 rounded-xl border border-[#dae6d8] bg-white p-1.5 shadow-lg">
+             <button type="button" onClick={e=>{e.currentTarget.closest('details')?.removeAttribute('open');void copyTranscript(ans.transcript!);}} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs hover:bg-[#edf5eb]"><Copy size={14}/> Copier le texte</button>
+             {transcriptionSummary?.canManage&&<button type="button" disabled={!!busy} onClick={e=>{e.currentTarget.closest('details')?.removeAttribute('open');void transcribe(ans.audioId!,true);}} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs hover:bg-[#edf5eb]"><Mic2 size={14}/> Retranscrire</button>}
+            </div>
+           </details>}
           </div>
-          {ans.transcript?<p className="whitespace-pre-wrap text-sm leading-6 text-[#365342]">{ans.transcript}</p>:
+          {ans.transcript?<div>
+           <p className="mb-2 text-[11px] text-[#778b78]">Texte généré par IA ; vérifiez les passages importants à l’écoute.</p>
+           <p className="whitespace-pre-wrap text-sm leading-6 text-[#365342]">{ans.transcript}</p>
+           {['pending','processing'].includes(ans.transcriptionStatus??'')&&<p role="status" className="mt-2 text-xs text-[#527b5c]">Nouvelle transcription en cours…</p>}
+          </div>:
            ['pending','processing'].includes(ans.transcriptionStatus??'')?<p className="text-xs text-[#657f69]">Transcription en cours ; le texte apparaîtra ici automatiquement.</p>:
            ans.transcriptionStatus==='failed'?<p className="text-xs text-[#a35b43]">{ans.transcriptionError||'La transcription a échoué.'}</p>:
            <p className="text-xs text-[#7a8a7d]">Aucune transcription pour cet enregistrement.</p>}

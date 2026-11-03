@@ -64,7 +64,7 @@ describe('Composio managed Sheets adapter',()=>{
   const queries=fetchMock.mock.calls.map(([,init])=>JSON.parse(init.body));
   expect(queries.map(q=>q.method)).toEqual(['GET','POST','PUT']);
   expect(queries[1].body.requests[0].addSheet.properties.title).toBe('Réponses');
-  expect(queries[2].body.values[0]).toEqual(['ID soumission','Date UTC']);
+  expect(queries[2].body.values[0]).toEqual(['ID soumission','Date de participation (Paris)']);
   expect(queries.every(q=>q.endpoint.startsWith('https://sheets.googleapis.com/v4/spreadsheets/'+sheetId))).toBe(true);
  });
  it('ne modifie pas un onglet Réponses contenant des données étrangères',async()=>{

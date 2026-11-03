@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { LoaderCircle, Play, ArrowLeft, Mic, Download } from 'lucide-react';
 import { getAccessToken } from '../authClient';
 import { exportAudioAsMp3 } from '../shared/mp3Export';
+import {formatParisDateTime} from '../shared/presentation';
 type AudioRecord={id:string;form_title:string;question:string;content_type:string;byte_size:number|string;duration_ms:number|null;submitted_at:string|null};
 type ApiResponse<T>={ok:true;data:T}|{ok:false;error:{message:string}};
 export function AudioResponsesPage(){
@@ -61,7 +62,7 @@ export function AudioResponsesPage(){
    {items.map(item=><article key={item.id} className="rounded-2xl border border-[#e1e9df] bg-white p-5">
     <h2 className="font-semibold text-[#2a5438]">{item.form_title}</h2>
     <p className="mt-1 text-sm text-[#6f8173]">{item.question}</p>
-    <p className="mt-2 text-xs text-[#819085]">{item.submitted_at?new Date(item.submitted_at).toLocaleString('fr-FR'):''}
+    <p className="mt-2 text-xs text-[#819085]">{item.submitted_at?formatParisDateTime(item.submitted_at)+' · Paris':''}
       {' · '}{item.duration_ms?Math.ceil(item.duration_ms/1000)+' s':'Durée inconnue'}
       {' · '}{(Number(item.byte_size)/1048576).toFixed(2)+' Mo'}</p>
     <div className="mt-3 flex flex-wrap items-center gap-2">

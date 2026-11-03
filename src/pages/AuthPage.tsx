@@ -14,7 +14,8 @@ export function AuthPage() {
   const location=useLocation();
   const requestedReturn=new URLSearchParams(location.search).get('returnTo');
   // Only our own ChatGPT consent screen can be used as a post-login destination.
-  const returnTo=requestedReturn?.startsWith('/autoriser-chatgpt?')?requestedReturn:'/studio';
+  const returnTo=requestedReturn?.startsWith('/autoriser-chatgpt?')?requestedReturn:
+   /^\/studio\/audio\/[0-9a-f-]{36}$/i.test(requestedReturn??'')?requestedReturn!:'/studio';
   async function submit(event: FormEvent) {
     event.preventDefault(); setLoading(true);setError('');
     try {

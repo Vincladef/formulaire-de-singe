@@ -13,7 +13,7 @@ export const formParams = z.object({ id: z.string().uuid() }).strict();
 export const formSummary = z.object({
   id: z.string().uuid(), title: z.string(), slug: z.string(), folderId:z.string().uuid().nullable().optional(),
   role: z.enum(['owner', 'editor', 'viewer']),
-  createdAt: z.string(), updatedAt: z.string(), archivedAt:z.string().nullable().optional(), published:z.boolean().optional(),
+  createdAt: z.string(), updatedAt: z.string(), archivedAt:z.string().nullable().optional(), published:z.boolean().optional(),submissionCount:z.number().int().min(0).optional(),
 });
 export const apiErrorCode = z.enum([
   'UNAUTHORIZED', 'FORBIDDEN', 'NOT_FOUND', 'METHOD_NOT_ALLOWED',
