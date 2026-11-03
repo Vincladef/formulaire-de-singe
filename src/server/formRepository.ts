@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { FormDetail, FormRepository, FormSummary } from '../shared/formApi';
 import { getDb } from './db/client';
 import {
-  forms, formMembers, formVersions, pages, questions, questionOptions, rules,
+  forms, formMembers, formVersions, pages, questions, questionOptions, rules, submissions,
 } from './db/schema';
 
 const iso = (value: Date) => value.toISOString();
@@ -21,11 +21,16 @@ export const formRepository: FormRepository = {
     const publishedVersions=rows.length?await db.select({formId:formVersions.formId}).from(formVersions)
       .where(and(inArray(formVersions.formId, rows.map(r=>r.id)),eq(formVersions.status,'published'))):[];
     const publishedSet=new Set(publishedVersions.map(v=>v.formId));
+    const totals=rows.length?await db.select({formId:formVersions.formId,total:sql<number>`count(*)::int`})
+      .from(submissions).innerJoin(formVersions,eq(submissions.versionId,formVersions.id))
+      .where(and(inArray(formVersions.formId,rows.map(r=>r.id)),eq(submissions.status,'submitted'),isNull(submissions.deletedAt)))
+      .groupBy(formVersions.formId):[];
+    const totalByForm=new Map(totals.map(x=>[x.formId,Number(x.total)]));
     return rows.map((r): FormSummary => ({
       id: r.id, title: r.title, slug: r.slug, folderId:r.folderId,
       role: r.ownerId === userId ? 'owner' : r.memberRole!,
       createdAt: iso(r.createdAt), updatedAt: iso(r.updatedAt),
-      archivedAt:r.archivedAt?iso(r.archivedAt):null, published:publishedSet.has(r.id),
+      archivedAt:r.archivedAt?iso(r.archivedAt):null, published:publishedSet.has(r.id),submissionCount:totalByForm.get(r.id)??0,
     }));
   },
 
