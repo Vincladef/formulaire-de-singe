@@ -32,7 +32,7 @@ export function AudioRecorder({value,onChange,maxSeconds=600,maxBytes=MAX_AUDIO_
   try{
    const s=await navigator.mediaDevices.getUserMedia({audio:true});stream.current=s;
    const preferred=chooseRecorderMime(m=>MediaRecorder.isTypeSupported(m));
-   const rec=new MediaRecorder(s,preferred?{mimeType:preferred}:undefined);
+   const rec=new MediaRecorder(s,{...(preferred?{mimeType:preferred}:{}),audioBitsPerSecond:64000});
    media.current=rec;blobs.current=[];
    rec.ondataavailable=e=>{if(e.data.size)blobs.current.push(e.data)};
    rec.onstop=()=>{
@@ -90,6 +90,6 @@ export function AudioRecorder({value,onChange,maxSeconds=600,maxBytes=MAX_AUDIO_
    <input aria-label="Importer un audio" className="sr-only" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg" onChange={e=>{void imported(e.target.files?.[0]);e.target.value='';}}/>
   </label>
   {error&&<p role="alert" className="mt-3 flex items-center gap-2 text-sm text-red-700"><AlertCircle size={17}/>{error}</p>}
-  <details className="mt-3 text-xs text-[#526957]"><summary className="cursor-pointer py-2 font-medium hover:underline">Informations sur l’enregistrement</summary><p className="mt-1 leading-6">Durée maximale : {maxSeconds>=60?`${maxSeconds/60} min`:`${maxSeconds} s`}. Taille maximale : {Math.round(maxBytes/1048576)} Mio. L’audio reste sur votre appareil jusqu’à l’envoi du formulaire.</p></details>
+  <details className="mt-3 text-xs text-[#526957]"><summary className="cursor-pointer py-2 font-medium hover:underline">Informations sur l’enregistrement</summary><p className="mt-1 leading-6">Durée maximale : {maxSeconds>=60?`${maxSeconds/60} min`:`${maxSeconds} s`}. Taille maximale : {Math.round(maxBytes/1048576)} Mio. L’audio commence à être transféré de façon sécurisée dès qu’il est prêt. Le formulaire n’est validé qu’après votre clic sur « Envoyer mes réponses ».</p></details>
  </div>;
 }
