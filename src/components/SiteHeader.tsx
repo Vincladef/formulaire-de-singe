@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowUpRight, ChevronDown, LogOut, CircleUserRound } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, LogOut, CircleUserRound, Link2 } from 'lucide-react';
 import { authClient } from '../authClient';
 import { MonkeyMark } from './MonkeyMark';
 import { Button } from './ui/button';
@@ -72,6 +72,7 @@ function SignedInActions() {
         <ChevronDown size={15} className="hidden text-[#587662] transition-transform group-open:rotate-180 sm:block" aria-hidden="true"/>
       </summary>
       <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-48 rounded-xl border border-[#e0e9de] bg-white p-1.5 shadow-[0_12px_35px_-15px_rgba(29,60,38,.35)]">
+        <Link to="/studio/connexions" className="flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-[#365940] hover:bg-[#f1f6ef]"><Link2 size={17}/> Mes connexions</Link>
         <button type="button" disabled={busy} onClick={()=>void logout()} aria-busy={busy}
           className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-medium text-[#365940] hover:bg-[#f1f6ef] focus-visible:outline-2 focus-visible:outline-[#327957] disabled:opacity-50">
           <LogOut size={17}/>{busy?'Déconnexion…':'Se déconnecter'}
