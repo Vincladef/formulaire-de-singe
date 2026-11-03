@@ -3,7 +3,6 @@ import { createMcpHandler, type McpIdentityProvider } from '../netlify/functions
 import { FormActions } from '../src/server/formActions';
 import { McpFormActions } from '../src/server/mcpFormActions';
 import { UnauthorizedError } from '../src/server/auth';
-import type { FormRepository } from '../src/shared/formApi';
 
 const formId='9d6ea3f9-315c-4c1a-9dc7-4c023d99ef22';
 const draftId='08b6e5c1-33ca-4d20-bb0e-c0447daf798a';
@@ -27,7 +26,7 @@ const mock={
   createdAt:new Date(0).toISOString(),updatedAt:new Date(0).toISOString()}]),
  create:vi.fn(async()=>({id:formId,title:'Mon enquête',slug:'mon-enquete',draftId})),
  get:vi.fn(async()=>detail()),
- save:vi.fn(async(_userId:string,_formId:string,_input:unknown)=>({versionId:draftId,revision:3})),
+ save:vi.fn(async(...args:[string,string,unknown])=>{void args;return {versionId:draftId,revision:3};}),
  publish:vi.fn(async()=>({publishedId:draftId,draftId:crypto.randomUUID()})),
  move:vi.fn(async()=>({id:formId,folderId})),
  rename:vi.fn(async()=>({id:formId,title:'Nouveau titre'})),
