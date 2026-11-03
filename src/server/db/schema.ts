@@ -6,9 +6,10 @@ export const folders = pgTable('fs_form_folders', {
   id: uuid('id').primaryKey().defaultRandom(),
   ownerId: text('owner_id').notNull(),
   name: varchar('name', { length: 80 }).notNull(),
+  parentId: uuid('parent_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, t => [index('fs_form_folders_owner_idx').on(t.ownerId, t.createdAt), check('fs_form_folders_name_not_empty', sql`length(trim(${t.name})) > 0`)]);
+}, t => [index('fs_form_folders_owner_idx').on(t.ownerId, t.createdAt), index('fs_form_folders_parent_idx').on(t.parentId), check('fs_form_folders_name_not_empty', sql`length(trim(${t.name})) > 0`)]);
 
 export const forms = pgTable('fs_forms', {
   id: uuid('id').primaryKey().defaultRandom(), ownerId: text('owner_id').notNull(), title: varchar('title', { length: 200 }).notNull(),
