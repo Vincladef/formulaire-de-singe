@@ -52,6 +52,7 @@ export function StudioPage(){
  const searchRef=useRef<HTMLInputElement>(null);
  const [undoMove,setUndoMove]=useState<{kind:'form'|'folder';id:string;original:string|null;name:string}|null>(null);
  const [moveTarget,setMoveTarget]=useState<FormSummary|null>(null);
+ const [folderMoveTarget,setFolderMoveTarget]=useState<FolderInfo|null>(null);
  const [dialog,setDialog]=useState<StudioDialogIntent|null>(null);
  const dialogResolver=useRef<((answer:string|null)=>void)|null>(null);
  function askDialog(intent:StudioDialogIntent):Promise<string|null>{return new Promise(resolve=>{dialogResolver.current?.(null);dialogResolver.current=resolve;setDialog(intent);});}
@@ -245,6 +246,7 @@ export function StudioPage(){
   setOperation(true);setError('');
   try{
    await request('/api/folders/'+folderId+'/move','PATCH',{parentId});await refreshFolders();
+   setFolderMoveTarget(null);
    setUndoMove({kind:'folder',id:folderId,original:folder.parentId??null,name:folder.name});
   }catch(e){setError(e instanceof Error?e.message:'Impossible de déplacer ce dossier.');}
   finally{setOperation(false);}
@@ -263,6 +265,14 @@ export function StudioPage(){
  const folderCounts:Record<string,number>={uncategorized:0};
  for(const item of allVisibleItems){const id=item.folderId??'uncategorized';folderCounts[id]=(folderCounts[id]??0)+1;}
  const folderById=new Map(folders.map(f=>[f.id,f]));
+ const blockedFolderTargets=folderMoveTarget?folders.filter(candidate=>{
+  let current:FolderInfo|undefined=candidate;const visited=new Set<string>();
+  while(current&&!visited.has(current.id)){
+   if(current.id===folderMoveTarget.id)return true;
+   visited.add(current.id);current=current.parentId?folderById.get(current.parentId):undefined;
+  }
+  return false;
+ }).map(f=>f.id):[];
  const folderPath:FolderInfo[]=[];
  if(folderById.has(selectedFolder)){
   let current=folderById.get(selectedFolder);const seen=new Set<string>();
@@ -307,6 +317,7 @@ export function StudioPage(){
      onSelect={setSelectedFolder} onCreate={()=>void createFolder(null)} onCreateChild={id=>void createFolder(id)}
      onRename={folder=>void renameFolder(folder)} onDelete={folder=>void deleteFolder(folder)}
      onMoveFolder={(id,parentId)=>void moveFolderTree(id,parentId)}
+     onChooseParent={id=>setFolderMoveTarget(folders.find(f=>f.id===id)??null)}
      onMoveForm={(id,folderId)=>void moveForm(folderId,id)}/>
     <section aria-label="Mes formulaires" className="min-w-0 rounded-2xl border border-[#e1e9de] bg-white px-4 py-3 sm:px-6">
      <div className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -456,5 +467,7 @@ export function StudioPage(){
   </div>
    {dialog&&<StudioDialog intent={dialog} onResolve={resolveDialog}/>}
    {moveTarget&&<FolderMoveDialog formTitle={moveTarget.title} folders={folders} current={moveTarget.folderId??null} busy={operation} onMove={id=>void moveForm(id)} onClose={()=>setMoveTarget(null)}/>}
+   {folderMoveTarget&&<FolderMoveDialog mode="folder" formTitle={folderMoveTarget.name} folders={folders} current={folderMoveTarget.parentId??null}
+    blockedIds={blockedFolderTargets} busy={operation} onMove={id=>void moveFolderTree(folderMoveTarget.id,id)} onClose={()=>setFolderMoveTarget(null)}/>}
  </main>;
 }
