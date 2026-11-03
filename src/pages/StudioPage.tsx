@@ -130,7 +130,7 @@ export function StudioPage(){
  async function createForm(){
    const name=await askDialog({kind:'text',title:'Nouveau formulaire',description:'Donne un nom à ton questionnaire. Tu pourras le modifier ensuite.',initialValue:'Mon nouveau formulaire',confirmLabel:'Créer'});if(!name?.trim())return;
    setOperation(true);setError('');try{const result=await request<{id:string}>('/api/forms','POST',{title:name.trim()});
-     if(selectedFolder!=='all'&&selectedFolder!=='uncategorized')await request(`/api/forms/${result.id}/folder`,'PATCH',{folderId:selectedFolder});
+     if(folders.some(folder=>folder.id===selectedFolder))await request(`/api/forms/${result.id}/folder`,'PATCH',{folderId:selectedFolder});
      await refreshList();await openForm(result.id);}
    catch(e){setError(e instanceof Error?e.message:'Création impossible');}finally{setOperation(false);}
  }
@@ -217,7 +217,7 @@ export function StudioPage(){
   finally{setOperation(false);}
  }
  async function deleteFolder(folder:FolderInfo){
-  const answer=await askDialog({kind:'confirm',title:'Supprimer ce dossier ?',description:'Les formulaires seront conservés dans « Sans dossier » ; ses sous-dossiers resteront accessibles à la racine.',confirmLabel:'Supprimer le dossier',danger:true});
+  const answer=await askDialog({kind:'confirm',title:'Supprimer ce dossier ?',description:'Les formulaires rangés directement ici iront dans « Sans dossier ». Les sous-dossiers conserveront leurs formulaires et remonteront à la racine.',confirmLabel:'Supprimer le dossier',danger:true});
   if(!answer)return;
   setOperation(true);setError('');
   try{await request('/api/folders/'+folder.id,'DELETE');await Promise.all([refreshFolders(),refreshList()]);
