@@ -104,6 +104,34 @@ export async function createComposioSpreadsheet(neonId:string,accountId:string,t
  });
  return result.spreadsheetId;
 }
+/**
+ * Attach an existing Google spreadsheet without touching its other tabs.
+ * A dedicated Réponses tab is created only when absent. Existing content
+ * is preserved; a conflicting Réponses tab is never overwritten.
+ */
+export async function prepareExistingComposioSpreadsheet(neonId:string,accountId:string,spreadsheetId:string):Promise<void>{
+ if(!/^[A-Za-z0-9_-]{20,150}$/.test(spreadsheetId))throw new Error('Identifiant de tableur Google Sheets invalide.');
+ const url=SHEETS+'/'+encodeURIComponent(spreadsheetId);
+ const metadata=await sheetsJSON<{spreadsheetId?:string;sheets?:{properties?:{title?:string}}[]}>(neonId,accountId,url+'?fields=spreadsheetId,sheets(properties(title))');
+ if(metadata.spreadsheetId!==spreadsheetId)throw new Error('Le tableur Google Sheets est inaccessible.');
+ const exists=Boolean(metadata.sheets?.some(sheet=>sheet.properties?.title==='Réponses'));
+ if(exists){
+  const current=await sheetsJSON<{values?:string[][]}>(neonId,accountId,url+'/values/'+encodeURIComponent("'Réponses'!A1:B1"));
+  const first=current.values?.[0]??[];
+  if(first.length>0){
+   if(first[0]!=='ID soumission'||first[1]!=='Date UTC')
+    throw new Error('L’onglet Réponses contient déjà des données incompatibles. Choisissez un autre tableur.');
+   return;
+  }
+ }else{
+  await sheetsJSON(neonId,accountId,url+':batchUpdate','POST',{
+   requests:[{addSheet:{properties:{title:'Réponses'}}}],
+  });
+ }
+ await sheetsJSON(neonId,accountId,url+'/values/'+encodeURIComponent("'Réponses'!A1:B1")+'?valueInputOption=RAW','PUT',{
+  values:[['ID soumission','Date UTC']],
+ });
+}
 export async function googleSheetsComposioJSON<T>(neonId:string,accountId:string,url:string,init?:RequestInit):Promise<T>{
  let body:unknown;
  if(init?.body!==undefined&&init?.body!==null){
