@@ -119,7 +119,7 @@ function valueToText(value:unknown,hasAudio:boolean){
 }
 type Delivery={submission_id:string;form_id:string};
 type SheetConnection={spreadsheet_id:string;encrypted_refresh_token:string};
-export async function syncGoogleSheets(maxItems=10){
+export async function syncGoogleSheets(maxItems=10,onlyFormId?:string){
  const db=getDb();
  // Reconcile independently from HTTP submission success, including older responses.
  await db.execute(sql`INSERT INTO fs_sheet_deliveries(submission_id,form_id)
@@ -127,13 +127,15 @@ export async function syncGoogleSheets(maxItems=10){
   JOIN fs_versions v ON v.form_id=g.form_id
   JOIN fs_submissions s ON s.version_id=v.id
   WHERE s.status='submitted' AND s.deleted_at IS NULL
+  AND (${onlyFormId??null}::uuid IS NULL OR g.form_id=${onlyFormId??null}::uuid)
   AND NOT EXISTS(SELECT 1 FROM fs_sheet_deliveries d WHERE d.submission_id=s.id)
   ORDER BY s.submitted_at LIMIT 500 ON CONFLICT DO NOTHING`);
  const claimed=await db.execute(sql`UPDATE fs_sheet_deliveries d SET state='processing',attempts=d.attempts+1,claimed_at=now()
  WHERE d.submission_id IN (SELECT x.submission_id FROM fs_sheet_deliveries x
   JOIN fs_google_sheets g ON g.form_id=x.form_id
   WHERE (x.state='pending' OR (x.state='processing' AND x.claimed_at<now()-interval '15 minutes'))
-   AND x.attempts<10 ORDER BY x.claimed_at NULLS FIRST LIMIT ${Math.min(20,Math.max(1,maxItems))}
+   AND x.attempts<10 AND (${onlyFormId??null}::uuid IS NULL OR x.form_id=${onlyFormId??null}::uuid)
+   ORDER BY x.claimed_at NULLS FIRST LIMIT ${Math.min(20,Math.max(1,maxItems))}
   FOR UPDATE OF x SKIP LOCKED)
  RETURNING d.submission_id,d.form_id`);
  let done=0,failed=0;
