@@ -21,23 +21,7 @@ export class NeonPublicFormService implements PublicFormService {
       .where(and(eq(forms.slug,slug),isNull(forms.archivedAt),isNull(forms.deletedAt)))
       .orderBy(desc(formVersions.number)).limit(1);
     if(!row)return null;
-    const pageRows=await db.select({id:pages.id,title:pages.title,description:pages.description})
-      .from(pages).where(eq(pages.versionId,row.versionId)).orderBy(asc(pages.position));
-    const resultPages=[];
-     
-    for(const p of pageRows){
-      const qs=await db.select({id:questions.id,type:questions.type,label:questions.label,description:questions.description,required:questions.required,settings:questions.settings})
-        .from(questions).where(eq(questions.pageId,p.id)).orderBy(asc(questions.position));
-      const resultQuestions=[];
-      for(const q of qs){
-        const options=await db.select({value:questionOptions.value,label:questionOptions.label}).from(questionOptions)
-          .where(eq(questionOptions.questionId,q.id)).orderBy(asc(questionOptions.position));
-         
-        const limits=audioLimits(q.settings);
-        resultQuestions.push({id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,settings:q.type==='statement'?q.settings:q.type==='audio'?{allowTextSupplement:q.settings?.allowTextSupplement===true}:undefined,options,mode:audioMode(q.type,q.settings),maxAudioSeconds:limits.maxSeconds,maxAudioBytes:limits.maxBytes});
-      }
-      resultPages.push({...p,questions:resultQuestions});
-    }
+    const resultPages=await hydratePages(row.versionId);
     return {id:row.id,slug:row.slug,title:row.title,description:row.description,versionId:row.versionId,versionNumber:row.number,
       requireConsent:false,pages:resultPages};
   }
@@ -58,26 +42,46 @@ export class NeonPublicFormService implements PublicFormService {
   }
 }
 
+/** Three parallel reads instead of one network round-trip per question and per option list. */
+async function hydratePages(versionId:string):Promise<PublicForm['pages']>{
+ const db=getDb();
+ const [pageRows,questionRows,optionRows]=await Promise.all([
+  db.select({id:pages.id,title:pages.title,description:pages.description})
+   .from(pages).where(eq(pages.versionId,versionId)).orderBy(asc(pages.position)),
+  db.select({id:questions.id,pageId:questions.pageId,type:questions.type,label:questions.label,
+   description:questions.description,required:questions.required,settings:questions.settings})
+   .from(questions).innerJoin(pages,eq(questions.pageId,pages.id))
+   .where(eq(pages.versionId,versionId)).orderBy(asc(pages.position),asc(questions.position)),
+  db.select({questionId:questionOptions.questionId,value:questionOptions.value,label:questionOptions.label})
+   .from(questionOptions).innerJoin(questions,eq(questionOptions.questionId,questions.id))
+   .innerJoin(pages,eq(questions.pageId,pages.id))
+   .where(eq(pages.versionId,versionId)).orderBy(asc(questionOptions.position)),
+ ]);
+ const optionsByQuestion=new Map<string,Array<{value:string;label:string}>>();
+ for(const option of optionRows){
+  if(!optionsByQuestion.has(option.questionId))optionsByQuestion.set(option.questionId,[]);
+  optionsByQuestion.get(option.questionId)!.push({value:option.value,label:option.label});
+ }
+ const questionsByPage=new Map<string,PublicForm['pages'][number]['questions']>();
+ for(const q of questionRows){
+  if(!questionsByPage.has(q.pageId))questionsByPage.set(q.pageId,[]);
+  const limits=audioLimits(q.settings);
+  questionsByPage.get(q.pageId)!.push({
+   id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,
+   settings:q.type==='statement'?q.settings:q.type==='audio'?{allowTextSupplement:q.settings?.allowTextSupplement===true}:undefined,
+   options:optionsByQuestion.get(q.id)??[],mode:audioMode(q.type,q.settings),
+   maxAudioSeconds:limits.maxSeconds,maxAudioBytes:limits.maxBytes,
+  });
+ }
+ return pageRows.map(page=>({...page,questions:questionsByPage.get(page.id)??[]}));
+}
 async function getPublicVersion(slug:string,versionId:string):Promise<PublicForm|null>{
   const db=getDb();
   const [row]=await db.select({id:forms.id,slug:forms.slug,title:forms.title,description:forms.description,settings:forms.settings,
     versionId:formVersions.id,number:formVersions.number}).from(forms).innerJoin(formVersions,and(eq(formVersions.formId,forms.id),eq(formVersions.id,versionId),eq(formVersions.status,'published')))
     .where(and(eq(forms.slug,slug),isNull(forms.archivedAt),isNull(forms.deletedAt))).limit(1);
   if(!row)return null;
-  const pageRows=await db.select().from(pages).where(eq(pages.versionId,row.versionId)).orderBy(asc(pages.position));
-  const resultPages:PublicForm['pages']=[]; 
-  for(const p of pageRows){
-    const qs=await db.select().from(questions).where(eq(questions.pageId,p.id)).orderBy(asc(questions.position));
-    const resultQuestions:PublicForm['pages'][number]['questions']=[];
-    for(const q of qs){
-      const opts=await db.select({value:questionOptions.value,label:questionOptions.label}).from(questionOptions)
-        .where(eq(questionOptions.questionId,q.id)).orderBy(asc(questionOptions.position));
-       
-      const limits=audioLimits(q.settings);
-      resultQuestions.push({id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,settings:q.type==='statement'?q.settings:undefined,options:opts,mode:audioMode(q.type,q.settings),maxAudioSeconds:limits.maxSeconds,maxAudioBytes:limits.maxBytes});
-    }
-    resultPages.push({id:p.id,title:p.title,description:p.description,questions:resultQuestions});
-  }
+  const resultPages=await hydratePages(row.versionId);
   return {id:row.id,slug,title:row.title,description:row.description,versionId:row.versionId,versionNumber:row.number,requireConsent:false,pages:resultPages};
 }
 async function submitValidated(slug:string,form:PublicForm,input:PublicSubmissionInput){
