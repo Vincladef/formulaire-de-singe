@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { sanitizeDocumentHtml } from '../shared/richText';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, FileQuestion, LoaderCircle } from 'lucide-react';
 import { AudioRecorder } from '../components/AudioRecorder';
-import { audioMode, type AudioDraft, type UploadedAudio, AUDIO_PART_BYTES } from '../shared/audio';
+import { audioMode, type AudioDraft, type UploadedAudio, DIRECT_AUDIO_BYTES } from '../shared/audio';
 import { type AnswerValues, type PublicForm, type PublicQuestion, toSubmissionAnswers, validateAnswers, isAnswered, OTHER_VALUE, isOtherAnswer } from '../shared/publicForm';
 
 type ApiResult<T>={ok:true;data:T}|{ok:false;error:{code:string;message:string}};
@@ -16,6 +16,20 @@ async function getPublic(slug:string,signal:AbortSignal):Promise<PublicForm>{
  if(!payload.ok)throw new Error(payload.error.message);
  return payload.data;
 }
+/** A failed chunk may have been stored already; the server accepts exact-part retries. */
+async function sendAudioChunk(url:string,options:RequestInit):Promise<void>{
+ for(let attempt=0;attempt<3;attempt++){
+  let response:Response|undefined;
+  try{response=await fetch(url,options);}
+  catch(error){if(attempt===2)throw error;}
+  if(response?.ok)return;
+  if(response&&!([408,425,429,500,502,503,504].includes(response.status)))
+   throw new Error('Envoi audio refusé ('+response.status+').');
+  if(attempt===2)throw new Error('Transfert audio interrompu. Réessayez.');
+  await new Promise<void>(resolve=>setTimeout(resolve,350*2**attempt));
+ }
+}
+
 export function QuestionField({question,value,onChange,error,audioStatus}: {question:PublicQuestion;value:AnswerValues[string];onChange:(value:AnswerValues[string])=>void;error?:string;audioStatus?:'uploading'|'ready'|'error'}){
  const describedBy=`description-${question.id}`;
  const errorId=`error-${question.id}`;
@@ -136,21 +150,38 @@ export function PublicFormPage(){
   const promise=(async()=>{
    const api=`/api/public/forms/${encodeURIComponent(currentForm.slug)}/audio`;
    const clientNonce=nonceRef.current;
+   if(draft.file.size<=DIRECT_AUDIO_BYTES){
+    const direct=await fetch(`${api}/direct`,{
+     method:'POST',headers:{'Content-Type':draft.file.type,
+      'x-audio-version':currentForm.versionId,
+      'x-audio-question':questionId,'x-audio-nonce':clientNonce,
+      'x-audio-duration-ms':String(draft.durationMs)},
+     body:draft.file,
+    });
+    // A client with a cached older deployment can still use multipart.
+    if(direct.status!==404&&direct.status!==405){
+     const result=await direct.json() as ApiResult<UploadedAudio>;
+     if(!result.ok)throw new Error(result.error.message);
+     return result.data;
+    }
+   }
    const prepare=await fetch(`${api}/prepare`,{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({versionId:currentForm.versionId,questionId,clientNonce:clientNonce,
+    body:JSON.stringify({versionId:currentForm.versionId,questionId,clientNonce,
      mimeType:draft.file.type,byteSize:draft.file.size,durationMs:draft.durationMs})});
    const prep=await prepare.json() as ApiResult<{uploadId:string;claimToken:string;partBytes:number;partCount:number}>;
    if(!prep.ok)throw new Error(prep.error.message);
-   const {uploadId,claimToken,partCount}=prep.data;
+   const {uploadId,claimToken,partCount,partBytes}=prep.data;
+   if(!Number.isInteger(partBytes)||partBytes<=0||partBytes>DIRECT_AUDIO_BYTES)
+    throw new Error('Taille des portions audio invalide.');
    let nextPart=0;
    await Promise.all(Array.from({length:Math.min(3,partCount)},async()=>{
     while(nextPart<partCount){
      const i=nextPart++;
-     const chunk=draft.file.slice(i*AUDIO_PART_BYTES,Math.min((i+1)*AUDIO_PART_BYTES,draft.file.size));
-     const response=await fetch(`${api}/${uploadId}/parts/${i}`,{
+     const chunk=draft.file.slice(i*partBytes,Math.min((i+1)*partBytes,draft.file.size));
+     await sendAudioChunk(`${api}/${uploadId}/parts/${i}`,{
       method:'POST',headers:{'Content-Type':'application/octet-stream',
-       'x-audio-nonce':clientNonce,'x-audio-claim':claimToken},body:chunk});
-     if(!response.ok)throw new Error(`Transfert audio interrompu (portion ${i+1}/${partCount}).`);
+       'x-audio-nonce':clientNonce,'x-audio-claim':claimToken},body:chunk,
+     });
     }
    }));
    const finish=await fetch(`${api}/complete`,{method:'POST',headers:{'Content-Type':'application/json'},
