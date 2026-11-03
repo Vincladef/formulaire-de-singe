@@ -22,7 +22,7 @@ export function AudioRecorder({value,onChange,maxSeconds=600,maxBytes=MAX_AUDIO_
   if(!value){setUrl('');return;}
   const next=URL.createObjectURL(value.file);setUrl(next);
   return ()=>URL.revokeObjectURL(next);
- },[value]);
+ },[value?.file]);
  useEffect(()=>()=>{stop();free();},[]);
  async function start(){
   if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){
