@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { requireUser, UnauthorizedError } from './auth';
-import { assertSheetOwner, createGoogleSpreadsheet, disconnectSheets, exchangeGoogleCode, getSheetsStatus, resetFailedSheets, saveGoogleConnection, sheetsConfigured } from './sheetsService';
+import { assertSheetOwner, createGoogleSpreadsheet, disconnectSheets, exchangeGoogleCode, getSheetsStatus, resetFailedSheets, saveGoogleConnection, sheetsConfigured, syncGoogleSheets } from './sheetsService';
 
 const json=(data:unknown,status=200,headers?:HeadersInit)=>Response.json(data,{status,headers:{'Cache-Control':'no-store, private','X-Content-Type-Options':'nosniff',...headers}});
 const COOKIE='monk_google_oauth_state';
@@ -23,16 +23,17 @@ function parseState(encoded:string){
 function getCookie(request:Request,name:string){
  return (request.headers.get('cookie')??'').split(';').map(v=>v.trim()).find(v=>v.startsWith(name+'='))?.slice(name.length+1)??'';
 }
-export async function sheetsRestHandler(request:Request):Promise<Response>{
+export async function sheetsRestHandler(request:Request,onConnected?:(formId:string)=>void):Promise<Response>{
  const url=new URL(request.url),path=url.pathname;
  if(path==='/api/integrations/google/callback'){
   const clear=COOKIE+'=; Path=/api/integrations/google/callback; HttpOnly; Secure; SameSite=Lax; Max-Age=0';
-  let outcome='error';
+  let outcome='error',returnFormId:string|null=null;
   try{
    const state=url.searchParams.get('state')??'';
    const supplied=getCookie(request,COOKIE);
    if(!state||!supplied||state!==supplied)throw new Error('Session OAuth différente');
    const {formId,userId}=parseState(state);
+   returnFormId=formId;
    const code=url.searchParams.get('code');
    if(!code)throw new Error('Connexion Google annulée');
    const form=await assertSheetOwner(userId,formId);
@@ -40,13 +41,15 @@ export async function sheetsRestHandler(request:Request):Promise<Response>{
    const id=await createGoogleSpreadsheet(token.access,form.title);
    await saveGoogleConnection(formId,userId,id,token.refresh);
    outcome='connected';
+   onConnected?.(formId);
   }catch(error){console.error('Google callback failure',error instanceof Error?error.name:'Unknown');}
   const dest=new URL('/studio',url.origin);dest.searchParams.set('google',outcome);
+  if(returnFormId)dest.searchParams.set('google_form',returnFormId);
   return new Response(null,{status:303,headers:{Location:dest.toString(),'Set-Cookie':clear,'Cache-Control':'no-store'}});
  }
  try{
   const userId=await requireUser(request);
-  const match=path.match(/^\/api\/integrations\/google\/([0-9a-f-]{36})(?:\/(start|retry))?\/?$/i);
+  const match=path.match(/^\/api\/integrations\/google\/([0-9a-f-]{36})(?:\/(start|retry|sync))?\/?$/i);
   if(!match)return json({ok:false,error:{message:'Introuvable'}},404);
   const formId=match[1],operation=match[2];
   if(request.method==='GET'&&!operation)return json({ok:true,data:await getSheetsStatus(userId,formId)});
@@ -65,6 +68,12 @@ export async function sheetsRestHandler(request:Request):Promise<Response>{
    oauth.searchParams.set('state',state);
    const cookie=COOKIE+'='+state+'; Path=/api/integrations/google/callback; HttpOnly; Secure; SameSite=Lax; Max-Age=600';
    return json({ok:true,data:{authorizationUrl:oauth.toString()}},200,{'Set-Cookie':cookie});
+  }
+  if(request.method==='POST'&&operation==='sync'){
+   const status=await getSheetsStatus(userId,formId);
+   if(!status.connected)return json({ok:false,error:{message:'Connectez Google Sheets avant de synchroniser.'}},409);
+   const result=await syncGoogleSheets(20,formId);
+   return json({ok:true,data:result});
   }
   if(request.method==='POST'&&operation==='retry'){
    await resetFailedSheets(userId,formId);
