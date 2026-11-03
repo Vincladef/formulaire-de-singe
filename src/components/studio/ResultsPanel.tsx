@@ -1,13 +1,13 @@
 import { useEffect,useMemo,useState } from 'react';
 import { zipSync,strToU8 } from 'fflate';
-import { BarChart3,Download,FileSpreadsheet,Headphones,LoaderCircle } from 'lucide-react';
+import { BarChart3,Download,FileSpreadsheet,Headphones,LoaderCircle,Mic2 } from 'lucide-react';
 import { getAccessToken } from '../../authClient';
 import type { FormResults,ResultAnswer,ResultSubmission } from '../../server/resultsService';
 import { exportAudioAsMp3 } from '../../shared/mp3Export';
 type Result<T>={ok:true;data:T}|{ok:false;error:{message:string}};
 const formatted=(a:ResultAnswer)=>{
  if(a.audioId){const text=a.value&&typeof a.value==='object'&&!Array.isArray(a.value)&&'text' in a.value&&typeof a.value.text==='string'?a.value.text.trim():'';
-  return `Enregistrement audio${a.durationMs?' ('+Math.ceil(a.durationMs/1000)+' s)':''}${text?' ; Texte : '+text:''}`;
+  return `Enregistrement audio${a.durationMs?' ('+Math.ceil(a.durationMs/1000)+' s)':''}${text?' ; Texte saisi : '+text:''}${a.transcript?' ; Transcription : '+a.transcript:''}`;
  }
  if(Array.isArray(a.value))return a.value.map(v=>human(v)).join(' ; ');
  if(typeof a.value==='string')return human(a.value);
@@ -84,12 +84,43 @@ export function ResultsPanel({formId,onOpenIntegrations}:{formId:string;onOpenIn
  const [data,setData]=useState<FormResults|null>(null),[loading,setLoading]=useState(true);
  const [busy,setBusy]=useState(''),[error,setError]=useState(''),[progress,setProgress]=useState(''),[view,setView]=useState<'summary'|'individual'>('summary');
  const [player,setPlayer]=useState<{id:string;url:string}|null>(null);
+ const [transcriptionSettings,setTranscriptionSettings]=useState<{automatic:boolean;available:boolean;canManage:boolean}|null>(null);
  useEffect(()=>{let active=true;setLoading(true);setError('');setData(null);
   requestFormResults(formId,0).then(x=>{if(active)setData(x)}).catch(e=>{if(active)setError(e instanceof Error?e.message:'Résultats indisponibles.')})
    .finally(()=>{if(active)setLoading(false)});
   return()=>{active=false};
  },[formId]);
  useEffect(()=>()=>{if(player)URL.revokeObjectURL(player.url);},[player]);
+ useEffect(()=>{let active=true;setTranscriptionSettings(null);
+  void getAccessToken().then(token=>token?fetch('/api/forms/'+formId+'/audio-transcription',{headers:{Authorization:'Bearer '+token},cache:'no-store'}):null)
+  .then(r=>r?.json()).then((r:Result<{automatic:boolean;available:boolean;canManage:boolean}>|undefined)=>{if(active&&r?.ok)setTranscriptionSettings(r.data);})
+  .catch(()=>{});return()=>{active=false};},[formId]);
+ useEffect(()=>{
+  const pending=data?.submissions.some(s=>s.answers.some(a=>a.audioId&&['pending','processing'].includes(a.transcriptionStatus??'')));
+  if(!pending&&!transcriptionSettings?.automatic)return;
+  let active=true;
+  const timer=setInterval(()=>{void requestFormResults(formId,0).then(x=>{if(active)setData(x)}).catch(()=>{});},12000);
+  return()=>{active=false;clearInterval(timer)};
+ },[formId,data,transcriptionSettings?.automatic]);
+ async function transcribe(id:string){
+  if(busy)return;setBusy('transcribe:'+id);setError('');
+  try{const token=await getAccessToken();if(!token)throw Error('Session expirée.');
+   const res=await fetch('/api/audio/'+id+'/transcribe',{method:'POST',headers:{Authorization:'Bearer '+token}});
+   const body=await res.json() as Result<{status:string}>;
+   if(!body.ok)throw Error(body.error.message);
+   setData(current=>current?{...current,submissions:current.submissions.map(s=>({...s,answers:s.answers.map(a=>a.audioId===id?{...a,transcriptionStatus:'pending'}:a)}))}:current);
+  }catch(e){setError(e instanceof Error?e.message:'Transcription impossible.');}finally{setBusy('');}
+ }
+ async function toggleAutomatic(automatic:boolean){
+  if(!transcriptionSettings?.canManage)return;
+  setBusy('auto');setError('');
+  try{const token=await getAccessToken();if(!token)throw Error('Session expirée.');
+   const res=await fetch('/api/forms/'+formId+'/audio-transcription',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({automatic})});
+   const body=await res.json() as Result<{automatic:boolean}>;
+   if(!body.ok)throw Error(body.error.message);
+   setTranscriptionSettings(s=>s?{...s,automatic:body.data.automatic}:s);
+  }catch(e){setError(e instanceof Error?e.message:'Configuration impossible.');}finally{setBusy('');}
+ }
  const questions=useMemo(()=>{
   const groups=new Map<string,{label:string;type:string;answers:ResultAnswer[]}>();
   for(const s of data?.submissions??[])for(const a of s.answers){
