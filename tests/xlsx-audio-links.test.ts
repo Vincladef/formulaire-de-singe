@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {unzipSync,strFromU8} from 'fflate';
-import {xlsxBytes} from '../src/components/studio/ResultsPanel';
+import {xlsxBytes} from '../src/shared/xlsx';
 describe('export Excel et lien audio privé',()=>{
  it('ajoute une véritable relation de lien externe sur la cellule audio',()=>{
   const zip=unzipSync(xlsxBytes(['Participation','Date','Réponse'],[
