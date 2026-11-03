@@ -174,23 +174,23 @@ La suppression est **logique**, elle ne détruit pas les versions publiées ou r
 
 Le Studio permet de composer des paragraphes, titres et citations parmi les questions. Dans un bloc de texte, taper `/` pour ouvrir le menu des éléments ; `Entrée` crée un nouveau paragraphe. Les boutons `+` et les outils latéraux insèrent une question à la dernière position du curseur. Si l'insertion intervient au milieu d'un texte, les deux fragments sont conservés de part et d'autre du nouveau champ. Les identifiants des questions existantes ne sont pas modifiés.
 
-### Activer Google Sheets
+### Google Sheets, authentification gérée et gratuite
 
-1. Appliquer la migration `drizzle/0007_google_sheets.sql` sur la base Neon utilisée par l'application ; vérifier l'historique Drizzle.
-2. Dans Google Cloud, activer **Google Sheets API**, configurer l'écran de consentement OAuth et créer un client OAuth **Application Web**. Ajouter à ses URI de redirection autorisées `https://monk-form.netlify.app/api/integrations/google/callback` (adapter si domaine personnalisé).
-3. Définir dans Netlify, côté **Functions** uniquement : `GOOGLE_SHEETS_CLIENT_ID`, `GOOGLE_SHEETS_CLIENT_SECRET`, `GOOGLE_SHEETS_REDIRECT_URI`, `GOOGLE_SHEETS_TOKEN_KEY` (32 octets encodés en base64) et `GOOGLE_SHEETS_STATE_SECRET` (au moins 32 caractères aléatoires). Ne jamais ajouter ces secrets à Git.
-4. Redéployer le site ; ouvrir un formulaire > **Intégrations** > **Connecter Google Sheets et créer une feuille** (ou passer par **Résultats** > **Synchroniser avec Google Sheets**). Après autorisation, l'application crée une feuille privée `Monk Form · ...` dans le Drive de l'utilisateur et revient automatiquement à l'onglet **Intégrations** du bon formulaire. Le bouton **Ouvrir mon Google Sheet** donne un accès direct au fichier.
-5. La connexion Google déclenche un premier import asynchrone des réponses existantes. La synchronisation continue automatiquement après chaque participation (sans ralentir le répondant), puis un rattrapage toutes les **15 minutes**. Le bouton **Synchroniser maintenant** lance un passage immédiat ; la table `fs_sheet_deliveries` conserve les reprises et les erreurs. Chaque ligne est identifiée par l'UUID de soumission pour éviter les doublons.
+L'utilisateur ouvre un formulaire dans le Studio, puis **Intégrations > Connecter Google Sheets**. Il choisit son compte Google, l'autorise et revient au formulaire. Une feuille `Monk Form · ...` est créée dans son Drive. Le lien direct, les états de synchronisation, les réponses antérieures et le bouton de reprise figurent dans l'interface. Les réponses suivantes sont envoyées en tâche asynchrone après soumission, avec rattrapage toutes les **15 minutes**.
 
-**Limites et garde-fous :** cette intégration est impossible tant que les variables OAuth ne sont pas installées. Le bouton et un message de configuration restent visibles dans le Studio, sans simuler de connexion réussie. La configuration des clés Google Cloud nécessite une intervention du propriétaire et ne peut pas être remplacée par une session Google personnelle ouverte dans ChatGPT. Le connecteur crée une nouvelle feuille par formulaire ; la sélection d'une feuille existante n'est pas encore proposée. Les fichiers audio ne sont pas exposés dans Sheets ; une mention signale leur présence. Un propriétaire peut arrêter la synchronisation sans supprimer son tableur, et relancer les soumissions en erreur. Le scope Google demandé se limite aux feuilles de calcul.
+**Aucune configuration Google Cloud n'est demandée aux utilisateurs.** L'application s'appuie sur le Google Sheets OAuth géré par Composio ; les jetons Google demeurent chez ce prestataire et ne transitent pas par le navigateur ou la base Neon.
 
-### Contrôles de non-régression
+#### Activation par l'exploitant du site (une fois pour tous)
 
-```sh
-npm run check
-```
+1. Créer un **compte gratuit Composio**, sans renseigner de carte bancaire. Le forfait Free est à **plafond strict** et n'entraîne aucun dépassement facturé ; pour les applications OAuth gérées, voir les seuils actualisés sur https://composio.dev/pricing (actuellement 20 000 appels/mois et 1 000 connexions).
+2. Créer une clé de projet Composio à permissions minimales, autorisant la création des Connect Links, la lecture des comptes et **Proxy Execute**. Dans Netlify, installer la variable serveur `COMPOSIO_API_KEY` exclusivement avec la portée **Functions** et environnement **production**, jamais dans Git ni dans les variables exposées au navigateur.
+3. Dans Composio **Settings > General > Configuration**, activer impérativement **OAuth callback identity verification** et définir exactement l'URL du vérificateur public : `https://monk-form.netlify.app/api/integrations/google/composio/verify`. Ce contrôle empêche la fixation de session OAuth : les comptes ne deviennent actifs qu'après confirmation d'identité Neon Auth et vérification d'appartenance par Composio.
+4. Exécuter la migration additive `drizzle/0011_composio_sheets.sql` sur la base Neon de Monk Form, puis déployer le code. Le premier clic crée automatiquement la configuration OAuth gérée, sans client Google Cloud. Une autorisation Google de test doit ensuite créer un tableur puis synchroniser une réponse fictive.
+5. Ne pas activer de formule payante. Au plafond de Composio, la synchronisation reste **en attente dans Neon** ; les données du formulaire restent consultables dans Monk Form. Surveiller l'utilisation Composio avant de dépasser les limites gratuites.
 
-Vérifier aussi manuellement : insertion avant/après un paragraphe, insertion au milieu d'un texte, saisie au clavier, conservation des choix et enregistrements audio, aperçu, publication, soumission publique puis apparition de la réponse dans Google Sheets après activation OAuth.
+**Important :** le vérificateur doit être actif dans le projet Composio avant d'ouvrir le service aux utilisateurs. Sans cette protection, le callback refuse la connexion. Les anciennes connexions `legacy` Google OAuth restent reconnues si elles existaient ; elles exigent leur configuration historique (`GOOGLE_SHEETS_CLIENT_ID`, `GOOGLE_SHEETS_CLIENT_SECRET`, etc.) mais ne sont pas nécessaires avec Composio.
+
+**Limites :** une nouvelle feuille est créée pour chaque formulaire, tandis que l'autorisation Google se réutilise pour un même compte propriétaire. La sélection graphique d'un tableur existant n'est pas encore disponible. Les audios restent privés et sont représentés par une mention textuelle. Seul le propriétaire contrôle l'intégration.
 
 ## Exports audio MP3
 
