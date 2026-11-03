@@ -294,12 +294,23 @@ export function ResultsPanel({formId,onOpenIntegrations}:{formId:string;onOpenIn
          <div className="mt-3 rounded-xl border border-[#dbe8db] bg-[#f7faf5] p-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
            <p className="text-xs font-semibold text-[#3b6249]">Transcription</p>
-           {!ans.transcript&&transcriptionSettings?.available&&transcriptionSettings.canManage&&!['pending','processing'].includes(ans.transcriptionStatus??'')&&
+           {!ans.transcript&&transcriptionSummary?.available&&transcriptionSummary.canManage&&!['pending','processing'].includes(ans.transcriptionStatus??'')&&
             <button type="button" onClick={()=>void transcribe(ans.audioId!)} disabled={!!busy} className="rounded-lg border border-[#b8d8be] bg-white px-3 py-1.5 text-xs font-semibold text-[#336c46] hover:bg-[#e6f2e6] disabled:opacity-50">
              {busy==='transcribe:'+ans.audioId?'Envoi…':ans.transcriptionStatus==='failed'?'Réessayer':'Transcrire cet audio'}
             </button>}
+           {ans.transcript&&<details className="relative ml-auto">
+            <summary aria-label="Actions de transcription" title="Actions de transcription" className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-lg text-[#608068] hover:bg-[#e7f1e5] [&::-webkit-details-marker]:hidden"><Ellipsis size={17}/></summary>
+            <div className="absolute right-0 top-9 z-20 w-48 rounded-xl border border-[#dae6d8] bg-white p-1.5 shadow-lg">
+             <button type="button" onClick={e=>{e.currentTarget.closest('details')?.removeAttribute('open');void copyTranscript(ans.transcript!);}} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs hover:bg-[#edf5eb]"><Copy size={14}/> Copier le texte</button>
+             {transcriptionSummary?.canManage&&<button type="button" disabled={!!busy} onClick={e=>{e.currentTarget.closest('details')?.removeAttribute('open');void transcribe(ans.audioId!,true);}} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs hover:bg-[#edf5eb]"><Mic2 size={14}/> Retranscrire</button>}
+            </div>
+           </details>}
           </div>
-          {ans.transcript?<p className="whitespace-pre-wrap text-sm leading-6 text-[#365342]">{ans.transcript}</p>:
+          {ans.transcript?<div>
+           <p className="mb-2 text-[11px] text-[#778b78]">Texte généré par IA ; vérifiez les passages importants à l’écoute.</p>
+           <p className="whitespace-pre-wrap text-sm leading-6 text-[#365342]">{ans.transcript}</p>
+           {['pending','processing'].includes(ans.transcriptionStatus??'')&&<p role="status" className="mt-2 text-xs text-[#527b5c]">Nouvelle transcription en cours…</p>}
+          </div>:
            ['pending','processing'].includes(ans.transcriptionStatus??'')?<p className="text-xs text-[#657f69]">Transcription en cours ; le texte apparaîtra ici automatiquement.</p>:
            ans.transcriptionStatus==='failed'?<p className="text-xs text-[#a35b43]">{ans.transcriptionError||'La transcription a échoué.'}</p>:
            <p className="text-xs text-[#7a8a7d]">Aucune transcription pour cet enregistrement.</p>}
