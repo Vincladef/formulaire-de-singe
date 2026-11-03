@@ -48,10 +48,10 @@ export async function activeAccounts(neonId:string):Promise<Account[]>{
  const listing=await request<{items:Account[]}>('/connected_accounts?'+q);
  return (listing.items??[]).filter(x=>x.user_id===user&&x.toolkit?.slug==='googlesheets'&&x.status==='ACTIVE'&&!x.is_disabled);
 }
-export async function startComposioGoogle(neonId:string,callback:string):Promise<string>{
+export async function startComposioGoogle(neonId:string,callback:string):Promise<{authorizationUrl:string;expectedAccountId:string}>{
  if(new URL(callback).origin!=='https://monk-form.netlify.app')
   throw new Error('URL de retour Google Sheets invalide.');
- const linked=await request<{redirect_url:string}>('/connected_accounts/link','POST',{
+ const linked=await request<{redirect_url:string;connected_account_id:string}>('/connected_accounts/link','POST',{
   auth_config_id:await authConfigId(),
   user_id:composioUserId(neonId),
   callback_url:callback,
@@ -59,17 +59,16 @@ export async function startComposioGoogle(neonId:string,callback:string):Promise
  const url=new URL(linked.redirect_url);
  if(url.protocol!=='https:'||!(url.hostname==='composio.dev'||url.hostname.endsWith('.composio.dev')))
   throw new Error('Page d’autorisation Google Sheets invalide.');
- return url.toString();
+ // The link API returns the expected connection id before OAuth; bind that ID
+ // to the owner's signed session and reject any different ID on callback.
+ if(!/^ca_[A-Za-z0-9_-]{2,150}$/.test(linked.connected_account_id??''))
+  throw new Error('La demande de connexion Google Sheets est incomplète.');
+ return {authorizationUrl:url.toString(),expectedAccountId:linked.connected_account_id};
 }
-export async function completeComposioGoogle(neonId:string,sessionUri:string):Promise<string>{
- if(!sessionUri||sessionUri.length>3000)throw new Error('Session Google invalide.');
- const result=await request<{connected_account_id:string;toolkit_slug:string}>('/connected_accounts/complete_auth','POST',{
-  session_uri:sessionUri,user_id:composioUserId(neonId),
- });
- if(result.toolkit_slug!=='googlesheets'||!result.connected_account_id)
-  throw new Error('Connexion Google Sheets invalide.');
- await verifyComposioAccount(neonId,result.connected_account_id);
- return result.connected_account_id;
+/** Verify the OAuth connection created by the previously issued Connect Link. */
+export async function completeComposioGoogle(neonId:string,accountId:string):Promise<string>{
+ await verifyComposioAccount(neonId,accountId);
+ return accountId;
 }
 export async function verifyComposioAccount(neonId:string,accountId:string){
  if(!/^ca_[A-Za-z0-9_-]{2,150}$/.test(accountId))throw new Error('Identifiant de connexion Google invalide.');

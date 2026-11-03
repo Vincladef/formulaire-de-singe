@@ -8,7 +8,7 @@ const COOKIE='monk_google_oauth_state';
 const MANAGED_COOKIE='monk_managed_sheets_state',SESSION_COOKIE='monk_managed_sheets_uri';
 const managedRoot='/api/integrations/google/composio';
 function stateSecret(){const key=process.env.GOOGLE_SHEETS_STATE_SECRET;if(!key||key.length<32)throw new Error('Secret OAuth absent ou trop court');return key;}
-function signState(payload:{formId:string;userId:string;exp:number;nonce:string},secret=stateSecret()){
+function signState(payload:{formId:string;userId:string;exp:number;nonce:string;accountId?:string},secret=stateSecret()){
  const encoded=Buffer.from(JSON.stringify(payload)).toString('base64url');
  const sig=createHmac('sha256',secret).update(encoded).digest('base64url');
  return encoded+'.'+sig;
@@ -19,9 +19,9 @@ function parseState(encoded:string,secret=stateSecret()){
  const expected=createHmac('sha256',secret).update(body).digest();
  const actual=Buffer.from(sig,'base64url');
  if(actual.length!==expected.length||!timingSafeEqual(actual,expected))throw new Error('Signature OAuth invalide');
- const data=JSON.parse(Buffer.from(body,'base64url').toString('utf8')) as {formId?:string;userId?:string;exp?:number;nonce?:string};
+ const data=JSON.parse(Buffer.from(body,'base64url').toString('utf8')) as {formId?:string;userId?:string;exp?:number;nonce?:string;accountId?:string};
  if(!data.formId||!data.userId||!data.exp||data.exp<Date.now()||data.exp>Date.now()+600_000||!data.nonce)throw new Error('Demande OAuth expirée');
- return {formId:data.formId,userId:data.userId};
+ return {formId:data.formId,userId:data.userId,accountId:data.accountId};
 }
 function getCookie(request:Request,name:string){
  return (request.headers.get('cookie')??'').split(';').map(v=>v.trim()).find(v=>v.startsWith(name+'='))?.slice(name.length+1)??'';
@@ -32,11 +32,17 @@ export async function sheetsRestHandler(request:Request,onConnected?:(formId:str
  // before the returning person proves their Monk Form identity with a bearer JWT.
  if(path===managedRoot+'/verify'&&request.method==='GET'){
   const initial=getCookie(request,MANAGED_COOKIE);
-  const sessionUri=url.searchParams.get('session_uri');
-  if(!initial||!sessionUri||sessionUri.length>3000)
-   return new Response(null,{status:303,headers:{Location:new URL('/studio?google=error',url.origin).toString()}});
+  const accountId=url.searchParams.get('connected_account_id')??'';
+  const status=url.searchParams.get('status');
+  try{
+   if(!composioConfigured()||status!=='success'||!initial)throw new Error('Connexion Google refusée.');
+   const state=parseState(initial,process.env.COMPOSIO_API_KEY!);
+   if(!state.accountId||accountId!==state.accountId)throw new Error('Connexion Google inattendue.');
+  }catch{
+   return new Response(null,{status:303,headers:{Location:new URL('/studio?google=error',url.origin).toString(),'Cache-Control':'no-store'}});
+  }
   const headers=new Headers({Location:new URL('/studio?google=verifying',url.origin).toString(),'Cache-Control':'no-store'});
-  headers.append('Set-Cookie',SESSION_COOKIE+'='+encodeURIComponent(sessionUri)+'; Path='+managedRoot+'/complete; HttpOnly; Secure; SameSite=Lax; Max-Age=600');
+  headers.append('Set-Cookie',SESSION_COOKIE+'='+encodeURIComponent(accountId)+'; Path='+managedRoot+'/complete; HttpOnly; Secure; SameSite=Lax; Max-Age=600');
   return new Response(null,{status:303,headers});
  }
  if(path===managedRoot+'/complete'&&request.method==='POST'){
@@ -45,13 +51,13 @@ export async function sheetsRestHandler(request:Request,onConnected?:(formId:str
   try{
    const userId=await requireUser(request);
    const signed=getCookie(request,MANAGED_COOKIE);
-   const sessionUri=decodeURIComponent(getCookie(request,SESSION_COOKIE));
-   if(!composioConfigured()||!signed||!sessionUri)throw new Error('Autorisation Google absente ou expirée.');
+   const accountId=decodeURIComponent(getCookie(request,SESSION_COOKIE));
+   if(!composioConfigured()||!signed||!accountId)throw new Error('Autorisation Google absente ou expirée.');
    const state=parseState(signed,process.env.COMPOSIO_API_KEY!);
-   if(state.userId!==userId)throw new Error('Session Google liée à un autre utilisateur.');
+   if(state.userId!==userId||state.accountId!==accountId)throw new Error('Session Google liée à un autre utilisateur ou à un autre compte.');
    const form=await assertSheetOwner(userId,state.formId);
-   // Composio validates the user ID BEFORE activating the OAuth connection.
-   const accountId=await completeComposioGoogle(userId,sessionUri);
+   // Verify the account became ACTIVE for the same owner and expected toolkit.
+   await completeComposioGoogle(userId,accountId);
    const sheetId=await createComposioSpreadsheet(userId,accountId,form.title);
    await saveComposioConnection(state.formId,userId,sheetId,accountId);
    onConnected?.(state.formId);
@@ -104,9 +110,10 @@ export async function sheetsRestHandler(request:Request,onConnected?:(formId:str
      onConnected?.(formId);
      return json({ok:true,data:{connected:true}},200);
     }
-    const state=signState({formId,userId,exp:Date.now()+10*60_000,nonce:randomBytes(16).toString('hex')},process.env.COMPOSIO_API_KEY!);
     const callback=new URL(managedRoot+'/verify',url.origin).toString();
-    const authorizationUrl=await startComposioGoogle(userId,callback);
+    const {authorizationUrl,expectedAccountId}=await startComposioGoogle(userId,callback);
+    const state=signState({formId,userId,accountId:expectedAccountId,
+     exp:Date.now()+10*60_000,nonce:randomBytes(16).toString('hex')},process.env.COMPOSIO_API_KEY!);
     const cookie=MANAGED_COOKIE+'='+state+'; Path='+managedRoot+'; HttpOnly; Secure; SameSite=Lax; Max-Age=600';
     return json({ok:true,data:{authorizationUrl}},200,{'Set-Cookie':cookie});
    }

@@ -11,12 +11,12 @@ describe('Composio managed Sheets adapter',()=>{
   fetchMock.mockImplementation(async(url:string)=>{
    if(url.includes('auth_configs?'))return result({items:[]});
    if(url.endsWith('/auth_configs'))return result({auth_config:{id:'ac_abcdef'}},201);
-   if(url.endsWith('/connected_accounts/link'))return result({redirect_url:'https://connect.composio.dev/link/ln_example'},201);
+   if(url.endsWith('/connected_accounts/link'))return result({redirect_url:'https://connect.composio.dev/link/ln_example',connected_account_id:'ca_abcdef'},201);
    throw new Error('Unexpected '+url);
   });
   const auth=await authConfigId();expect(auth).toBe('ac_abcdef');
-  const url=await startComposioGoogle('owner-1','https://monk-form.netlify.app/api/integrations/google/composio/verify');
-  expect(url).toBe('https://connect.composio.dev/link/ln_example');
+  const linked=await startComposioGoogle('owner-1','https://monk-form.netlify.app/api/integrations/google/composio/verify');
+  expect(linked).toEqual({authorizationUrl:'https://connect.composio.dev/link/ln_example',expectedAccountId:'ca_abcdef'});
   const link=fetchMock.mock.calls.find(([url])=>String(url).endsWith('/connected_accounts/link'));
   if(!link)throw new Error('Composio link request absent');
   expect(JSON.parse(link[1].body)).toMatchObject({user_id:'monk-form:owner-1',auth_config_id:'ac_abcdef'});
@@ -31,14 +31,12 @@ describe('Composio managed Sheets adapter',()=>{
  });
  it('vérifie le compte après le callback du fournisseur',async()=>{
   fetchMock.mockImplementation(async(url:string)=>{
-   if(url.endsWith('/connected_accounts/complete_auth'))return result({connected_account_id:'ca_abcdef',toolkit_slug:'googlesheets'});
    if(url.endsWith('/connected_accounts/ca_abcdef'))return result({id:'ca_abcdef',user_id:'monk-form:owner-1',status:'ACTIVE',toolkit:{slug:'googlesheets'}});
    throw Error('Unexpected URL');
   });
-  expect(await completeComposioGoogle('owner-1','opaque://session')).toBe('ca_abcdef');
-  const done=fetchMock.mock.calls.find(([url])=>String(url).endsWith('/complete_auth'));
-  if(!done)throw new Error('Composio completion request absent');
-  expect(JSON.parse(done[1].body).user_id).toBe('monk-form:owner-1');
+  expect(await completeComposioGoogle('owner-1','ca_abcdef')).toBe('ca_abcdef');
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(fetchMock.mock.calls[0][0]).toMatch(/connected_accounts\/ca_abcdef$/);
  });
  it('crée la feuille et ses en-têtes via le proxy Google sans exposer de jeton OAuth',async()=>{
   fetchMock.mockImplementation(async(_url:string,init:RequestInit)=>{

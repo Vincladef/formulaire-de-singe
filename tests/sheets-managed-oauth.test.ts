@@ -26,8 +26,8 @@ beforeEach(()=>{
  vi.mocked(composioConfigured).mockReturnValue(true);
  vi.mocked(sheetsConfigured).mockReturnValue(true);
  vi.mocked(activeAccounts).mockResolvedValue([]);
- vi.mocked(startComposioGoogle).mockResolvedValue('https://connect.composio.dev/link/example');
- vi.mocked(completeComposioGoogle).mockResolvedValue('ca_abcdef');
+ vi.mocked(startComposioGoogle).mockResolvedValue({authorizationUrl:'https://connect.composio.dev/link/example',expectedAccountId:'ca_expected'});
+ vi.mocked(completeComposioGoogle).mockResolvedValue('ca_expected');
  vi.mocked(createComposioSpreadsheet).mockResolvedValue('sheet123');
  vi.mocked(saveComposioConnection).mockResolvedValue(undefined);
 });
@@ -53,7 +53,7 @@ describe('OAuth Google Sheets géré et sécurisé',()=>{
  it('vérifie identité Neon Auth avant d’activer une connexion Composio',async()=>{
   const res=await call(formId+'/start','POST');
   const stateCookie=res.headers.get('set-cookie')!.split(';')[0];
-  const callback=await sheetsRestHandler(new Request(base+'composio/verify?session_uri=sess%3A%2F%2Fsingle-use',{headers:{Cookie:stateCookie}}));
+  const callback=await sheetsRestHandler(new Request(base+'composio/verify?status=success&connected_account_id=ca_expected',{headers:{Cookie:stateCookie}}));
   expect(callback.status).toBe(303);
   expect(callback.headers.get('location')).toContain('/studio?google=verifying');
   const sessionCookie=callback.headers.get('set-cookie')!.split(';')[0];
@@ -62,14 +62,14 @@ describe('OAuth Google Sheets géré et sécurisé',()=>{
    headers:{Cookie:stateCookie+'; '+sessionCookie,Authorization:'Bearer owner'}}),connected);
   expect(completion.status).toBe(200);
   expect((await completion.json()).data.formId).toBe(formId);
-  expect(completeComposioGoogle).toHaveBeenCalledWith('owner-1','sess://single-use');
-  expect(saveComposioConnection).toHaveBeenCalledWith(formId,'owner-1','sheet123','ca_abcdef');
+  expect(completeComposioGoogle).toHaveBeenCalledWith('owner-1','ca_expected');
+  expect(saveComposioConnection).toHaveBeenCalledWith(formId,'owner-1','sheet123','ca_expected');
   expect(connected).toHaveBeenCalledWith(formId);
  });
  it('rejette une personne différente lors du retour OAuth',async()=>{
   const res=await call(formId+'/start','POST');
   const stateCookie=res.headers.get('set-cookie')!.split(';')[0];
-  const callback=await sheetsRestHandler(new Request(base+'composio/verify?session_uri=sess',{headers:{Cookie:stateCookie}}));
+  const callback=await sheetsRestHandler(new Request(base+'composio/verify?status=success&connected_account_id=ca_expected',{headers:{Cookie:stateCookie}}));
   const sessionCookie=callback.headers.get('set-cookie')!.split(';')[0];
   vi.mocked(requireUser).mockResolvedValue('attacker-2');
   const completion=await sheetsRestHandler(new Request(base+'composio/complete',{method:'POST',
@@ -78,7 +78,23 @@ describe('OAuth Google Sheets géré et sécurisé',()=>{
   expect(completeComposioGoogle).not.toHaveBeenCalled();
   expect(saveComposioConnection).not.toHaveBeenCalled();
  });
- it('ne confirme rien si le callback Composio ne fournit aucun session_uri',async()=>{
+ it('rejette un identifiant de compte différent de la demande OAuth signée',async()=>{
+  const res=await call(formId+'/start','POST');
+  const stateCookie=res.headers.get('set-cookie')!.split(';')[0];
+  const callback=await sheetsRestHandler(new Request(base+'composio/verify?status=success&connected_account_id=ca_attacker',{headers:{Cookie:stateCookie}}));
+  expect(callback.status).toBe(303);
+  expect(callback.headers.get('location')).toContain('google=error');
+  expect(callback.headers.get('set-cookie')).toBeNull();
+  expect(completeComposioGoogle).not.toHaveBeenCalled();
+ });
+ it('rejette une autorisation refusée par Google',async()=>{
+  const res=await call(formId+'/start','POST');
+  const stateCookie=res.headers.get('set-cookie')!.split(';')[0];
+  const callback=await sheetsRestHandler(new Request(base+'composio/verify?status=failed&connected_account_id=ca_expected',{headers:{Cookie:stateCookie}}));
+  expect(callback.headers.get('location')).toContain('google=error');
+  expect(completeComposioGoogle).not.toHaveBeenCalled();
+ });
+ it('ne confirme rien si le callback Composio ne fournit aucun compte vérifiable',async()=>{
   const res=await call(formId+'/start','POST');
   const callback=await sheetsRestHandler(new Request(base+'composio/verify',{headers:{Cookie:res.headers.get('set-cookie')!.split(';')[0]}}));
   expect(callback.headers.get('location')).toContain('google=error');
