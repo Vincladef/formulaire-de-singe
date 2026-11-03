@@ -263,7 +263,13 @@ export function StudioPage(){
  }
  const allVisibleItems=items.filter(i=>showArchived?!!i.archivedAt:!i.archivedAt);
  const folderCounts:Record<string,number>={uncategorized:0};
- for(const item of allVisibleItems){const id=item.folderId??'uncategorized';folderCounts[id]=(folderCounts[id]??0)+1;}
+ for(const item of allVisibleItems){
+  let id=item.folderId??'uncategorized';const seen=new Set<string>();
+  while(id&&!seen.has(id)){
+   seen.add(id);folderCounts[id]=(folderCounts[id]??0)+1;
+   id=folders.find(folder=>folder.id===id)?.parentId??'';
+  }
+ }
  const folderById=new Map(folders.map(f=>[f.id,f]));
  const blockedFolderTargets=folderMoveTarget?folders.filter(candidate=>{
   let current:FolderInfo|undefined=candidate;const visited=new Set<string>();
