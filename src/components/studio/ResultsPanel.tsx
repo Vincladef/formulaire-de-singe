@@ -38,7 +38,7 @@ function download(name:string,data:Blob){
  document.body.appendChild(link);link.click();link.remove();
  setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
-function xlsxBytes(headers:string[],rows:string[][],hyperlinks:Array<{row:number;column:number;url:string}>){
+export function xlsxBytes(headers:string[],rows:string[][],hyperlinks:Array<{row:number;column:number;url:string}>){
  const enc=(value:string)=>String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
  const col=(index:number)=>{let n=index+1,out='';while(n){n--;out=String.fromCharCode(65+n%26)+out;n=Math.floor(n/26);}return out;};
  const values=[headers,...rows];
