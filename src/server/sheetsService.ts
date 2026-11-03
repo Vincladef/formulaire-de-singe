@@ -65,7 +65,7 @@ export async function createGoogleSpreadsheet(access:string,title:string){
  });
  if(!created.spreadsheetId)throw new Error('Google n’a pas créé la feuille.');
  await googleJSON(ROOT+'/'+encodeURIComponent(created.spreadsheetId)+'/values/'+encodeURIComponent("'"+SHEET_NAME+"'!A1:B1")+'?valueInputOption=RAW',access,{
-  method:'PUT',body:JSON.stringify({values:[['ID soumission','Date UTC']]})
+  method:'PUT',body:JSON.stringify({values:[['ID soumission','Date de participation (Paris)']]})
  });
  return created.spreadsheetId;
 }
