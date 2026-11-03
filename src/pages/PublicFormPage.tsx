@@ -153,7 +153,7 @@ export function PublicFormPage(){
     }
    }));
    const finish=await fetch(`${api}/complete`,{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({uploadId,claimToken,clientNonce:nonceRef.current})});
+    body:JSON.stringify({uploadId,claimToken,clientNonce})});
    const confirmed=await finish.json() as ApiResult<{verified:boolean}>;
    if(!confirmed.ok||!confirmed.data.verified)
     throw new Error(confirmed.ok?'Le fichier audio est incomplet.':confirmed.error.message);
