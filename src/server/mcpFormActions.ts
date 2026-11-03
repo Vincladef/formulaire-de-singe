@@ -1,7 +1,7 @@
 import { FormActions, NotFoundFault, ValidationFault } from './formActions';
 import { folderActions } from './folderService';
 import { ConflictFault, PermissionFault } from './studioRepository';
-import { compiledDraft, mcpCreateFormSchema, mcpFormContentSchema, type McpCreateForm, type McpFormContent } from '../shared/mcpForm';
+import { compiledDraft, mcpCreateFormSchema, mcpFormContentSchema } from '../shared/mcpForm';
 import type { FormDetail } from '../shared/formApi';
 
 /** One orchestration layer shared by all new MCP writing tools.
