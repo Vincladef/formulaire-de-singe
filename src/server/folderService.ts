@@ -15,6 +15,7 @@ function parsed<T>(schema:z.ZodSchema<T>, input:unknown):T{
  if(!result.success)throw new FolderValidationError('Nom ou identifiant de dossier incorrect.');
  return result.data;
 }
+export type FolderSummary={id:string;name:string;parentId?:string|null;createdAt:string};
 const serialize=(f:{id:string;name:string;parentId:string|null;createdAt:Date})=>({id:f.id,name:f.name,parentId:f.parentId,createdAt:f.createdAt.toISOString()});
 type TreeFolder={id:string;parentId:string|null};
 function folderChain(list:TreeFolder[],id:string):string[]|null{
@@ -40,12 +41,12 @@ function folderSubtreeHeight(list:TreeFolder[],id:string,seen=new Set<string>())
 
 /** Folder operations are owner-only; invited editors never access private organisation. */
 export const folderActions={
- async list(userId:string){
+ async list(userId:string):Promise<FolderSummary[]>{
   const rows=await getDb().select({id:folders.id,name:folders.name,parentId:folders.parentId,createdAt:folders.createdAt})
    .from(folders).where(eq(folders.ownerId,userId)).orderBy(asc(folders.name),asc(folders.id));
   return rows.map(serialize);
  },
- async create(userId:string,input:unknown){
+ async create(userId:string,input:unknown):Promise<FolderSummary>{
   const {name,parentId}=parsed(folderCreateSchema,input);
   if(parentId){
    const list=await folderActions.list(userId);
@@ -57,7 +58,7 @@ export const folderActions={
    .returning({id:folders.id,name:folders.name,parentId:folders.parentId,createdAt:folders.createdAt});
   return serialize(row);
  },
- async rename(userId:string,id:unknown,input:unknown){
+ async rename(userId:string,id:unknown,input:unknown):Promise<FolderSummary>{
   const {id:folderId}=parsed(folderParams,{id});
   const {name}=parsed(folderNameSchema,input);
   const [row]=await getDb().update(folders).set({name,updatedAt:sql`now()`})
@@ -107,4 +108,3 @@ export const folderActions={
   return row;
  },
 };
-export type FolderSummary=Awaited<ReturnType<typeof folderActions.list>>[number];
