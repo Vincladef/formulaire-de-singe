@@ -111,6 +111,22 @@ export function StudioPage(){
   window.history.replaceState(window.history.state,'',window.location.pathname);
   if(resumeId&&/^[0-9a-f-]{36}$/i.test(resumeId))void openForm(resumeId,'integrations');
  },[openForm]);
+ useEffect(()=>{
+  const onShortcut=(event:KeyboardEvent)=>{
+   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'&&!detail){
+    event.preventDefault();searchRef.current?.focus();
+   }
+  };
+  window.addEventListener('keydown',onShortcut);
+  return()=>window.removeEventListener('keydown',onShortcut);
+ },[detail]);
+ useEffect(()=>{
+  if(!detail||activeTab!=='overview')return;
+  let active=true;setOverviewResults(null);
+  void request<{total:number;submissions:Array<{id:string;submittedAt:string|null;answers:unknown[]}>}>(
+   '/api/forms/'+detail.id+'/results?page=0&limit=5').then(x=>{if(active)setOverviewResults(x);}).catch(()=>{});
+  return()=>{active=false;};
+ },[detail,activeTab]);
  async function createForm(){
    const name=await askDialog({kind:'text',title:'Nouveau formulaire',description:'Donne un nom à ton questionnaire. Tu pourras le modifier ensuite.',initialValue:'Mon nouveau formulaire',confirmLabel:'Créer'});if(!name?.trim())return;
    setOperation(true);setError('');try{const result=await request<{id:string}>('/api/forms','POST',{title:name.trim()});
