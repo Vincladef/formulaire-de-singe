@@ -16,7 +16,7 @@ describe('Studio',()=>{
     expect(screen.getByRole('button',{name:/Nouveau formulaire/i})).toBeInTheDocument();
     expect(await screen.findByRole('alert')).toHaveTextContent(/Impossible de récupérer le jeton de connexion/);
   });
-  it('affiche uniquement Éditeur, Résultats et Paramètres dans un formulaire',async()=>{
+  it('rend visible l’onglet Intégrations et son action Google Sheets',async()=>{
     vi.mocked(getAccessToken).mockResolvedValue('test-jwt');
     const formId='d8ee0d8b-9d43-4609-8865-fd9b090c7fe9';
     const summary={id:formId,title:'Mon nouveau formulaire',slug:'nouveau',role:'owner',
@@ -28,13 +28,18 @@ describe('Studio',()=>{
       }]
     }]};
     vi.stubGlobal('fetch',vi.fn(async(input:string)=>({
-      json:async()=>({ok:true,data:input.includes('/api/forms/')?form:[summary]})
+      json:async()=>({ok:true,data:input.includes('/api/integrations/google/')?
+       {configured:false,connected:false,spreadsheetUrl:null,lastSyncedAt:null,lastError:null,pending:0}:
+       input.includes('/api/forms/')?form:[summary]})
     })));
     render(<MemoryRouter><StudioPage/></MemoryRouter>);
     fireEvent.click(await screen.findByRole('button',{name:/Mon nouveau formulaire/i}));
     const sections=await screen.findByRole('navigation',{name:'Sections du formulaire'});
     expect(within(sections).getAllByRole('button').map(b=>b.textContent?.trim()))
-      .toEqual(['Éditeur','Résultats','Paramètres']);
-    expect(within(sections).queryByText('Intégrations')).not.toBeInTheDocument();
+      .toEqual(['Éditeur','Résultats','Intégrations','Paramètres']);
+    fireEvent.click(within(sections).getByRole('button',{name:'Intégrations'}));
+    expect(await screen.findByRole('region',{name:'Synchronisation Google Sheets'})).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:/Connecter Google Sheets et créer une feuille/i})).toBeDisabled();
+    expect(screen.getByText(/Connexion Google à activer/i)).toBeInTheDocument();
   });
 });
