@@ -265,7 +265,7 @@ export function StudioPage(){
  const folderById=new Map(folders.map(f=>[f.id,f]));
  const folderPath:FolderInfo[]=[];
  if(folderById.has(selectedFolder)){
-  let current=folderById.get(selectedFolder),seen=new Set<string>();
+  let current=folderById.get(selectedFolder);const seen=new Set<string>();
   while(current&&!seen.has(current.id)){
    seen.add(current.id);folderPath.unshift(current);
    current=current.parentId?folderById.get(current.parentId):undefined;
@@ -274,7 +274,7 @@ export function StudioPage(){
  const searchNormalized=searchTerm.trim().toLocaleLowerCase('fr');
  const searchMatch=(item:FormSummary)=>{
   if(!searchNormalized)return false;
-  let parent=item.folderId,labels:string[]=[];const seen=new Set<string>();
+  let parent=item.folderId;const labels:string[]=[];const seen=new Set<string>();
   while(parent&&!seen.has(parent)){
    seen.add(parent);const folder=folderById.get(parent);
    if(!folder)break;labels.push(folder.name);parent=folder.parentId??null;
