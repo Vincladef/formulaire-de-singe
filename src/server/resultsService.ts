@@ -4,7 +4,7 @@ import { getDb } from './db/client';
 export class ResultsFault extends Error {
  constructor(public status:number,public code:string,message:string){super(message);}
 }
-export type ResultAnswer={questionId:string;question:string;type:string;value:unknown;audioId:string|null;durationMs:number|null};
+export type ResultAnswer={questionId:string;question:string;type:string;value:unknown;audioId:string|null;durationMs:number|null;transcript?:string|null;transcriptionStatus?:string|null;transcriptionError?:string|null};
 export type ResultSubmission={id:string;submittedAt:string|null;answers:ResultAnswer[]};
 export type FormResults={formId:string;title:string;slug:string;total:number;page:number;limit:number;submissions:ResultSubmission[]};
 export async function getFormResults(userId:string,formId:string,page:number,limit:number):Promise<FormResults>{
@@ -22,7 +22,8 @@ export async function getFormResults(userId:string,formId:string,page:number,lim
   s.status='submitted' AND s.deleted_at IS NULL`);
  const total=Number(count.rows[0]?.total??0);
  const result=await db.execute(sql`SELECT s.id AS submission_id,s.submitted_at,a.question_id,
-  q.label AS question,q.type,a.value,af.id AS audio_id,af.duration_ms
+  q.label AS question,q.type,a.value,af.id AS audio_id,af.duration_ms,
+  af.transcript,job.status AS transcription_status,job.error AS transcription_error
   FROM (
    SELECT ss.id,ss.submitted_at FROM fs_submissions ss JOIN fs_versions v ON v.id=ss.version_id
    WHERE v.form_id=${formId}::uuid AND ss.status='submitted' AND ss.deleted_at IS NULL
@@ -30,6 +31,7 @@ export async function getFormResults(userId:string,formId:string,page:number,lim
   ) s LEFT JOIN fs_answers a ON a.submission_id=s.id
   LEFT JOIN fs_questions q ON q.id=a.question_id
   LEFT JOIN fs_audio_files af ON af.answer_id=a.id AND af.status='uploaded' AND af.deleted_at IS NULL
+  LEFT JOIN fs_audio_transcription_jobs job ON job.audio_id=af.id
   ORDER BY s.submitted_at DESC,s.id DESC,q.position ASC`);
  const grouped=new Map<string,ResultSubmission>();
  for(const x of result.rows){
@@ -37,7 +39,10 @@ export async function getFormResults(userId:string,formId:string,page:number,lim
   if(!grouped.has(id))grouped.set(id,{id,submittedAt:x.submitted_at?new Date(String(x.submitted_at)).toISOString():null,answers:[]});
   if(x.question_id)grouped.get(id)!.answers.push({questionId:String(x.question_id),question:String(x.question??'Question'),
    type:String(x.type??'unknown'),value:x.value,audioId:x.audio_id?String(x.audio_id):null,
-   durationMs:x.duration_ms==null?null:Number(x.duration_ms)});
+   durationMs:x.duration_ms==null?null:Number(x.duration_ms),
+   transcript:x.transcript==null?null:String(x.transcript),
+   transcriptionStatus:x.transcription_status==null?null:String(x.transcription_status),
+   transcriptionError:x.transcription_error==null?null:String(x.transcription_error)});
  }
  return {formId,title:form.title,slug:form.slug,total,page,limit,submissions:[...grouped.values()]};
 }
