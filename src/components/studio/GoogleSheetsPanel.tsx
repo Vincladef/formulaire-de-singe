@@ -3,11 +3,12 @@ import { CheckCircle2,ExternalLink,FileSpreadsheet,Link2,LoaderCircle,RefreshCw,
 import { getAccessToken } from '../../authClient';
 type Status={configured:boolean;connected:boolean;spreadsheetUrl:string|null;lastSyncedAt:string|null;lastError:string|null;pending:number};
 type Api<T>={ok:true;data:T}|{ok:false;error:{message:string}};
-async function api<T>(formId:string,method='GET',suffix=''):Promise<T>{
+async function api<T>(formId:string,method='GET',suffix='',payload?:Record<string,string>):Promise<T>{
  const token=await getAccessToken();
  if(!token)throw new Error('Reconnectez-vous au Studio.');
  const res=await fetch('/api/integrations/google/'+encodeURIComponent(formId)+suffix,{
-  method,headers:{Authorization:'Bearer '+token},cache:'no-store'
+  method,headers:{Authorization:'Bearer '+token,...(payload?{'Content-Type':'application/json'}:{})},
+  ...(payload?{body:JSON.stringify(payload)}:{}),cache:'no-store'
  });
  const body=await res.json() as Api<T>;
  if(!body.ok)throw new Error(body.error.message);
@@ -16,6 +17,8 @@ async function api<T>(formId:string,method='GET',suffix=''):Promise<T>{
 export function GoogleSheetsPanel({formId,owner=true}:{formId:string;owner?:boolean}){
  const [status,setStatus]=useState<Status|null>(null);
  const [busy,setBusy]=useState(''),[error,setError]=useState('');
+ const [sheetMode,setSheetMode]=useState<'new'|'existing'>('new');
+ const [existingUrl,setExistingUrl]=useState('');
  const load=useCallback(async()=>{
   if(!owner)return;
   try{const s=await api<Status>(formId);setStatus(s);}
@@ -25,7 +28,8 @@ export function GoogleSheetsPanel({formId,owner=true}:{formId:string;owner?:bool
  async function connect(){
   setBusy('connect');setError('');
   try{
-   const data=await api<{authorizationUrl?:string;connected?:boolean}>(formId,'POST','/start');
+   if(sheetMode==='existing'&&!existingUrl.trim())throw new Error('Collez le lien du Google Sheet à utiliser.');
+   const data=await api<{authorizationUrl?:string;connected?:boolean}>(formId,'POST','/start',sheetMode==='existing'?{spreadsheetUrl:existingUrl.trim()}:undefined);
    if(data.connected){await load();setBusy('');return;}
    if(!data.authorizationUrl)throw new Error('Le lien Google Sheets n’a pas été créé.');
    // The signed-in owner returns here after a provider-managed OAuth consent.
@@ -64,9 +68,23 @@ export function GoogleSheetsPanel({formId,owner=true}:{formId:string;owner?:bool
   {error&&<p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p>}
   {!status&&!error&&<p className="mt-4 text-sm text-[#7b9281]"><LoaderCircle size={16} className="mr-2 inline animate-spin"/> Vérification de la connexion…</p>}
   {status&&!status.configured&&<p className="mt-4 rounded-lg bg-[#fff7e7] p-3 text-sm leading-6 text-[#8e723a]" role="status"><strong>Connexion Google à activer.</strong> La connexion simplifiée est en cours d’activation pour ce site. Vous n’avez aucune configuration Google Cloud à effectuer ; vous pourrez sélectionner votre compte Google ici dès que le service sera prêt.</p>}
-  {status&&!status.connected&&<button type="button" disabled={!!busy||!status.configured} onClick={()=>void connect()} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#337450] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
-   {busy==='connect'?<LoaderCircle size={16} className="animate-spin"/>:<Link2 size={16}/>} Connecter Google Sheets
-  </button>}
+  {status&&!status.connected&&<div className="mt-5 space-y-4">
+   <fieldset className="space-y-2">
+    <legend className="mb-2 text-sm font-semibold text-[#46644e]">Destination des réponses</legend>
+    <div className="grid gap-2 sm:grid-cols-2">
+     <button type="button" aria-pressed={sheetMode==='new'} onClick={()=>setSheetMode('new')} className={'rounded-xl border px-4 py-3 text-left text-sm transition '+(sheetMode==='new'?'border-[#4b9465] bg-[#eff8ef] font-semibold text-[#316341]':'border-[#e1e9de] text-[#718576] hover:bg-[#f6faf5]')}>Créer un nouveau tableur</button>
+     <button type="button" aria-pressed={sheetMode==='existing'} onClick={()=>setSheetMode('existing')} className={'rounded-xl border px-4 py-3 text-left text-sm transition '+(sheetMode==='existing'?'border-[#4b9465] bg-[#eff8ef] font-semibold text-[#316341]':'border-[#e1e9de] text-[#718576] hover:bg-[#f6faf5]')}>Utiliser un tableur existant</button>
+    </div>
+   </fieldset>
+   {sheetMode==='existing'&&<div className="space-y-1.5">
+    <label htmlFor="existing-google-sheets-link" className="text-sm font-semibold text-[#46644e]">Lien de votre Google Sheet</label>
+    <input id="existing-google-sheets-link" type="url" value={existingUrl} onChange={e=>setExistingUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/…" className="w-full rounded-xl border border-[#d2dfd2] px-3 py-2.5 text-sm text-[#31553a] outline-none focus:border-[#509267]"/>
+    <p className="text-xs leading-5 text-[#8a9b8b]">Les autres onglets restent intacts. Monk Form utilise l’onglet « Réponses », ou le crée s’il n’existe pas.</p>
+   </div>}
+   <button type="button" disabled={!!busy||!status.configured} onClick={()=>void connect()} className="inline-flex items-center gap-2 rounded-xl bg-[#337450] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+    {busy==='connect'?<LoaderCircle size={16} className="animate-spin"/>:<Link2 size={16}/>} Connecter Google Sheets
+   </button>
+  </div>}
   {status?.connected&&<div className="mt-5 space-y-3 border-t border-[#edf2eb] pt-4">
    {status.spreadsheetUrl&&<a className="inline-flex items-center gap-1.5 font-semibold text-[#387951] underline underline-offset-4" target="_blank" rel="noopener noreferrer" href={status.spreadsheetUrl}>Ouvrir mon Google Sheet <ExternalLink size={15}/></a>}
    <div className="grid gap-2 text-xs text-[#778b7c] sm:grid-cols-2"><p>Dernier envoi : {status.lastSyncedAt?new Date(status.lastSyncedAt).toLocaleString('fr-FR'):'En attente'}</p><p>Réponses en attente : {status.pending}</p></div>
@@ -77,6 +95,6 @@ export function GoogleSheetsPanel({formId,owner=true}:{formId:string;owner?:bool
     <button type="button" disabled={!!busy} onClick={()=>void disconnect()} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-[#a56f69] hover:bg-red-50"><Unplug size={14}/> Déconnecter</button>
    </div>
   </div>}
-  <p className="mt-4 text-xs leading-5 text-[#98a79b]">L’application crée un Google Sheet dans votre compte après autorisation ; vos réponses précédentes y sont ajoutées. Les fichiers audio restent privés ; seule leur présence apparaît dans la feuille.</p>
+  <p className="mt-4 text-xs leading-5 text-[#98a79b]">L’application crée un tableur ou relie celui que vous choisissez après autorisation ; vos réponses précédentes y sont ajoutées. Les fichiers audio restent privés ; seule leur présence apparaît dans la feuille.</p>
  </section>;
 }
