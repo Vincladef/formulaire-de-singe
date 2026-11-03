@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { getDb } from './db/client';
 import {
  MONK_RESOURCE, MONK_ISSUER, opaqueToken, tokenHash, validateOAuthParams,
- verifyClientMetadata, verifyClientId, verifyPkce, type OAuthParams,
+ verifyClientMetadata, verifyClientId, verifyPkce,
 } from './mcpOAuthRules';
 
 export class OAuthFault extends Error{
@@ -16,7 +16,6 @@ type TokenRow={owner_id:string;client_id:string;scope:string;resource:string};
 const asRows=<T>(result:{rows:unknown[]})=>result.rows as T[];
 const codeTtlMinutes=5;
 const accessTtlSeconds=3600;
-const refreshTtlDays=30;
 
 function bearerError(message:string):never{throw new OAuthFault(message,401,'invalid_token');}
 function validateToken(value:string){
@@ -44,7 +43,7 @@ function responseTokens(access:string,refresh:string,scope:string){
 export async function exchangeOAuthCode(input:{
  code:string;client_id:string;redirect_uri:string;code_verifier:string;resource?:string;
 }){
- if(!verifyClientId(input.client_id))throw new OAuthFault('Client non autorisé.','401' as unknown as number,'invalid_client');
+ if(!verifyClientId(input.client_id))throw new OAuthFault('Client non autorisé.',401,'invalid_client');
  if(input.resource&&input.resource!==MONK_RESOURCE)throw new OAuthFault('Ressource non autorisée.');
  validateToken(input.code);
  const db=getDb(),hash=tokenHash(input.code);
