@@ -6,7 +6,8 @@
  */
 const ROOT='https://backend.composio.dev/api/v3.1';
 const SHEETS='https://sheets.googleapis.com/v4/spreadsheets';
-export const composioConfigured=()=>Boolean(process.env.COMPOSIO_API_KEY?.trim());
+// Refuse public connections until the project-wide callback identity verifier is enabled.
+export const composioConfigured=()=>Boolean(process.env.COMPOSIO_API_KEY?.trim()&&process.env.COMPOSIO_OAUTH_VERIFIER_ENABLED==='true');
 export const composioUserId=(neonId:string)=>'monk-form:'+neonId;
 
 type Config={id:string;toolkit?:{slug:string};is_composio_managed?:boolean;auth_scheme?:string;is_disabled?:boolean};
