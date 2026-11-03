@@ -134,8 +134,9 @@ export function PublicFormPage(){
   if(previous?.file===draft.file)return previous.promise;
   const promise=(async()=>{
    const api=`/api/public/forms/${encodeURIComponent(currentForm.slug)}/audio`;
+   const clientNonce=nonceRef.current;
    const prepare=await fetch(`${api}/prepare`,{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({versionId:currentForm.versionId,questionId,clientNonce:nonceRef.current,
+    body:JSON.stringify({versionId:currentForm.versionId,questionId,clientNonce:clientNonce,
      mimeType:draft.file.type,byteSize:draft.file.size,durationMs:draft.durationMs})});
    const prep=await prepare.json() as ApiResult<{uploadId:string;claimToken:string;partBytes:number;partCount:number}>;
    if(!prep.ok)throw new Error(prep.error.message);
@@ -147,7 +148,7 @@ export function PublicFormPage(){
      const chunk=draft.file.slice(i*AUDIO_PART_BYTES,Math.min((i+1)*AUDIO_PART_BYTES,draft.file.size));
      const response=await fetch(`${api}/${uploadId}/parts/${i}`,{
       method:'POST',headers:{'Content-Type':'application/octet-stream',
-       'x-audio-nonce':nonceRef.current,'x-audio-claim':claimToken},body:chunk});
+       'x-audio-nonce':clientNonce,'x-audio-claim':claimToken},body:chunk});
      if(!response.ok)throw new Error(`Transfert audio interrompu (portion ${i+1}/${partCount}).`);
     }
    }));
