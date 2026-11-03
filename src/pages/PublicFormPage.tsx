@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { sanitizeDocumentHtml } from '../shared/richText';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, FileQuestion, LoaderCircle } from 'lucide-react';
@@ -129,7 +129,7 @@ export function PublicFormPage(){
   return true;
  }
  function next(){if(!validatePage())return;setPageIndex(index=>Math.min(index+1,(form?.pages.length??1)-1));window.scrollTo?.({top:0,behavior:'smooth'});}
- async function uploadDraft(questionId:string,draft:AudioDraft,currentForm:PublicForm):Promise<UploadedAudio>{
+ const uploadDraft=useCallback(async(questionId:string,draft:AudioDraft,currentForm:PublicForm):Promise<UploadedAudio>=>{
   const previous=uploadTasksRef.current.get(questionId);
   if(previous?.file===draft.file)return previous.promise;
   const promise=(async()=>{
@@ -169,7 +169,7 @@ export function PublicFormPage(){
    }
   });
   return promise;
- }
+ },[]);
  // Prepare each recording as soon as it is completed, while the respondent fills in the form.
  useEffect(()=>{
   if(!form||submitted)return;
@@ -179,7 +179,7 @@ export function PublicFormPage(){
     void uploadDraft(questionId,value,form).catch(()=>{});
    }
   }
- },[answers,form,submitted]);
+ },[answers,form,submitted,uploadDraft]);
  async function send(){
   if(!form||inFlightRef.current)return;
   const issue=validateAnswers(form,answers);setErrors(issue);
