@@ -60,7 +60,7 @@ export function GoogleSheetsPanel({formId,owner=true}:{formId:string;owner?:bool
   </div>
   {error&&<p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p>}
   {!status&&!error&&<p className="mt-4 text-sm text-[#7b9281]"><LoaderCircle size={16} className="mr-2 inline animate-spin"/> Vérification de la connexion…</p>}
-  {status&&!status.configured&&<p className="mt-4 rounded-lg bg-[#fff7e7] p-3 text-sm leading-6 text-[#8e723a]" role="status"><strong>Connexion Google à activer.</strong> Le module est installé, mais le serveur n’a pas encore ses identifiants OAuth Google. Le propriétaire de l’application doit autoriser l’API Google Sheets dans Google Cloud, créer un client OAuth Web et terminer sa configuration sur Netlify. Le bouton apparaîtra dès que la connexion sera disponible.</p>}
+  {status&&!status.configured&&<p className="mt-4 rounded-lg bg-[#fff7e7] p-3 text-sm leading-6 text-[#8e723a]" role="status"><strong>Connexion Google à activer.</strong> Le module est installé, mais le serveur n’a pas encore ses identifiants OAuth Google. Le propriétaire de l’application doit autoriser l’API Google Sheets dans Google Cloud, créer un client OAuth Web et terminer sa configuration sur Netlify. Le bouton pourra être utilisé dès que ces paramètres seront installés.</p>}
   {status&&!status.connected&&<button type="button" disabled={!!busy||!status.configured} onClick={()=>void connect()} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#337450] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
    {busy==='connect'?<LoaderCircle size={16} className="animate-spin"/>:<Link2 size={16}/>} Connecter Google Sheets et créer une feuille
   </button>}
