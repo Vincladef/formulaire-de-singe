@@ -287,8 +287,9 @@ export function StudioPage(){
  const activeItems=sortedItems.filter(i=>searchNormalized?searchMatch(i):
   selectedFolder==='all'||selectedFolder==='recent'||(selectedFolder==='uncategorized'?!i.folderId:i.folderId===selectedFolder))
   .slice(0,selectedFolder==='recent'&&!searchNormalized?15:undefined);
- const childFolders=!searchNormalized&&folderById.has(selectedFolder)?
-  folders.filter(f=>(f.parentId??null)===selectedFolder).sort((a,b)=>a.name.localeCompare(b.name,'fr')):[];
+ const childFolders=(searchNormalized?folders.filter(f=>f.name.toLocaleLowerCase('fr').includes(searchNormalized)):
+  folderById.has(selectedFolder)?folders.filter(f=>(f.parentId??null)===selectedFolder):[])
+  .sort((a,b)=>a.name.localeCompare(b.name,'fr'));
  const folderTitle=searchNormalized?'Résultats de recherche':selectedFolder==='all'?'Tous les formulaires':
   selectedFolder==='recent'?'Récents':selectedFolder==='uncategorized'?'Sans dossier':
   folderById.get(selectedFolder)?.name??'Dossier';
