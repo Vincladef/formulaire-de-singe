@@ -51,9 +51,14 @@ export function validateAnswers(form: PublicForm, values: AnswerValues): Record<
     if(value!==null&&typeof value==='object'&&!Array.isArray(value)){
       if(mode==='text'||(value.kind!=='audio'&&value.kind!=='audio-draft'))
         errors[q.id]='Ce champ ne permet pas la réponse vocale.';
+      else if(value.text!==undefined && (q.type!=='audio'||q.settings?.allowTextSupplement!==true||typeof value.text!=='string'||value.text.length>500))
+        errors[q.id]='Le texte complémentaire n’est pas valide.';
       continue;
     }
-    if(mode==='audio'){errors[q.id]='Enregistrez une réponse vocale.';continue;}
+    if(mode==='audio'){
+      if(q.type==='audio'&&q.settings?.allowTextSupplement===true&&typeof value==='string'&&value.trim().length>0&&value.length<=500)continue;
+      errors[q.id]='Enregistrez un audio ou rédigez une réponse.';continue;
+    }
     if (q.type==='short_text' || q.type==='long_text') {
       if(typeof value!=='string') errors[q.id]='Saisissez un texte.';
       else if(value.length>(q.type==='short_text'?500:10000)) errors[q.id]='Votre réponse est trop longue.';
