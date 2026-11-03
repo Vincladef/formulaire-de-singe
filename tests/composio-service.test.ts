@@ -78,6 +78,25 @@ describe('Composio managed Sheets adapter',()=>{
   expect(fetchMock).toHaveBeenCalledTimes(2);
   expect(fetchMock.mock.calls.every(([,init])=>JSON.parse(init.body).method==='GET')).toBe(true);
  });
+ it('reconnaît la réponse enveloppée réellement fournie par Composio',async()=>{
+  fetchMock.mockImplementation(async(_url:string,init:RequestInit)=>{
+   const payload=JSON.parse(init.body as string);
+   return result({successful:true,data:{status:200,data:payload.method==='POST'?{spreadsheetId:'sheet-wrapped'}:{}}});
+  });
+  expect(await createComposioSpreadsheet('owner-1','ca_abcdef','Enquête')).toBe('sheet-wrapped');
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(fetchMock.mock.calls.map(([,init])=>JSON.parse(init.body).method)).toEqual(['POST','PUT']);
+ });
+ it('remonte une erreur HTTP de Google même dans une enveloppe Composio 200',async()=>{
+  fetchMock.mockResolvedValue(result({successful:true,data:{status:403,data:{error:{message:'Insufficient scopes'}}}}));
+  await expect(googleSheetsComposioJSON('owner-1','ca_abcdef','https://sheets.googleapis.com/v4/spreadsheets/sheet-123/values/A1'))
+   .rejects.toThrow(/HTTP 403/);
+ });
+ it('refuse une réponse proxy malformée au lieu de la traiter comme une réussite',async()=>{
+  fetchMock.mockResolvedValue(result({successful:true,data:{message:'unknown response'}}));
+  await expect(googleSheetsComposioJSON('owner-1','ca_abcdef','https://sheets.googleapis.com/v4/spreadsheets/sheet-123/values/A1'))
+   .rejects.toThrow(/incomplète/);
+ });
  it('distingue un quota fournisseur des autres erreurs',async()=>{
   fetchMock.mockResolvedValue(result({status:429,data:{message:'limit'}}));
   await expect(googleSheetsComposioJSON('owner-1','ca_abcdef','https://sheets.googleapis.com/v4/spreadsheets/sheet-123/values/A1')).rejects.toThrow(/Quota Google/);
