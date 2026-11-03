@@ -39,7 +39,7 @@ describe('Studio',()=>{
       .toEqual(['Éditeur','Résultats','Intégrations','Paramètres']);
     fireEvent.click(within(sections).getByRole('button',{name:'Intégrations'}));
     expect(await screen.findByRole('region',{name:'Synchronisation Google Sheets'})).toBeInTheDocument();
-    expect(screen.getByRole('button',{name:/Connecter Google Sheets et créer une feuille/i})).toBeDisabled();
+    expect(screen.getByRole('button',{name:/Connecter Google Sheets/i})).toBeDisabled();
     expect(screen.getByText(/Connexion Google à activer/i)).toBeInTheDocument();
   });
 });
