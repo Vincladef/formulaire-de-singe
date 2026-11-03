@@ -188,7 +188,18 @@ export function ResultsPanel({formId,onOpenIntegrations}:{formId:string;onOpenIn
       {type==='zip'?'ZIP + audios MP3':type.toUpperCase()}</button>)}
    </div>
   </div>
-  {error&&<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+  {transcriptionSettings&&<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#dce9d9] bg-white px-4 py-3">
+    <div className="flex items-start gap-3"><Mic2 className="mt-0.5 text-[#3e7854]" size={19}/><div>
+     <p className="text-sm font-semibold text-[#31573c]">Transcription audio · Cloudflare Whisper</p>
+     <p className="mt-1 text-xs text-[#788979]">À la demande, ou automatique après réception des réponses. L’audio est transmis à Cloudflare uniquement si vous lancez la transcription ou activez l’option. L’offre gratuite bloque tout dépassement.</p>
+    </div></div>
+    <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-[#426b50]">
+     <input type="checkbox" checked={transcriptionSettings.automatic} disabled={!transcriptionSettings.canManage||!transcriptionSettings.available||!!busy}
+      onChange={e=>void toggleAutomatic(e.target.checked)} className="h-4 w-4 accent-[#38774e]"/>
+     Transcrire automatiquement
+    </label>
+   </div>}
+   {error&&<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
   {progress&&<p role="status" className="flex items-center gap-2 rounded-xl bg-[#eef5ec] p-3 text-sm text-[#356344]"><LoaderCircle size={16} className="animate-spin"/>{progress}</p>}
   {loading?<p role="status" className="text-sm text-[#72917a]"><LoaderCircle size={17} className="inline animate-spin"/> Chargement des réponses…</p>:
    data&&<>
@@ -213,7 +224,20 @@ export function ResultsPanel({formId,onOpenIntegrations}:{formId:string;onOpenIn
          disabled={!!busy} onClick={()=>void play(ans.audioId!)}>{busy===ans.audioId?'Chargement…':'Écouter la réponse'}</button>
         <button className="inline-flex items-center gap-1.5 rounded-lg border border-[#d8e7db] px-3 py-2 text-xs font-semibold text-[#397450] disabled:opacity-50"
          disabled={!!busy} onClick={()=>void downloadMp3(ans.audioId!,sub.id)}><Download size={14}/>{busy==='mp3:'+ans.audioId?'Conversion…':'Télécharger MP3'}</button></div>
-        {player?.id===ans.audioId&&<audio className="mt-2 w-full" controls autoPlay src={player.url}/>}</>}
+        {player?.id===ans.audioId&&<audio className="mt-2 w-full" controls autoPlay src={player.url}/>}
+         <div className="mt-3 rounded-xl border border-[#dbe8db] bg-[#f7faf5] p-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+           <p className="text-xs font-semibold text-[#3b6249]">Transcription</p>
+           {!ans.transcript&&transcriptionSettings?.available&&transcriptionSettings.canManage&&!['pending','processing'].includes(ans.transcriptionStatus??'')&&
+            <button type="button" onClick={()=>void transcribe(ans.audioId!)} disabled={!!busy} className="rounded-lg border border-[#b8d8be] bg-white px-3 py-1.5 text-xs font-semibold text-[#336c46] hover:bg-[#e6f2e6] disabled:opacity-50">
+             {busy==='transcribe:'+ans.audioId?'Envoi…':ans.transcriptionStatus==='failed'?'Réessayer':'Transcrire cet audio'}
+            </button>}
+          </div>
+          {ans.transcript?<p className="whitespace-pre-wrap text-sm leading-6 text-[#365342]">{ans.transcript}</p>:
+           ['pending','processing'].includes(ans.transcriptionStatus??'')?<p className="text-xs text-[#657f69]">Transcription en cours ; le texte apparaîtra ici automatiquement.</p>:
+           ans.transcriptionStatus==='failed'?<p className="text-xs text-[#a35b43]">{ans.transcriptionError||'La transcription a échoué.'}</p>:
+           <p className="text-xs text-[#7a8a7d]">Aucune transcription pour cet enregistrement.</p>}
+         </div></>}
       </div>)}
      </article>)}</div>}
    </>}
