@@ -53,13 +53,12 @@ export async function getTranscriptionSummary(userId:string,formId:string){
  const result=await db.execute(sql`SELECT
  count(*)::int AS total,
  count(*) FILTER (WHERE af.transcript IS NOT NULL AND length(trim(af.transcript))>0)::int AS done,
- count(*) FILTER (WHERE af.transcript IS NULL
-  AND COALESCE(j.status,'none') IN ('pending','processing'))::int AS queued,
+ count(*) FILTER (WHERE COALESCE(j.status,'none') IN ('pending','processing'))::int AS queued,
  count(*) FILTER (WHERE af.transcript IS NULL AND j.status='failed')::int AS failed,
  count(*) FILTER (WHERE af.transcript IS NULL AND af.byte_size<=${MAX_BYTES}
   AND COALESCE(j.status,'none') NOT IN ('pending','processing'))::int AS actionable,
  count(*) FILTER (WHERE af.transcript IS NULL AND af.byte_size>${MAX_BYTES})::int AS unsupported,
- count(*) FILTER (WHERE af.transcript IS NULL AND j.status='pending'
+ count(*) FILTER (WHERE j.status='pending'
   AND j.error LIKE 'Quota gratuit%')::int AS quotaDelayed
  FROM fs_audio_files af
  JOIN fs_answers a ON a.id=af.answer_id JOIN fs_submissions s ON s.id=a.submission_id
