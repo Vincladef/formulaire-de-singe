@@ -3,7 +3,7 @@ import {createHmac} from 'node:crypto';
 import {getDb} from '../src/server/db/client';
 import {getStore} from '@netlify/blobs';
 import {transcriptionConfigured,verifyTranscriptionWorkerRequest,wakeTranscriptionWorker,
- requestAudioTranscription,runTranscriptionQueue,TranscriptionFault} from '../src/server/transcriptionService';
+ requestAudioTranscription,runTranscriptionQueue} from '../src/server/transcriptionService';
 
 vi.mock('../src/server/db/client',()=>({getDb:vi.fn()}));
 vi.mock('@netlify/blobs',()=>({getStore:vi.fn()}));
