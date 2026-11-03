@@ -2,7 +2,7 @@ import { createHash,randomBytes,randomUUID,timingSafeEqual } from 'node:crypto';
 import { getStore } from '@netlify/blobs';
 import { sql } from 'drizzle-orm';
 import { getDb } from './db/client';
-import { AUDIO_PART_BYTES, audioPrepareSchema, audioCompleteSchema, audioLimits, audioMode, audioSignature } from '../shared/audio';
+import { AUDIO_PART_BYTES, DIRECT_AUDIO_BYTES, audioPrepareSchema, audioCompleteSchema, audioLimits, audioMode, audioSignature, normalizedMime } from '../shared/audio';
 
 export class AudioFault extends Error {
  constructor(public status:number,public code:string,message:string){super(message);}
@@ -46,6 +46,36 @@ export async function prepareAudio(slug:string,raw:unknown){
  VALUES(${uploadId}::uuid,${row.form_id}::uuid,${input.versionId}::uuid,${input.questionId}::uuid,
  ${input.clientNonce}::uuid,${hash(claimToken)},${key},${input.mimeType},${input.byteSize},${input.durationMs},now()+interval '24 hours')`);
  return {uploadId,claimToken,partBytes:AUDIO_PART_BYTES,partCount:Math.ceil(input.byteSize/AUDIO_PART_BYTES)};
+}
+/** One-call path for short recordings. No temporary part or reassembly is necessary. */
+export async function uploadAudioDirect(slug:string,request:Request){
+ const declared=Number(request.headers.get('content-length')??0);
+ if(declared>DIRECT_AUDIO_BYTES)throw new AudioFault(413,'TOO_LARGE','Fichier trop volumineux pour l’envoi direct.');
+ const bytes=new Uint8Array(await request.arrayBuffer());
+ if(!bytes.byteLength||bytes.byteLength>DIRECT_AUDIO_BYTES)
+  throw new AudioFault(413,'TOO_LARGE','Fichier trop volumineux pour l’envoi direct.');
+ const mimeType=normalizedMime(request.headers.get('content-type')??'');
+ if(!audioSignature(bytes.subarray(0,64),mimeType))
+  throw new AudioFault(422,'INVALID_AUDIO','Le format de cet enregistrement est invalide.');
+ const data=audioPrepareSchema.parse({
+  versionId:request.headers.get('x-audio-version'),
+  questionId:request.headers.get('x-audio-question'),
+  clientNonce:request.headers.get('x-audio-nonce'),
+  durationMs:Number(request.headers.get('x-audio-duration-ms')??0),
+  mimeType,byteSize:bytes.byteLength,
+ });
+ // Reuse the existing permission, rate and ownership checks.
+ const issued=await prepareAudio(slug,data);
+ const ticket=await getTicket(slug,issued.uploadId);
+ if(!ticket)throw new AudioFault(503,'UNAVAILABLE','Impossible de confirmer la destination audio.');
+ await store().set(ticket.storage_key,new Blob([bytes],{type:mimeType}),{
+  metadata:{contentType:mimeType,bytes:bytes.byteLength},
+ });
+ const confirmed=await getDb().execute(sql`UPDATE fs_audio_uploads SET status='verified',
+  actual_bytes=${bytes.byteLength},verified_at=now()
+  WHERE id=${issued.uploadId}::uuid AND status='issued' RETURNING id`);
+ if(!confirmed.rows.length)throw new AudioFault(409,'CONFLICT','Transfert audio déjà traité.');
+ return {kind:'audio' as const,uploadId:issued.uploadId,claimToken:issued.claimToken};
 }
 export async function uploadAudioPart(slug:string,id:string,index:number,nonce:string,claim:string,request:Request){
  const ticket=await getTicket(slug,id);assertTicket(ticket,claim,nonce);
