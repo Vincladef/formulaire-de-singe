@@ -1,14 +1,16 @@
 import { ZodError } from 'zod';
 import { requireUser,UnauthorizedError } from './auth';
-import { AudioFault, prepareAudio,uploadAudioPart,completeAudio,getAudioForUser,listAudioForUser } from './audioService';
+import { AudioFault, prepareAudio,uploadAudioPart,uploadAudioDirect,completeAudio,getAudioForUser,listAudioForUser } from './audioService';
 import { audioPrepareSchema,audioCompleteSchema } from '../shared/audio';
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 export async function audioRestHandler(request:Request):Promise<Response>{
  try{
   const url=new URL(request.url),path=url.pathname;
   const prepare=path.match(/^\/api\/public\/forms\/([a-z0-9-]{1,120})\/audio\/(prepare|complete)\/?$/);
+  const direct=path.match(/^\/api\/public\/forms\/([a-z0-9-]{1,120})\/audio\/direct\/?$/);
   const chunk=path.match(/^\/api\/public\/forms\/([a-z0-9-]{1,120})\/audio\/([0-9a-f-]{36})\/parts\/([0-9]{1,2})\/?$/);
   const playback=path.match(/^\/api\/audio\/([0-9a-f-]{36})\/?$/);
+  if(direct&&request.method==='POST')return reply({ok:true,data:await uploadAudioDirect(direct[1],request)},201);
   if(prepare&&request.method==='POST'){
    if(!request.headers.get('content-type')?.startsWith('application/json'))return reply({ok:false,error:{code:'INVALID_INPUT',message:'JSON requis.'}},400);
    if(Number(request.headers.get('content-length')??0)>4096)return reply({ok:false,error:{code:'TOO_LARGE',message:'Requête trop volumineuse.'}},413);
@@ -33,7 +35,7 @@ export async function audioRestHandler(request:Request):Promise<Response>{
     'Content-Disposition':'inline','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',
    }});
   }
-  if(prepare||chunk||playback||path==='/api/audio')return reply({ok:false,error:{code:'METHOD_NOT_ALLOWED',message:'Méthode non autorisée.'}},405);
+  if(prepare||direct||chunk||playback||path==='/api/audio')return reply({ok:false,error:{code:'METHOD_NOT_ALLOWED',message:'Méthode non autorisée.'}},405);
   return reply({ok:false,error:{code:'NOT_FOUND',message:'Route inexistante.'}},404);
  }catch(e){
   if(e instanceof UnauthorizedError)return reply({ok:false,error:{code:'UNAUTHORIZED',message:'Connexion nécessaire.'}},401);

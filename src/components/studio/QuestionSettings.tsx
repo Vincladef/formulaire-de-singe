@@ -26,6 +26,14 @@ export function QuestionSettings({question,onUpdate}:Props){
         <option value="text">Texte</option><option value="audio">Vocal uniquement</option><option value="either">Texte ou vocal</option>
       </select>
     </label>}
+    {question.type==='audio'&&<label className="block space-y-2 text-xs font-semibold text-[#607666]">Variante de réponse audio
+      <select className={input} value={question.settings.allowTextSupplement===true?'audio_text':'audio'}
+        onChange={e=>change({settings:{...question.settings,allowTextSupplement:e.target.value==='audio_text'}})}>
+        <option value="audio">Audio uniquement</option>
+        <option value="audio_text">Audio + champ texte facultatif</option>
+      </select>
+      <span className="block font-normal leading-5">Avec le champ texte, la personne peut parler, écrire, ou faire les deux. La réponse écrite reste liée à l’audio dans les résultats.</span>
+    </label>}
     {mode!=='text'&&<div className="space-y-3 rounded-xl bg-[#f0f6ee] p-3">
       <label className="block space-y-2 text-xs font-semibold text-[#607666]">Durée maximale
         <select aria-label="Durée maximale de la réponse vocale" className={input} value={limits.maxSeconds}

@@ -6,7 +6,9 @@ import type { FormResults,ResultAnswer,ResultSubmission } from '../../server/res
 import { exportAudioAsMp3 } from '../../shared/mp3Export';
 type Result<T>={ok:true;data:T}|{ok:false;error:{message:string}};
 const formatted=(a:ResultAnswer)=>{
- if(a.audioId)return `Enregistrement audio${a.durationMs?' ('+Math.ceil(a.durationMs/1000)+' s)':''}`;
+ if(a.audioId){const text=a.value&&typeof a.value==='object'&&!Array.isArray(a.value)&&'text' in a.value&&typeof a.value.text==='string'?a.value.text.trim():'';
+  return `Enregistrement audio${a.durationMs?' ('+Math.ceil(a.durationMs/1000)+' s)':''}${text?' ; Texte : '+text:''}`;
+ }
  if(Array.isArray(a.value))return a.value.map(v=>human(v)).join(' ; ');
  if(typeof a.value==='string')return human(a.value);
  if(a.value==null)return '';

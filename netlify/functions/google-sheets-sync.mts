@@ -1,7 +1,7 @@
 import type { Config } from '@netlify/functions';
 import { syncGoogleSheets } from '../../src/server/sheetsService';
 
-// Runs every two minutes; stored deliveries survive outages and failed API calls.
+// Safety net every 15 minutes; ordinary submissions already trigger immediate asynchronous sync.
 export default async ()=>{
  try{
   const result=await syncGoogleSheets(8);
@@ -12,4 +12,4 @@ export default async ()=>{
   return Response.json({ok:false},{status:503});
  }
 };
-export const config:Config={schedule:'*/2 * * * *'};
+export const config:Config={schedule:'*/15 * * * *'};

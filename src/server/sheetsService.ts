@@ -108,7 +108,10 @@ export async function resetFailedSheets(userId:string,formId:string){
  WHERE form_id=${formId}::uuid AND state<>'done'`);
 }
 function valueToText(value:unknown,hasAudio:boolean){
- if(hasAudio)return 'Enregistrement audio privé';
+ if(hasAudio){
+  const text=value&&typeof value==='object'&&!Array.isArray(value)&&'text' in value&&typeof value.text==='string'?value.text.trim():'';
+  return 'Enregistrement audio privé'+(text?' ; Texte : '+text:'');
+ }
  if(value===null||value===undefined)return '';
  if(Array.isArray(value))return value.map(v=>String(v)).join(' ; ');
  if(typeof value==='object')return 'Réponse structurée';

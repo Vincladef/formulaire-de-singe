@@ -2,7 +2,7 @@ import { createHash,randomBytes,randomUUID,timingSafeEqual } from 'node:crypto';
 import { getStore } from '@netlify/blobs';
 import { sql } from 'drizzle-orm';
 import { getDb } from './db/client';
-import { AUDIO_PART_BYTES, audioPrepareSchema, audioCompleteSchema, audioLimits, audioMode, audioSignature } from '../shared/audio';
+import { AUDIO_PART_BYTES, DIRECT_AUDIO_BYTES, audioPrepareSchema, audioCompleteSchema, audioLimits, audioMode, audioSignature, normalizedMime } from '../shared/audio';
 
 export class AudioFault extends Error {
  constructor(public status:number,public code:string,message:string){super(message);}
@@ -47,6 +47,36 @@ export async function prepareAudio(slug:string,raw:unknown){
  ${input.clientNonce}::uuid,${hash(claimToken)},${key},${input.mimeType},${input.byteSize},${input.durationMs},now()+interval '24 hours')`);
  return {uploadId,claimToken,partBytes:AUDIO_PART_BYTES,partCount:Math.ceil(input.byteSize/AUDIO_PART_BYTES)};
 }
+/** One-call path for short recordings. No temporary part or reassembly is necessary. */
+export async function uploadAudioDirect(slug:string,request:Request){
+ const declared=Number(request.headers.get('content-length')??0);
+ if(declared>DIRECT_AUDIO_BYTES)throw new AudioFault(413,'TOO_LARGE','Fichier trop volumineux pour l’envoi direct.');
+ const bytes=new Uint8Array(await request.arrayBuffer());
+ if(!bytes.byteLength||bytes.byteLength>DIRECT_AUDIO_BYTES)
+  throw new AudioFault(413,'TOO_LARGE','Fichier trop volumineux pour l’envoi direct.');
+ const mimeType=normalizedMime(request.headers.get('content-type')??'');
+ if(!audioSignature(bytes.subarray(0,64),mimeType))
+  throw new AudioFault(422,'INVALID_AUDIO','Le format de cet enregistrement est invalide.');
+ const data=audioPrepareSchema.parse({
+  versionId:request.headers.get('x-audio-version'),
+  questionId:request.headers.get('x-audio-question'),
+  clientNonce:request.headers.get('x-audio-nonce'),
+  durationMs:Number(request.headers.get('x-audio-duration-ms')??0),
+  mimeType,byteSize:bytes.byteLength,
+ });
+ // Reuse the existing permission, rate and ownership checks.
+ const issued=await prepareAudio(slug,data);
+ const ticket=await getTicket(slug,issued.uploadId);
+ if(!ticket)throw new AudioFault(503,'UNAVAILABLE','Impossible de confirmer la destination audio.');
+ await store().set(ticket.storage_key,new Blob([bytes],{type:mimeType}),{
+  metadata:{contentType:mimeType,bytes:bytes.byteLength},
+ });
+ const confirmed=await getDb().execute(sql`UPDATE fs_audio_uploads SET status='verified',
+  actual_bytes=${bytes.byteLength},verified_at=now()
+  WHERE id=${issued.uploadId}::uuid AND status='issued' RETURNING id`);
+ if(!confirmed.rows.length)throw new AudioFault(409,'CONFLICT','Transfert audio déjà traité.');
+ return {kind:'audio' as const,uploadId:issued.uploadId,claimToken:issued.claimToken};
+}
 export async function uploadAudioPart(slug:string,id:string,index:number,nonce:string,claim:string,request:Request){
  const ticket=await getTicket(slug,id);assertTicket(ticket,claim,nonce);
  const row=ticket!;
@@ -69,8 +99,11 @@ export async function completeAudio(slug:string,raw:unknown){
  const total=Number(row.declared_bytes),count=Math.ceil(total/AUDIO_PART_BYTES);
  const output=new Uint8Array(total);
  const blobs=store();let offset=0;
+ // Fetch parts concurrently; compose them in their original order before verifying.
+ const uploadedParts=await Promise.all(Array.from({length:count},(_,i)=>
+  blobs.get(parts(row.storage_key,i),{type:'arrayBuffer',consistency:'strong'})));
  for(let i=0;i<count;i++){
-  const p=await blobs.get(parts(row.storage_key,i),{type:'arrayBuffer',consistency:'strong'});
+  const p=uploadedParts[i];
   if(!p)throw new AudioFault(409,'UPLOAD_INCOMPLETE',`Portion ${i+1}/${count} manquante.`);
   const data=new Uint8Array(p),expected=Math.min(AUDIO_PART_BYTES,total-i*AUDIO_PART_BYTES);
   if(data.byteLength!==expected)throw new AudioFault(422,'INVALID_PART','Portion de taille incorrecte.');
@@ -124,7 +157,7 @@ export async function cleanupAbandonedAudio(){
   try{
    await blobs.delete(key);
    const count=Math.ceil(Number(rec.declared_bytes)/AUDIO_PART_BYTES);
-   await Promise.allSettled(Array.from({length:count},(_,i)=>blobs.delete(parts(key,i))));
+   await Promise.all(Array.from({length:count},(_,i)=>blobs.delete(parts(key,i))));
    await db.execute(sql`UPDATE fs_audio_uploads SET status='expired' WHERE id=${id}::uuid AND status IN ('issued','verified')`);
    removed++;
   }catch(e){console.error('Abandoned audio cleanup',id,e instanceof Error?e.name:'unknown');}
@@ -132,10 +165,12 @@ export async function cleanupAbandonedAudio(){
  const deleted=await db.execute(sql`SELECT af.id,af.storage_key FROM fs_audio_files af
  JOIN fs_answers a ON a.id=af.answer_id JOIN fs_submissions s ON s.id=a.submission_id
  WHERE s.deleted_at IS NOT NULL AND af.status<>'removed' LIMIT 30`);
+ let removedDeleted=0;
  for(const r of deleted.rows){
   try{await blobs.delete(String(r.storage_key));
     await db.execute(sql`UPDATE fs_audio_files SET status='removed',deleted_at=COALESCE(deleted_at,now()),transcript=NULL WHERE id=${String(r.id)}::uuid`);
+    removedDeleted++;
   }catch(e){console.error('Deleted audio cleanup',e instanceof Error?e.name:'unknown');}
  }
- return {removedAbandoned:removed,removedDeleted:deleted.rows.length};
+ return {removedAbandoned:removed,removedDeleted};
 }

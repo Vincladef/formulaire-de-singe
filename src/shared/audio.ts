@@ -1,15 +1,19 @@
 import { z } from 'zod';
 
 export const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
+// 3 MiB remains below Netlify's ~4.5 MB effective binary request limit.
+export const DIRECT_AUDIO_BYTES = 3 * 1024 * 1024;
+// Preserve 2 MiB for multipart compatibility with uploads started before deployment.
 export const AUDIO_PART_BYTES = 2 * 1024 * 1024;
 export const MAX_AUDIO_SECONDS = 1800;
 export const audioMimeTypes = ['audio/webm','audio/ogg','audio/mp4','audio/mpeg','audio/wav','audio/x-m4a','audio/aac'] as const;
 export type AnswerMode = 'text' | 'audio' | 'either';
 export const uploadedAudioSchema = z.object({
  kind: z.literal('audio'), uploadId: z.string().uuid(), claimToken: z.string().regex(/^[a-f0-9]{64}$/),
+ text:z.string().max(500).optional(),
 }).strict();
 export type UploadedAudio = z.infer<typeof uploadedAudioSchema>;
-export type AudioDraft = { kind: 'audio-draft'; file: Blob; durationMs: number };
+export type AudioDraft = { kind: 'audio-draft'; file: Blob; durationMs: number; text?: string };
 export const audioPrepareSchema = z.object({
  versionId:z.string().uuid(), questionId:z.string().uuid(), clientNonce:z.string().uuid(),
  mimeType:z.enum(audioMimeTypes),byteSize:z.number().int().positive().max(MAX_AUDIO_BYTES),
