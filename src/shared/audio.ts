@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
 export const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
-// Keep binary payloads well below Netlify's effective 4.5 MB limit.
+// 3 MiB remains below Netlify's ~4.5 MB effective binary request limit.
 export const DIRECT_AUDIO_BYTES = 3 * 1024 * 1024;
-export const AUDIO_PART_BYTES = 3 * 1024 * 1024;
+// Preserve 2 MiB for multipart compatibility with uploads started before deployment.
+export const AUDIO_PART_BYTES = 2 * 1024 * 1024;
 export const MAX_AUDIO_SECONDS = 1800;
 export const audioMimeTypes = ['audio/webm','audio/ogg','audio/mp4','audio/mpeg','audio/wav','audio/x-m4a','audio/aac'] as const;
 export type AnswerMode = 'text' | 'audio' | 'either';
