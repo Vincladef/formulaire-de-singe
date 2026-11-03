@@ -119,10 +119,10 @@ export async function resetFailedSheets(userId:string,formId:string){
  await getDb().execute(sql`UPDATE fs_sheet_deliveries SET state='pending',attempts=0,claimed_at=NULL,last_error=NULL
  WHERE form_id=${formId}::uuid AND state<>'done'`);
 }
-function valueToText(value:unknown,hasAudio:boolean){
+function valueToText(value:unknown,hasAudio:boolean,transcript?:string|null){
  if(hasAudio){
   const text=value&&typeof value==='object'&&!Array.isArray(value)&&'text' in value&&typeof value.text==='string'?value.text.trim():'';
-  return 'Enregistrement audio privé'+(text?' ; Texte : '+text:'');
+  return 'Enregistrement audio privé'+(text?' ; Texte saisi : '+text:'')+(transcript?' ; Transcription : '+transcript:'');
  }
  if(value===null||value===undefined)return '';
  if(Array.isArray(value))return value.map(v=>String(v)).join(' ; ');
@@ -199,12 +199,12 @@ async function syncOne(item:Delivery){
  const existingHeaders=headersResult.values?.[0]??[];
  const headers=existingHeaders.length?[...existingHeaders]:['ID soumission','Date UTC'];
  const seen=await query<{values?:string[][]}>(range('A2:A'));
- if((seen.values??[]).some(row=>row[0]===item.submission_id))return;
+ const existingRowIndex=(seen.values??[]).findIndex(row=>row[0]===item.submission_id);
  const meta=await db.execute(sql`SELECT submitted_at FROM fs_submissions WHERE id=${item.submission_id}::uuid
  AND status='submitted' AND deleted_at IS NULL LIMIT 1`);
  const submittedAt=meta.rows[0]?.submitted_at;
  if(!submittedAt)throw new Error('Participation indisponible');
- const answers=await db.execute(sql`SELECT q.id,q.label,a.value,(af.id IS NOT NULL) AS has_audio
+ const answers=await db.execute(sql`SELECT q.id,q.label,a.value,(af.id IS NOT NULL) AS has_audio,af.transcript
  FROM fs_answers a JOIN fs_questions q ON q.id=a.question_id
  LEFT JOIN fs_audio_files af ON af.answer_id=a.id AND af.status='uploaded' AND af.deleted_at IS NULL
  WHERE a.submission_id=${item.submission_id}::uuid ORDER BY q.position`);
@@ -213,14 +213,19 @@ async function syncOne(item:Delivery){
   const identity='['+String(answer.id)+']';
   // Keep the same column when a published question is renamed later.
   const key=headers.find(h=>h.endsWith(identity))??String(answer.label)+' '+identity;
-  cells.set(key,valueToText(answer.value,Boolean(answer.has_audio)));
+  cells.set(key,valueToText(answer.value,Boolean(answer.has_audio),answer.transcript==null?null:String(answer.transcript)));
   if(!headers.includes(key))headers.push(key);
  }
  if(headers.length>existingHeaders.length)await query(range('1:1')+'?valueInputOption=RAW',{
   method:'PUT',body:JSON.stringify({values:[headers]})
  });
  const row=headers.map((h,i)=>i===0?item.submission_id:i===1?new Date(String(submittedAt)).toISOString():(cells.get(h)??''));
- await query(range('A1')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
+ if(existingRowIndex>=0){
+  // A previously delivered participation may gain an audio transcript later.
+  await query(range('A'+(existingRowIndex+2))+'?valueInputOption=RAW',{
+   method:'PUT',body:JSON.stringify({values:[row]})
+  });
+ }else await query(range('A1')+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
   method:'POST',body:JSON.stringify({values:[row]})
  });
 }
