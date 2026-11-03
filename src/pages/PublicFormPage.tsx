@@ -157,7 +157,7 @@ export function PublicFormPage(){
    const confirmed=await finish.json() as ApiResult<{verified:boolean}>;
    if(!confirmed.ok||!confirmed.data.verified)
     throw new Error(confirmed.ok?'Le fichier audio est incomplet.':confirmed.error.message);
-   return {kind:'audio',uploadId,claimToken};
+   return {kind:'audio' as const,uploadId,claimToken};
   })();
   uploadTasksRef.current.set(questionId,{file:draft.file,promise});
   setUploadStates(s=>({...s,[questionId]:'uploading'}));
