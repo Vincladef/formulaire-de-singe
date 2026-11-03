@@ -160,7 +160,17 @@ export async function syncGoogleSheets(maxItems=10,onlyFormId?:string){
   }catch(error){
    failed++;
    const reason=(error instanceof Error?error.message:'Erreur inconnue').slice(0,220);
-   await db.execute(sql`UPDATE fs_sheet_deliveries SET state='pending',last_error=${reason} WHERE submission_id=${item.submission_id}::uuid`);
+   const quota=reason.includes('Quota gratuit')||reason.includes('Quota Google Sheets');
+   // A free-plan cap is not a permanent failure: delay until tomorrow and
+   // try again even if earlier attempts exhausted the regular retry budget.
+   if(quota){
+    await db.execute(sql`UPDATE fs_sheet_deliveries
+     SET state='processing',attempts=0,claimed_at=now()+interval '1 day',last_error=${reason}
+     WHERE submission_id=${item.submission_id}::uuid`);
+   }else{
+    await db.execute(sql`UPDATE fs_sheet_deliveries SET state='pending',last_error=${reason}
+     WHERE submission_id=${item.submission_id}::uuid`);
+   }
    await db.execute(sql`UPDATE fs_google_sheets SET last_error=${reason} WHERE form_id=${item.form_id}::uuid`);
   }
  }
