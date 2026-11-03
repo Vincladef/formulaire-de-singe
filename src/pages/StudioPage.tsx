@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Archive, ArrowLeft, CheckCircle2, CircleAlert, Clock3, Copy, Eye, Files, LoaderCircle, Plus, Save, Send, X } from 'lucide-react';
+import { Archive, ArrowLeft, BarChart3, CheckCircle2, ChevronRight, CircleAlert, Clock3, Copy, Eye, FileText, Files, Folder, FolderPlus, GripVertical, LayoutDashboard, LoaderCircle, Plus, Search, Save, Send, X } from 'lucide-react';
+import {formatParisDate,formatParisDateTime} from '../shared/presentation';
 import { getAccessToken } from '../authClient';
 import type { FormDetail, FormSummary } from '../shared/formApi';
 import { draftPayloadSchema, makePage, type QuestionType, type StudioPageData, type StudioQuestion } from '../shared/studio';
@@ -34,7 +35,8 @@ export function StudioPage(){
  const [pageIndex,setPageIndex]=useState(0);
  const [questionId,setQuestionId]=useState<string|null>(null);
  const [preview,setPreview]=useState(false);
- const [activeTab,setActiveTab]=useState<'questions'|'results'|'integrations'|'settings'>('questions');
+ const [activeTab,setActiveTab]=useState<'overview'|'questions'|'results'|'integrations'|'settings'>('questions');
+ const [overviewResults,setOverviewResults]=useState<{total:number;submissions:Array<{id:string;submittedAt:string|null;answers:unknown[]}>}|null>(null);
  const [googleOutcome,setGoogleOutcome]=useState<'connected'|'error'|'verifying'|null>(null);
  const managedVerificationStarted=useRef(false);
  const [sideMode,setSideMode]=useState<SidebarMode>('add');
@@ -45,6 +47,10 @@ export function StudioPage(){
  const [showArchived,setShowArchived]=useState(false);
  const [folders,setFolders]=useState<FolderInfo[]>([]);
  const [selectedFolder,setSelectedFolder]=useState('all');
+ const [searchTerm,setSearchTerm]=useState('');
+ const [sortMode,setSortMode]=useState<'recent'|'name'>('recent');
+ const searchRef=useRef<HTMLInputElement>(null);
+ const [undoMove,setUndoMove]=useState<{kind:'form'|'folder';id:string;original:string|null;name:string}|null>(null);
  const [moveTarget,setMoveTarget]=useState<FormSummary|null>(null);
  const [dialog,setDialog]=useState<StudioDialogIntent|null>(null);
  const dialogResolver=useRef<((answer:string|null)=>void)|null>(null);
@@ -65,7 +71,7 @@ export function StudioPage(){
    .catch(e=>{if(active)setError(String(e instanceof Error?e.message:e));}).finally(()=>{if(active)setListBusy(false);});
    return()=>{active=false;};},[]);
 
- const openForm=useCallback(async(id:string,tab:'questions'|'results'|'integrations'|'settings'='questions')=>{
+ const openForm=useCallback(async(id:string,tab?:'overview'|'questions'|'results'|'integrations'|'settings')=>{
    setOperation(true);setError('');
    try{
      const form=await request<FormDetail>(`/api/forms/${id}`);
@@ -73,7 +79,7 @@ export function StudioPage(){
      draftRef.current=draft?.id??null;revisionRef.current=draft?.revision??0;
      const next:StudioPageData[]=draft?.pages.map(p=>({id:p.id,title:p.title,description:p.description,
        questions:p.questions.map(q=>({id:q.id,type:q.type as QuestionType,label:q.label,description:q.description,required:q.required,settings:q.settings,options:q.options.map(o=>({id:o.id,value:o.value,label:o.label}))}))})) ?? [];
-     savedRef.current=JSON.stringify(next);setPages(next.length?next:[makePage()]);setPageIndex(0);setQuestionId(null);setPreview(false);setActiveTab(tab);setSideMode('add');setSaveState('saved');
+     savedRef.current=JSON.stringify(next);setPages(next.length?next:[makePage()]);setPageIndex(0);setQuestionId(null);setPreview(false);setActiveTab(tab??(form.versions.some(v=>v.status==='published')?'overview':'questions'));setSideMode('add');setSaveState('saved');
    }catch(e){setError(e instanceof Error?e.message:'Chargement impossible');}finally{setOperation(false);}
  },[]);
  useEffect(()=>{
