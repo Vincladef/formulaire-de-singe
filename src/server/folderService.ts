@@ -54,7 +54,7 @@ export const folderActions={
    if(chain.length>=3)throw new FolderValidationError('Trois niveaux de dossiers au maximum.');
   }
   const [row]=await getDb().insert(folders).values({ownerId:userId,name,parentId:parentId??null})
-   .returning({id:folders.id,name:folders.name,createdAt:folders.createdAt});
+   .returning({id:folders.id,name:folders.name,parentId:folders.parentId,createdAt:folders.createdAt});
   return serialize(row);
  },
  async rename(userId:string,id:unknown,input:unknown){
@@ -62,7 +62,7 @@ export const folderActions={
   const {name}=parsed(folderNameSchema,input);
   const [row]=await getDb().update(folders).set({name,updatedAt:sql`now()`})
     .where(and(eq(folders.id,folderId),eq(folders.ownerId,userId)))
-    .returning({id:folders.id,name:folders.name,createdAt:folders.createdAt});
+    .returning({id:folders.id,name:folders.name,parentId:folders.parentId,createdAt:folders.createdAt});
   if(!row)throw new FolderNotFoundError('Dossier introuvable.');
   return serialize(row);
  },
