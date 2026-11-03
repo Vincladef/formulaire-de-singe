@@ -27,7 +27,7 @@ beforeEach(()=>{
  vi.mocked(sheetsConfigured).mockReturnValue(true);
  vi.mocked(activeAccounts).mockResolvedValue([]);
  vi.mocked(startComposioGoogle).mockResolvedValue({authorizationUrl:'https://connect.composio.dev/link/example',expectedAccountId:'ca_expected'});
- vi.mocked(completeComposioGoogle).mockResolvedValue('ca_abcdef');
+ vi.mocked(completeComposioGoogle).mockResolvedValue('ca_expected');
  vi.mocked(createComposioSpreadsheet).mockResolvedValue('sheet123');
  vi.mocked(saveComposioConnection).mockResolvedValue(undefined);
 });
@@ -63,7 +63,7 @@ describe('OAuth Google Sheets géré et sécurisé',()=>{
   expect(completion.status).toBe(200);
   expect((await completion.json()).data.formId).toBe(formId);
   expect(completeComposioGoogle).toHaveBeenCalledWith('owner-1','ca_expected');
-  expect(saveComposioConnection).toHaveBeenCalledWith(formId,'owner-1','sheet123','ca_abcdef');
+  expect(saveComposioConnection).toHaveBeenCalledWith(formId,'owner-1','sheet123','ca_expected');
   expect(connected).toHaveBeenCalledWith(formId);
  });
  it('rejette une personne différente lors du retour OAuth',async()=>{
