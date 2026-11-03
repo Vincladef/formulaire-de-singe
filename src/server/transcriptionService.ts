@@ -56,8 +56,9 @@ export async function getTranscriptionSummary(userId:string,formId:string){
  count(*) FILTER (WHERE af.transcript IS NULL
   AND COALESCE(j.status,'none') IN ('pending','processing'))::int AS queued,
  count(*) FILTER (WHERE af.transcript IS NULL AND j.status='failed')::int AS failed,
- count(*) FILTER (WHERE af.transcript IS NULL
+ count(*) FILTER (WHERE af.transcript IS NULL AND af.byte_size<=${MAX_BYTES}
   AND COALESCE(j.status,'none') NOT IN ('pending','processing'))::int AS actionable,
+ count(*) FILTER (WHERE af.transcript IS NULL AND af.byte_size>${MAX_BYTES})::int AS unsupported,
  count(*) FILTER (WHERE af.transcript IS NULL AND j.status='pending'
   AND j.error LIKE 'Quota gratuit%')::int AS quotaDelayed
  FROM fs_audio_files af
@@ -69,7 +70,7 @@ export async function getTranscriptionSummary(userId:string,formId:string){
  const row=result.rows[0]??{};
  return {available:transcriptionConfigured(),canManage:Boolean(auth.rows[0].can_manage),
   total:Number(row.total??0),done:Number(row.done??0),queued:Number(row.queued??0),
-  failed:Number(row.failed??0),actionable:Number(row.actionable??0),
+  failed:Number(row.failed??0),actionable:Number(row.actionable??0),unsupported:Number(row.unsupported??0),
   quotaDelayed:Number(row.quotaDelayed??0)};
 }
 export async function requestFormTranscription(userId:string,formId:string){
