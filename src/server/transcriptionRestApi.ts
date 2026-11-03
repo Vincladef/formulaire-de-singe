@@ -19,11 +19,11 @@ export async function transcriptionRestHandler(request:Request):Promise<Response
    if(!raw||typeof raw!=='object'||typeof raw.automatic!=='boolean')
     return send({ok:false,error:{message:'Paramètre de transcription invalide.'}},400);
    const data=await setAutoTranscription(userId,form[1],raw.automatic);
-   if(data.automatic)void wakeTranscriptionWorker().catch(()=>{});
+   if(data.automatic)await wakeTranscriptionWorker().catch(()=>false);
    return send({ok:true,data});
   }
   const queued=await requestAudioTranscription(userId,audio![1]);
-  if(queued.status==='pending')void wakeTranscriptionWorker().catch(()=>{});
+  if(queued.status==='pending')await wakeTranscriptionWorker().catch(()=>false);
   return send({ok:true,data:queued},queued.status==='pending'?202:200);
  }catch(e){
   if(e instanceof UnauthorizedError)return send({ok:false,error:{message:'Connexion nécessaire.'}},401);
