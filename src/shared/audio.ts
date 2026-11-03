@@ -7,9 +7,10 @@ export const audioMimeTypes = ['audio/webm','audio/ogg','audio/mp4','audio/mpeg'
 export type AnswerMode = 'text' | 'audio' | 'either';
 export const uploadedAudioSchema = z.object({
  kind: z.literal('audio'), uploadId: z.string().uuid(), claimToken: z.string().regex(/^[a-f0-9]{64}$/),
+ text:z.string().max(500).optional(),
 }).strict();
 export type UploadedAudio = z.infer<typeof uploadedAudioSchema>;
-export type AudioDraft = { kind: 'audio-draft'; file: Blob; durationMs: number };
+export type AudioDraft = { kind: 'audio-draft'; file: Blob; durationMs: number; text?: string };
 export const audioPrepareSchema = z.object({
  versionId:z.string().uuid(), questionId:z.string().uuid(), clientNonce:z.string().uuid(),
  mimeType:z.enum(audioMimeTypes),byteSize:z.number().int().positive().max(MAX_AUDIO_BYTES),
