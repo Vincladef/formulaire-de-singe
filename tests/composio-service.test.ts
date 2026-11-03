@@ -85,7 +85,20 @@ describe('Composio managed Sheets adapter',()=>{
   });
   expect(await createComposioSpreadsheet('owner-1','ca_abcdef','Enquête')).toBe('sheet-wrapped');
   expect(fetchMock).toHaveBeenCalledTimes(2);
-  expect(fetchMock.mock.calls.map(([,init])=>JSON.parse(init.body).method)).toEqual(['POST','PUT']);
+  const calls=fetchMock.mock.calls.map(([,init])=>JSON.parse(init.body));
+  expect(calls.map(p=>p.method)).toEqual(['POST','PUT']);
+  expect(calls[1].endpoint).toContain('?valueInputOption=RAW');
+  expect(calls[1]).not.toHaveProperty('parameters');
+ });
+ it('conserve les paramètres de lecture et écriture dans l’URL proxy sans liste de paramètres séparée',async()=>{
+  fetchMock.mockResolvedValue(result({successful:true,data:{status:200,data:{values:[]}}}));
+  await googleSheetsComposioJSON('owner-1','ca_abcdef',
+   'https://sheets.googleapis.com/v4/spreadsheets/sheet-123/values/A1?valueInputOption=RAW',
+   {method:'PUT',body:JSON.stringify({values:[['ID soumission']]})});
+  const payload=JSON.parse(fetchMock.mock.calls[0][1].body);
+  expect(payload.endpoint).toBe('https://sheets.googleapis.com/v4/spreadsheets/sheet-123/values/A1?valueInputOption=RAW');
+  expect(payload.method).toBe('PUT');
+  expect(payload.parameters).toBeUndefined();
  });
  it('remonte une erreur HTTP de Google même dans une enveloppe Composio 200',async()=>{
   fetchMock.mockResolvedValue(result({successful:true,data:{status:403,data:{error:{message:'Insufficient scopes'}}}}));
