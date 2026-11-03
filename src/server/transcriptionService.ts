@@ -148,6 +148,12 @@ export async function runTranscriptionQueue(){
   await db.execute(sql`UPDATE fs_audio_files SET transcript=${transcript},
    transcript_source='cloudflare-whisper-large-v3-turbo',transcript_updated_at=now()
    WHERE id=${audioId}::uuid AND transcript IS NULL AND deleted_at IS NULL`);
+  // Revisit previously exported Sheets rows when their transcript becomes available.
+  await db.execute(sql`UPDATE fs_sheet_deliveries d SET state='pending',attempts=0,claimed_at=NULL,last_error=NULL
+   WHERE d.state='done' AND d.submission_id IN (
+    SELECT a.submission_id FROM fs_audio_files af
+    JOIN fs_answers a ON a.id=af.answer_id WHERE af.id=${audioId}::uuid
+   )`);
   await db.execute(sql`UPDATE fs_audio_transcription_jobs SET status='done',error=NULL,updated_at=now()
    WHERE audio_id=${audioId}::uuid`);
   return {configured:true,claimed:1,done:1,failed:0};
