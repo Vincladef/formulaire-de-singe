@@ -1,4 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { FormActions } from './formActions';
 import { McpFormActions } from './mcpFormActions';
@@ -7,21 +8,19 @@ import { ConflictFault, PermissionFault } from './studioRepository';
 import { ValidationFault, NotFoundFault } from './formActions';
 
 const id=z.string().uuid().describe('UUID of the existing form');
-const nonempty=z.string().trim().min(1);
-const resource='https://monk-form.netlify.app/mcp';
 type McpPermissions={scopes?:readonly string[];linked?:boolean};
 
-function toolResult<T>(data:T){
+function toolResult<T>(data:T):CallToolResult{
  return {content:[{type:'text' as const,text:JSON.stringify(data)}]};
 }
-function toolError(error:unknown){
+function toolError(error:unknown):CallToolResult{
  const isKnown=error instanceof ValidationFault||error instanceof NotFoundFault
   ||error instanceof ConflictFault||error instanceof PermissionFault||error instanceof z.ZodError;
  const message=isKnown?(error instanceof z.ZodError?'Contenu invalide : '+error.issues.map(i=>i.path.join('.')+': '+i.message).slice(0,6).join(' ; '):error.message)
   :'Opération impossible. Vérifie tes autorisations et réessaie.';
  return {isError:true,content:[{type:'text' as const,text:message}]};
 }
-function authHint(){
+function authHint():CallToolResult{
  return {isError:true,content:[{type:'text' as const,text:'Connecte ton compte Monk Form pour utiliser cet outil.'}],
   _meta:{'mcp/www_authenticate':`Bearer resource_metadata="https://monk-form.netlify.app/.well-known/oauth-protected-resource"`}};
 }
@@ -46,7 +45,7 @@ export function buildMcpServer(
   server.registerTool(name,{
    title,description,inputSchema,
    _meta:security([scope]),
-  },async args=>{
+  },async (args):Promise<CallToolResult>=>{
    if(!authorized(scope))return authHint();
    try{return toolResult(await handler(args as z.infer<z.ZodObject<T>>));}
    catch(error){return toolError(error);}
