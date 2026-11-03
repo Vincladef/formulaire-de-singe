@@ -69,8 +69,11 @@ export async function completeAudio(slug:string,raw:unknown){
  const total=Number(row.declared_bytes),count=Math.ceil(total/AUDIO_PART_BYTES);
  const output=new Uint8Array(total);
  const blobs=store();let offset=0;
+ // Fetch parts concurrently; compose them in their original order before verifying.
+ const uploadedParts=await Promise.all(Array.from({length:count},(_,i)=>
+  blobs.get(parts(row.storage_key,i),{type:'arrayBuffer',consistency:'strong'})));
  for(let i=0;i<count;i++){
-  const p=await blobs.get(parts(row.storage_key,i),{type:'arrayBuffer',consistency:'strong'});
+  const p=uploadedParts[i];
   if(!p)throw new AudioFault(409,'UPLOAD_INCOMPLETE',`Portion ${i+1}/${count} manquante.`);
   const data=new Uint8Array(p),expected=Math.min(AUDIO_PART_BYTES,total-i*AUDIO_PART_BYTES);
   if(data.byteLength!==expected)throw new AudioFault(422,'INVALID_PART','Portion de taille incorrecte.');
