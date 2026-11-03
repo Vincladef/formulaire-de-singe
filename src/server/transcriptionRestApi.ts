@@ -16,8 +16,8 @@ export async function transcriptionRestHandler(request:Request):Promise<Response
   if(form)return send({ok:true,data:await getTranscriptionSummary(userId,form[1])});
   if(bulk){
    const result=await requestFormTranscription(userId,bulk[1]);
-   if(result.queued>0)await wakeTranscriptionWorker().catch(()=>false);
-   return send({ok:true,data:result},result.queued>0?202:200);
+   if(result.newlyQueued>0)await wakeTranscriptionWorker().catch(()=>false);
+   return send({ok:true,data:result},result.newlyQueued>0?202:200);
   }
   // A retranscription is explicit. The previous transcript stays available until a new result succeeds.
   const raw=await request.text();
