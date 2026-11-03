@@ -40,32 +40,55 @@ export class TranscriptionFault extends Error{
 export function transcriptionConfigured(){
  return Boolean(process.env.CLOUDFLARE_ACCOUNT_ID&&process.env.CLOUDFLARE_WORKERS_AI_TOKEN);
 }
-export async function getAutoTranscription(userId:string,formId:string){
- if(!UUID.test(formId))throw new TranscriptionFault(400,'Identifiant de formulaire invalide.');
- const r=await getDb().execute(sql`SELECT f.settings,f.owner_id,f.id FROM fs_forms f WHERE f.id=${formId}::uuid
-  AND f.deleted_at IS NULL AND (f.owner_id=${userId} OR EXISTS(
-   SELECT 1 FROM fs_form_members m WHERE m.form_id=f.id AND m.user_id=${userId} AND m.role IN ('viewer','editor')
-  )) LIMIT 1`);
- const row=r.rows[0] as {settings:Record<string,unknown>;owner_id:string}|undefined;
- if(!row)throw new TranscriptionFault(404,'Formulaire introuvable.');
- const edit=await getDb().execute(sql`SELECT 1 FROM fs_forms f WHERE f.id=${formId}::uuid
-  AND (f.owner_id=${userId} OR EXISTS (SELECT 1 FROM fs_form_members m
-  WHERE m.form_id=f.id AND m.user_id=${userId} AND m.role='editor')) LIMIT 1`);
- return {automatic:row.settings?.autoTranscribeAudio===true,available:transcriptionConfigured(),canManage:edit.rows.length>0};
+export async function getTranscriptionSummary(userId:string,formId:string){
+ if(!UUID.test(formId))throw new TranscriptionFault(400,'Formulaire invalide.');
+ const db=getDb();
+ const auth=await db.execute(sql`SELECT f.id,f.owner_id,
+ (f.owner_id=${userId} OR EXISTS(SELECT 1 FROM fs_form_members m WHERE m.form_id=f.id
+ AND m.user_id=${userId} AND m.role='editor')) AS can_manage
+ FROM fs_forms f WHERE f.id=${formId}::uuid AND f.deleted_at IS NULL
+ AND (f.owner_id=${userId} OR EXISTS(SELECT 1 FROM fs_form_members m
+ WHERE m.form_id=f.id AND m.user_id=${userId} AND m.role IN ('editor','viewer'))) LIMIT 1`);
+ if(!auth.rows.length)throw new TranscriptionFault(404,'Formulaire introuvable.');
+ const result=await db.execute(sql`SELECT
+ count(*)::int AS total,
+ count(*) FILTER (WHERE af.transcript IS NOT NULL AND length(trim(af.transcript))>0)::int AS done,
+ count(*) FILTER (WHERE af.transcript IS NULL
+  AND COALESCE(j.status,'none') IN ('pending','processing'))::int AS queued,
+ count(*) FILTER (WHERE af.transcript IS NULL AND j.status='failed')::int AS failed,
+ count(*) FILTER (WHERE af.transcript IS NULL
+  AND COALESCE(j.status,'none') NOT IN ('pending','processing'))::int AS actionable,
+ count(*) FILTER (WHERE af.transcript IS NULL AND j.status='pending'
+  AND j.error LIKE 'Quota gratuit%')::int AS quotaDelayed
+ FROM fs_audio_files af
+ JOIN fs_answers a ON a.id=af.answer_id JOIN fs_submissions s ON s.id=a.submission_id
+ JOIN fs_versions v ON v.id=s.version_id
+ LEFT JOIN fs_audio_transcription_jobs j ON j.audio_id=af.id
+ WHERE v.form_id=${formId}::uuid AND s.status='submitted' AND s.deleted_at IS NULL
+ AND af.status='uploaded' AND af.deleted_at IS NULL`);
+ const row=result.rows[0]??{};
+ return {available:transcriptionConfigured(),canManage:Boolean(auth.rows[0].can_manage),
+  total:Number(row.total??0),done:Number(row.done??0),queued:Number(row.queued??0),
+  failed:Number(row.failed??0),actionable:Number(row.actionable??0),
+  quotaDelayed:Number(row.quotaDelayed??0)};
 }
-export async function setAutoTranscription(userId:string,formId:string,automatic:boolean){
- if(!UUID.test(formId))throw new TranscriptionFault(400,'Identifiant de formulaire invalide.');
- if(automatic&&!transcriptionConfigured())throw new TranscriptionFault(503,'Le moteur de transcription n’est pas configuré.');
- const r=await getDb().execute(sql`UPDATE fs_forms f SET
- settings=jsonb_set(f.settings,'{autoTranscribeAudio}',to_jsonb(${automatic}::boolean),true),
- updated_at=now() WHERE f.id=${formId}::uuid AND f.deleted_at IS NULL
- AND (f.owner_id=${userId} OR EXISTS (SELECT 1 FROM fs_form_members m
- WHERE m.form_id=f.id AND m.user_id=${userId} AND m.role='editor'))
- RETURNING f.id`);
- if(!r.rows.length)throw new TranscriptionFault(403,'Modification non autorisée.');
- return {automatic};
+export async function requestFormTranscription(userId:string,formId:string){
+ if(!transcriptionConfigured())throw new TranscriptionFault(503,'Le moteur de transcription n’est pas disponible.');
+ const summary=await getTranscriptionSummary(userId,formId);
+ if(!summary.canManage)throw new TranscriptionFault(403,'Modification non autorisée.');
+ const result=await getDb().execute(sql`INSERT INTO fs_audio_transcription_jobs(audio_id,status,requested_by,attempts,next_attempt_at,error,force)
+ SELECT af.id,'pending',${userId},0,now(),NULL,false FROM fs_audio_files af
+ JOIN fs_answers a ON a.id=af.answer_id JOIN fs_submissions s ON s.id=a.submission_id
+ JOIN fs_versions v ON v.id=s.version_id WHERE v.form_id=${formId}::uuid
+ AND af.deleted_at IS NULL AND af.status='uploaded' AND af.transcript IS NULL
+ AND af.byte_size<=${MAX_BYTES} AND s.status='submitted' AND s.deleted_at IS NULL
+ ON CONFLICT(audio_id) DO UPDATE SET status='pending',
+ attempts=0,next_attempt_at=now(),error=NULL,force=false,updated_at=now()
+ WHERE fs_audio_transcription_jobs.status IN ('failed','done')
+ RETURNING audio_id`);
+ return {queued:result.rows.length,...await getTranscriptionSummary(userId,formId)};
 }
-export async function requestAudioTranscription(userId:string,audioId:string){
+export async function requestAudioTranscription(userId:string,audioId:string,force=false){
  if(!UUID.test(audioId))throw new TranscriptionFault(400,'Identifiant audio invalide.');
  if(!transcriptionConfigured())throw new TranscriptionFault(503,'Le moteur de transcription n’est pas disponible.');
  const db=getDb();
@@ -79,31 +102,18 @@ export async function requestAudioTranscription(userId:string,audioId:string){
  WHERE m.form_id=f.id AND m.user_id=${userId} AND m.role='editor')) LIMIT 1`);
  const row=access.rows[0] as {id:string;transcript:string|null;transcript_source:string|null;byte_size:number|string}|undefined;
  if(!row)throw new TranscriptionFault(404,'Enregistrement introuvable ou accès insuffisant.');
- if(row.transcript?.trim())return {status:'done',text:row.transcript};
+ if(row.transcript?.trim()&&!force)return {status:'done',text:row.transcript};
  if(Number(row.byte_size)>MAX_BYTES)throw new TranscriptionFault(413,'Enregistrement trop volumineux pour la transcription gratuite (18 Mio maximum).');
- await db.execute(sql`INSERT INTO fs_audio_transcription_jobs(audio_id,status,requested_by)
- VALUES(${audioId}::uuid,'pending',${userId})
- ON CONFLICT(audio_id) DO UPDATE SET status=CASE WHEN fs_audio_transcription_jobs.status IN('failed') THEN 'pending'
- ELSE fs_audio_transcription_jobs.status END,
- attempts=CASE WHEN fs_audio_transcription_jobs.status='failed' THEN 0 ELSE fs_audio_transcription_jobs.attempts END,
- next_attempt_at=CASE WHEN fs_audio_transcription_jobs.status='failed' THEN now()
- ELSE fs_audio_transcription_jobs.next_attempt_at END,
- error=CASE WHEN fs_audio_transcription_jobs.status='failed' THEN NULL ELSE fs_audio_transcription_jobs.error END,
- updated_at=now()`);
+ await db.execute(sql`INSERT INTO fs_audio_transcription_jobs(audio_id,status,requested_by,force)
+ VALUES(${audioId}::uuid,'pending',${userId},${force})
+ ON CONFLICT(audio_id) DO UPDATE SET status='pending',force=${force},attempts=0,next_attempt_at=now(),error=NULL,updated_at=now()
+ WHERE fs_audio_transcription_jobs.status NOT IN ('pending','processing')`);
  return {status:'pending'};
 }
 export async function runTranscriptionQueue(){
  if(!transcriptionConfigured())return {configured:false,claimed:0,done:0,failed:0};
  const db=getDb();
- // Only forms explicitly opted into automatic processing are enqueued.
- await db.execute(sql`INSERT INTO fs_audio_transcription_jobs(audio_id,status)
- SELECT af.id,'pending' FROM fs_audio_files af
- JOIN fs_answers a ON a.id=af.answer_id JOIN fs_submissions s ON s.id=a.submission_id
- JOIN fs_versions v ON v.id=s.version_id JOIN fs_forms f ON f.id=v.form_id
- WHERE f.settings->>'autoTranscribeAudio'='true' AND f.deleted_at IS NULL
- AND af.status='uploaded' AND af.deleted_at IS NULL AND af.transcript IS NULL
- AND s.status='submitted' AND s.deleted_at IS NULL
- ORDER BY af.created_at LIMIT 30 ON CONFLICT(audio_id) DO NOTHING`);
+ // Do not auto-enqueue newly submitted recordings; processing is strictly opt-in.
  const claimed=await db.execute(sql`WITH task AS (
  SELECT audio_id FROM fs_audio_transcription_jobs
  WHERE ((status='pending' AND next_attempt_at<=now())
@@ -112,10 +122,11 @@ export async function runTranscriptionQueue(){
  ORDER BY next_attempt_at,created_at LIMIT 1 FOR UPDATE SKIP LOCKED
  ) UPDATE fs_audio_transcription_jobs j
  SET status='processing',attempts=j.attempts+1,updated_at=now(),error=NULL
- FROM task WHERE task.audio_id=j.audio_id RETURNING j.audio_id,j.attempts`);
+ FROM task WHERE task.audio_id=j.audio_id RETURNING j.audio_id,j.attempts,j.force`);
  if(!claimed.rows.length)return {configured:true,claimed:0,done:0,failed:0};
  const audioId=String(claimed.rows[0].audio_id);
  const attempts=Number(claimed.rows[0].attempts);
+ const force=claimed.rows[0].force===true;
  try{
   const r=await db.execute(sql`SELECT af.storage_key,af.byte_size,af.transcript,af.status
    FROM fs_audio_files af JOIN fs_answers a ON a.id=af.answer_id
@@ -125,7 +136,7 @@ export async function runTranscriptionQueue(){
    LIMIT 1`);
   const row=r.rows[0] as {storage_key:string;byte_size:number|string;transcript:string|null;status:string}|undefined;
   if(!row)throw new TranscriptionFault(404,'Fichier audio supprimé.');
-  if(row.transcript?.trim()){
+  if(row.transcript?.trim()&&!force){
    await db.execute(sql`UPDATE fs_audio_transcription_jobs SET status='done',updated_at=now()
     WHERE audio_id=${audioId}::uuid`);
    return {configured:true,claimed:1,done:1,failed:0};
@@ -147,14 +158,14 @@ export async function runTranscriptionQueue(){
   if(result.success===false||!transcript)throw new TranscriptionFault(422,'Aucun texte intelligible détecté.');
   await db.execute(sql`UPDATE fs_audio_files SET transcript=${transcript},
    transcript_source='whisper',transcript_updated_at=now()
-   WHERE id=${audioId}::uuid AND transcript IS NULL AND deleted_at IS NULL`);
+   WHERE id=${audioId}::uuid AND (transcript IS NULL OR ${force}) AND deleted_at IS NULL`);
   // Revisit previously exported Sheets rows when their transcript becomes available.
   await db.execute(sql`UPDATE fs_sheet_deliveries d SET state='pending',attempts=0,claimed_at=NULL,last_error=NULL
    WHERE d.state='done' AND d.submission_id IN (
     SELECT a.submission_id FROM fs_audio_files af
     JOIN fs_answers a ON a.id=af.answer_id WHERE af.id=${audioId}::uuid
    )`);
-  await db.execute(sql`UPDATE fs_audio_transcription_jobs SET status='done',error=NULL,updated_at=now()
+  await db.execute(sql`UPDATE fs_audio_transcription_jobs SET status='done',error=NULL,force=false,updated_at=now()
    WHERE audio_id=${audioId}::uuid`);
   return {configured:true,claimed:1,done:1,failed:0};
  }catch(e){
@@ -167,6 +178,6 @@ export async function runTranscriptionQueue(){
    status=${failed?'failed':'pending'},error=${message},updated_at=now(),
    next_attempt_at=now()+(${hours}::int * interval '1 hour')
    WHERE audio_id=${audioId}::uuid`);
-  return {configured:true,claimed:1,done:0,failed:1};
+  return {configured:true,claimed:1,done:0,failed:1,quotaReached:err?.status===429};
  }
 }
