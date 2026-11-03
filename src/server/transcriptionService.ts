@@ -1,4 +1,5 @@
 import {getStore} from '@netlify/blobs';
+import {createHmac,timingSafeEqual} from 'node:crypto';
 import {sql} from 'drizzle-orm';
 import {getDb} from './db/client';
 
@@ -6,6 +7,32 @@ const MODEL='@cf/openai/whisper-large-v3-turbo';
 const MAX_BYTES=18*1024*1024;
 const UUID=/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i;
 const audioStore=()=>getStore({name:'formulaire-singe-audio',region:'eu-central-1'});
+
+/** Authenticates the Netlify scheduler and manual trigger; never share the Cloudflare key with clients. */
+function internalMac(timestamp:string){
+ const secret=process.env.CLOUDFLARE_WORKERS_AI_TOKEN;
+ if(!secret)throw new Error('Transcription non configurée');
+ return createHmac('sha256',secret).update('monk-audio-transcribe:'+timestamp).digest('hex');
+}
+export function verifyTranscriptionWorkerRequest(request:Request){
+ const timestamp=request.headers.get('x-monk-timestamp')??'';
+ const provided=request.headers.get('x-monk-signature')??'';
+ if(!/^[0-9]{13}$/.test(timestamp)||!/^[a-f0-9]{64}$/.test(provided))return false;
+ if(Math.abs(Date.now()-Number(timestamp))>120000)return false;
+ const expected=internalMac(timestamp);
+ return timingSafeEqual(Buffer.from(provided,'hex'),Buffer.from(expected,'hex'));
+}
+export async function wakeTranscriptionWorker(){
+ if(!transcriptionConfigured())return false;
+ const timestamp=String(Date.now());
+ const host=process.env.URL||'https://monk-form.netlify.app';
+ const endpoint=new URL('/.netlify/functions/audio-transcribe-background',host);
+ // No user content or IDs are sent; the worker claims its own durable job.
+ const response=await fetch(endpoint,{method:'POST',headers:{
+  'x-monk-timestamp':timestamp,'x-monk-signature':internalMac(timestamp)
+ },signal:AbortSignal.timeout(12000)});
+ return response.status===202||response.ok;
+}
 
 export class TranscriptionFault extends Error{
  constructor(public status:number,message:string){super(message);}
