@@ -51,7 +51,7 @@ export async function verifyClientMetadata(input:OAuthParams,fetcher:typeof fetc
   return meta.client_id===input.client_id
    &&Array.isArray(meta.redirect_uris)
    &&meta.redirect_uris.includes(input.redirect_uri)
-   &&meta.token_endpoint_auth_method!=='client_secret_basic';
+   &&(meta.token_endpoint_auth_method===undefined||meta.token_endpoint_auth_method==='none');
  }catch{return false;}
  finally{clearTimeout(timeout);}
 }
