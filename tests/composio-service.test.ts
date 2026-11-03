@@ -18,6 +18,7 @@ describe('Composio managed Sheets adapter',()=>{
   const url=await startComposioGoogle('owner-1','https://monk-form.netlify.app/api/integrations/google/composio/verify');
   expect(url).toBe('https://connect.composio.dev/link/ln_example');
   const link=fetchMock.mock.calls.find(([url])=>String(url).endsWith('/connected_accounts/link'));
+  if(!link)throw new Error('Composio link request absent');
   expect(JSON.parse(link[1].body)).toMatchObject({user_id:'monk-form:owner-1',auth_config_id:'ac_abcdef'});
   for(const [url,init] of fetchMock.mock.calls){
    expect(url).toMatch(/^https:\/\/backend\.composio\.dev\//);
@@ -36,6 +37,7 @@ describe('Composio managed Sheets adapter',()=>{
   });
   expect(await completeComposioGoogle('owner-1','opaque://session')).toBe('ca_abcdef');
   const done=fetchMock.mock.calls.find(([url])=>String(url).endsWith('/complete_auth'));
+  if(!done)throw new Error('Composio completion request absent');
   expect(JSON.parse(done[1].body).user_id).toBe('monk-form:owner-1');
  });
  it('crée la feuille et ses en-têtes via le proxy Google sans exposer de jeton OAuth',async()=>{
