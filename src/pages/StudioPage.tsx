@@ -386,7 +386,34 @@ export function StudioPage(){
         </button>)}
        </nav>
        {detail.archivedAt&&<p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Ce formulaire est archivé ; son contenu ne peut pas être modifié.</p>}
-      {activeTab==='results'?<ResultsPanel formId={detail.id} onOpenIntegrations={()=>setActiveTab('integrations')}/>: 
+      {activeTab==='overview'?<section aria-label="Vue d’ensemble du formulaire" className="space-y-5">
+       <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h2 className="flex items-center gap-2 font-display text-2xl font-bold text-[#315a40]"><LayoutDashboard size={23}/> Vue d’ensemble</h2>
+         <p className="mt-1 text-sm text-[#708575]">Suivez les participations et retrouvez les actions essentielles.</p></div>
+        <button type="button" className={cta} onClick={()=>setActiveTab('results')}><BarChart3 size={16}/> Consulter les résultats</button>
+       </div>
+       <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-[#e2ebde] bg-white p-5"><p className="text-3xl font-bold tabular-nums">{overviewResults?.total??items.find(i=>i.id===detail.id)?.submissionCount??0}</p><p className="mt-1 text-xs text-[#758d78]">Participations</p></div>
+        <div className="rounded-xl border border-[#e2ebde] bg-white p-5"><p className="text-xl font-bold text-[#315e42]">{published?'Publié':'Brouillon'}</p><p className="mt-1 text-xs text-[#758d78]">État de publication</p></div>
+        <div className="rounded-xl border border-[#e2ebde] bg-white p-5"><p className="text-3xl font-bold tabular-nums">{countQuestions(pages)}</p><p className="mt-1 text-xs text-[#758d78]">Questions du brouillon</p></div>
+       </div>
+       <div className="rounded-xl border border-[#e2ebde] bg-white p-5">
+        <div className="mb-4 flex items-center justify-between gap-2"><h3 className="font-bold text-[#315b3f]">Dernières participations</h3>
+         <button type="button" onClick={()=>setActiveTab('results')} className="text-xs font-semibold text-[#33754b] hover:underline">Toutes les réponses</button></div>
+        {!overviewResults?<p className="text-sm text-[#829486]">Chargement des participations…</p>:
+         overviewResults.submissions.length===0?<p className="text-sm text-[#829486]">Aucune réponse pour le moment.</p>:
+         <div className="divide-y divide-[#edf1ea]">{overviewResults.submissions.map((sub,i)=><button key={sub.id} type="button" onClick={()=>setActiveTab('results')}
+          className="flex min-h-12 w-full items-center justify-between gap-2 text-left text-sm text-[#4f7558] hover:bg-[#f5faf3]">
+          <span>Participation {overviewResults.total-i}</span><span className="text-xs text-[#778b79]">{formatParisDateTime(sub.submittedAt)}</span>
+         </button>)}</div>}
+       </div>
+       <div className="flex flex-wrap gap-2">
+        <button type="button" className={light} onClick={()=>setActiveTab('questions')}><FileText size={16}/> Modifier les questions</button>
+        <button type="button" className={light} onClick={()=>setActiveTab('integrations')}><Copy size={16}/> Intégrations</button>
+       </div>
+      </section>:
+      activeTab==='results'?<ResultsPanel formId={detail.id} onOpenIntegrations={()=>setActiveTab('integrations')}/>:
+ 
        activeTab==='integrations'?<div className="max-w-2xl space-y-4">
         {googleOutcome==='verifying'&&<p role="status" className="rounded-xl bg-[#eff6ec] p-4 text-sm text-[#2f6546]">Vérification de votre compte Google et création du tableur…</p>}
         {googleOutcome==='connected'&&<p role="status" className="rounded-xl border border-[#cde6d0] bg-[#edf8ef] p-4 text-sm font-medium text-[#2e7048]">Compte Google autorisé. Le tableur a été créé ; vous pouvez l’ouvrir depuis cette page.</p>}
