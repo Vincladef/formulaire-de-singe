@@ -1,13 +1,13 @@
 import { Layers3,Plus,Settings2,SlidersHorizontal,PanelLeftClose,PanelLeftOpen } from 'lucide-react';
 import { QuestionSettings } from './QuestionSettings';
-import { questionTypes,questionTypeNames,type QuestionType,type StudioPageData,type StudioQuestion } from '../../shared/studio';
+import { insertQuestionTypes,insertionQuestionName,type InsertQuestionType,type StudioPageData,type StudioQuestion } from '../../shared/studio';
 
 export type SidebarMode='add'|'settings'|'pages';
 type Props={
  mode:SidebarMode;onModeChange:(mode:SidebarMode)=>void;open:boolean;onToggle:()=>void;
  pages:StudioPageData[];pageIndex:number;onPageIndex:(index:number)=>void;
  selected:StudioQuestion|null;editable:boolean;
- onQuestionUpdate:(q:StudioQuestion)=>void;onAddQuestion:(type:QuestionType)=>void;
+ onQuestionUpdate:(q:StudioQuestion)=>void;onAddQuestion:(type:InsertQuestionType)=>void;
  onAddPage:()=>void;onDeletePage:()=>void;
 };
 export function StudioSidebar({mode,onModeChange,open,onToggle,pages,pageIndex,onPageIndex,selected,editable,
@@ -31,9 +31,9 @@ export function StudioSidebar({mode,onModeChange,open,onToggle,pages,pageIndex,o
    {mode==='add'&&<div className="space-y-2">
      <h3 className="px-1 text-sm font-bold text-[#33583f]">Insérer dans le document</h3><p className="px-1 text-xs leading-5 text-[#607265]">À la position du curseur.</p>
      <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
-      {questionTypes.map(type=><button type="button" key={type} disabled={!editable}
+      {insertQuestionTypes.map(type=><button type="button" key={type} disabled={!editable}
        onClick={()=>onAddQuestion(type)} className="flex min-h-11 items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[#375a42] hover:bg-[#edf7ea] disabled:opacity-35">
-       <Plus size={15}/>{type==='statement'?'Paragraphe':questionTypeNames[type]}</button>)}
+       <Plus size={15}/>{type==='statement'?'Paragraphe':insertionQuestionName(type)}</button>)}
      </div>
    </div>}
    {mode==='settings'&&<div>
