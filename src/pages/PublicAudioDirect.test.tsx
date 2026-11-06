@@ -1,4 +1,5 @@
 import { beforeEach,describe,expect,it,vi } from 'vitest';
+import type { ReactNode } from 'react';
 import { fireEvent,render,screen,waitFor } from '@testing-library/react';
 import { MemoryRouter,Route,Routes } from 'react-router-dom';
 import { PublicFormPage } from './PublicFormPage';
@@ -6,10 +7,10 @@ import type { AudioDraft } from '../shared/audio';
 import type { PublicForm } from '../shared/publicForm';
 
 vi.mock('../components/AudioRecorder',()=>({
- AudioRecorder:({onChange}:{onChange:(value:AudioDraft)=>void})=>
-  <button type="button" onClick={()=>onChange({
+ AudioRecorder:({onChange,supplementControl}:{onChange:(value:AudioDraft)=>void;supplementControl?:ReactNode})=>
+  <div>{supplementControl}<button type="button" onClick={()=>onChange({
    kind:'audio-draft',file:new Blob([new Uint8Array([0x1a,0x45,0xdf,0xa3,0,0,0,0])],{type:'audio/webm'}),durationMs:20000,
-  })}>Simuler un audio de 20 secondes</button>,
+  })}>Simuler un audio de 20 secondes</button></div>,
 }));
 const questionId='11111111-1111-4111-8111-111111111111';
 const uploadId='22222222-2222-4222-8222-222222222222';
