@@ -5,7 +5,7 @@ import { audioMode } from '../../shared/audio';
 import { OTHER_VALUE } from '../../shared/publicForm';
 import { allowedInlineImage, sanitizeDocumentHtml } from '../../shared/richText';
 import { clipboardImageToDataUrl } from '../../shared/clipboardImage';
-import { duplicateQuestion, makeQuestion, questionTypeNames, questionTypes, type QuestionType, type StudioPageData, type StudioQuestion } from '../../shared/studio';
+import { duplicateQuestion, makeQuestion, questionDisplayName, insertQuestionTypes, insertionQuestionName, type InsertQuestionType, type StudioPageData, type StudioQuestion } from '../../shared/studio';
 
 type Props = {
  page: StudioPageData;
@@ -16,7 +16,7 @@ type Props = {
  onDeleteQuestion: (id: string) => void;
 };
 export type DocumentCanvasHandle = {
- insert: (type: QuestionType) => void;
+ insert: (type: InsertQuestionType) => void;
  focus: () => void;
 };
 
@@ -58,7 +58,7 @@ function questionNode(q:StudioQuestion,index:number):HTMLElement {
  const block=el('section','group relative my-3 rounded-lg border-l-2 border-transparent py-2 pl-3 transition hover:border-[#bdd4bd] focus-within:border-[#77a281]');
  block.dataset.questionId=q.id;block.contentEditable='false';block.setAttribute('role','group');block.setAttribute('aria-label',q.label);
  const meta=el('div','mb-1 flex items-center justify-between gap-3');
- meta.appendChild(el('span','text-xs font-semibold text-[#617866]',String(index+1).padStart(2,'0')+' · '+questionTypeNames[q.type]));
+ meta.appendChild(el('span','text-xs font-semibold text-[#617866]',String(index+1).padStart(2,'0')+' · '+questionDisplayName(q)));
  const actionBar=el('div','flex items-center gap-1 opacity-60 transition group-hover:opacity-100 group-focus-within:opacity-100');
  actionBar.append(action('Options','settings'),action('Dupliquer','duplicate'),action('Supprimer','delete'));
  meta.appendChild(actionBar);block.appendChild(meta);
@@ -67,6 +67,7 @@ function questionNode(q:StudioQuestion,index:number):HTMLElement {
  const answer=el('div','mt-1 px-1 pb-2 text-sm text-[#6e8373]');
  if(['short_text','long_text','number','date'].includes(q.type))answer.appendChild(el('p','border-b border-dashed border-[#b9cdbb] py-2',q.type==='number'?'0':q.type==='date'?'JJ / MM / AAAA':'Réponse du participant…'));
  if(q.type==='audio'||audioMode(q.type,q.settings)!=='text')answer.appendChild(el('p','py-2 text-[#427453]','🎙 Réponse vocale'));
+ if(q.type==='audio'&&q.settings.allowTextSupplement===true)answer.appendChild(el('p','text-xs text-[#7a9280]','▾ Texte facultatif'));
  if(q.type==='select'){
   const preview=el('select','min-h-10 w-full max-w-xs rounded-lg border border-[#d8e5d9] bg-[#f8faf7] px-3 text-sm text-[#45634b]') as HTMLSelectElement;
   preview.setAttribute('aria-label','Aperçu de la liste déroulante');
@@ -226,7 +227,7 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
   document.addEventListener('selectionchange',handler);
   return()=>document.removeEventListener('selectionchange',handler);
  },[]);
- function insertAtSelection(type:QuestionType){
+ function insertAtSelection(type:InsertQuestionType){
   const editor=root.current;if(!editor||!editable)return;
   const selection=window.getSelection();
   const range=savedRange.current?.cloneRange()??(selection?.rangeCount?selection.getRangeAt(0).cloneRange():null);
@@ -414,7 +415,7 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
   }
   emit();
  }
- const available=questionTypes.filter(type=>type!=='statement'&&(questionTypeNames[type].toLowerCase().includes(filter.toLowerCase())||type.includes(filter.toLowerCase())));
+ const available=insertQuestionTypes.filter(type=>type!=='statement'&&(insertionQuestionName(type).toLowerCase().includes(filter.toLowerCase())||type.includes(filter.toLowerCase())));
  return <section className="relative mx-auto w-full max-w-[900px]" aria-label="Document du formulaire">
   {editable&&<div role="toolbar" aria-label="Mise en forme" className="mb-6 flex flex-wrap items-center gap-1 border-b border-[#e7eee5] pb-3">
    <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>format('undo')} aria-label="Annuler" title="Annuler" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Undo2 size={17}/></button>
@@ -453,7 +454,7 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
      placeholder="Rechercher une question…" aria-label="Rechercher un type de question"
      className="mb-2 h-11 w-full rounded-lg border border-[#d8e7d6] px-3 text-sm text-[#294b36] outline-none focus:border-[#6f9b79]"/>
     <div className="max-h-64 overflow-y-auto">{available.map(type=><button key={type} type="button" onMouseDown={e=>e.preventDefault()}
-     onClick={()=>insertAtSelection(type)} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-[#365b40] hover:bg-[#eef6eb]"><Type size={15}/>{questionTypeNames[type]}</button>)}
+     onClick={()=>insertAtSelection(type)} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-sm text-[#365b40] hover:bg-[#eef6eb]"><Type size={15}/>{insertionQuestionName(type)}</button>)}
      {!available.length&&<p className="p-3 text-sm text-[#607265]">Aucun type correspondant</p>}</div>
     <button type="button" onClick={()=>setMenu(null)} className="mt-1 w-full rounded-lg px-3 py-2 text-left text-xs text-[#637c68] hover:bg-[#f2f6f0]">Fermer</button>
    </div>}
