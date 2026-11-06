@@ -90,7 +90,7 @@ export function QuestionField({question,value,onChange,error,audioStatus}: {ques
         onClick={()=>setTextExpanded(open=>!open)}
         className="inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 text-xs text-[#557962] hover:bg-[#e4efe4] focus-visible:outline-2 focus-visible:outline-[#45865a]">
         <ChevronDown size={13} className={`transition-transform ${textExpanded?'rotate-180':''}`}/>
-        <span>Texte facultatif</span>{!textExpanded&&supplement&&<span aria-label="Texte renseigné" className="h-1.5 w-1.5 rounded-full bg-[#3a8054]"/>}
+        <span>Texte</span>{!textExpanded&&supplement&&<span aria-label="Texte renseigné" className="h-1.5 w-1.5 rounded-full bg-[#3a8054]"/>}
       </button>:undefined}/>}
     {vocal&&draft&&audioStatus&&<p role="status" className="mt-2 text-xs text-[#607265]">{audioStatus==='ready'?'Audio prêt pour l’envoi.':audioStatus==='uploading'?'Transfert sécurisé de l’audio en cours…':'Transfert interrompu ; une nouvelle tentative aura lieu lors de l’envoi.'}</p>}
     {audioWithText&&<div id={`supplement-${question.id}`} hidden={!textExpanded} className="mt-2">
