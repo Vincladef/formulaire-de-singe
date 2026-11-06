@@ -38,7 +38,12 @@ describe('Transfert direct des audios courts',()=>{
   render(<MemoryRouter initialEntries={['/f/test-audio']}><Routes>
    <Route path="/f/:slug" element={<PublicFormPage/>}/></Routes></MemoryRouter>);
   expect(await screen.findByText('Enquête sonore')).toBeInTheDocument();
+  expect(screen.getByLabelText('Réponse écrite complémentaire').closest('[hidden]')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'Afficher le texte facultatif'}));
+  expect(screen.getByLabelText('Réponse écrite complémentaire').closest('[hidden]')).toBeNull();
   fireEvent.change(screen.getByLabelText('Réponse écrite complémentaire'),{target:{value:'Un commentaire'}});
+  fireEvent.click(screen.getByRole('button',{name:'Masquer le texte facultatif'}));
+  expect(screen.getByLabelText('Réponse écrite complémentaire').closest('[hidden]')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button',{name:'Simuler un audio de 20 secondes'}));
   await waitFor(()=>expect(fetchMock.mock.calls.some(c=>String(c[0]).endsWith('/audio/direct'))).toBe(true));
   const direct=fetchMock.mock.calls.find(c=>String(c[0]).endsWith('/audio/direct'));
