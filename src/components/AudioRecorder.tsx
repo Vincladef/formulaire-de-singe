@@ -1,11 +1,12 @@
-import { useEffect,useRef,useState } from 'react';
-import { Mic,Square,RotateCcw,Upload,AlertCircle } from 'lucide-react';
+import { useEffect,useRef,useState,type ReactNode } from 'react';
+import { Mic,Square,RotateCcw,AlertCircle } from 'lucide-react';
 import { audioMimeTypes,MAX_AUDIO_BYTES,normalizedMime,type AudioDraft } from '../shared/audio';
 
 const formats=['audio/webm;codecs=opus','audio/mp4','audio/webm','audio/ogg;codecs=opus','audio/ogg'];
 export function chooseRecorderMime(supported:(s:string)=>boolean){return formats.find(supported)??'';}
-export function AudioRecorder({value,onChange,maxSeconds=600,maxBytes=MAX_AUDIO_BYTES}:{
+export function AudioRecorder({value,onChange,maxSeconds=600,maxBytes=MAX_AUDIO_BYTES,supplementControl}:{
  value?:AudioDraft;onChange:(value:AudioDraft|undefined)=>void;maxSeconds?:number;maxBytes?:number;
+ supplementControl?:ReactNode;
 }){
  const [recording,setRecording]=useState(false),[seconds,setSeconds]=useState(0),[error,setError]=useState('');
  const [url,setUrl]=useState('');
@@ -26,7 +27,7 @@ export function AudioRecorder({value,onChange,maxSeconds=600,maxBytes=MAX_AUDIO_
  useEffect(()=>()=>{stop();free();},[]);
  async function start(){
   if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined'){
-   setError('Le microphone n’est pas disponible dans ce navigateur. Tu peux importer un audio.');return;
+   setError('Le microphone n’est pas disponible dans ce navigateur. Vérifie les autorisations ou utilise un navigateur compatible.');return;
   }
   setError('');
   try{
@@ -54,30 +55,11 @@ export function AudioRecorder({value,onChange,maxSeconds=600,maxBytes=MAX_AUDIO_
    free();setError('Accès au microphone refusé ou indisponible. Vérifie les autorisations.');
   }
  }
- async function imported(file:File|undefined){
-  if(!file)return;
-  const mime=normalizedMime(file.type)||(
-    /\.m4a$/i.test(file.name)?'audio/mp4':/\.mp3$/i.test(file.name)?'audio/mpeg':
-    /\.wav$/i.test(file.name)?'audio/wav':/\.ogg$/i.test(file.name)?'audio/ogg':'');
-  if(!audioMimeTypes.some(t=>t===mime)||!file.size||file.size>maxBytes){
-   setError('Fichier invalide ou trop volumineux. Formats : WebM, MP4, M4A, OGG, MP3, WAV.');return;
-  }
-  try{
-   const object=URL.createObjectURL(file);
-   const duration=await new Promise<number>((resolve,reject)=>{
-    const a=new Audio(),timer=setTimeout(()=>reject(new Error('timeout')),10000);
-    a.preload='metadata';a.onloadedmetadata=()=>{clearTimeout(timer);resolve(a.duration)};
-    a.onerror=()=>{clearTimeout(timer);reject(new Error('invalid'))};a.src=object;
-   }).finally(()=>URL.revokeObjectURL(object));
-   if(!Number.isFinite(duration)||duration<0||duration>maxSeconds)throw new Error('duration');
-   listener.current({kind:'audio-draft',file:new Blob([file],{type:mime}),durationMs:Math.max(1,Math.round(duration*1000))});
-   setError('');
-  }catch{setError('Impossible de vérifier la durée audio ou durée trop longue.');}
- }
  return <div className="rounded-2xl border border-[#dce9dd] bg-[#f4f9f3] p-4">
   <div className="flex items-center justify-between gap-2">
    <span className="text-sm font-semibold text-[#315c3f]">Réponse vocale</span>
-   <span className="text-sm tabular-nums">{Math.floor((recording?seconds:(value?.durationMs??0)/1000)/60)}:{String(Math.floor((recording?seconds:(value?.durationMs??0)/1000)%60)).padStart(2,'0')}</span>
+   <div className="flex shrink-0 items-center gap-2">{supplementControl}
+    <span className="text-sm tabular-nums">{Math.floor((recording?seconds:(value?.durationMs??0)/1000)/60)}:{String(Math.floor((recording?seconds:(value?.durationMs??0)/1000)%60)).padStart(2,'0')}</span></div>
   </div>
   <div className="mt-4 flex flex-wrap items-center gap-3">
    {recording?
@@ -86,9 +68,6 @@ export function AudioRecorder({value,onChange,maxSeconds=600,maxBytes=MAX_AUDIO_
    {value&&!recording&&<button type="button" onClick={()=>{onChange(undefined);setError('');}} className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-3 text-sm"><RotateCcw size={16}/> Recommencer</button>}
   </div>
   {value&&url&&<audio className="mt-4 w-full" controls src={url} preload="metadata" aria-label="Écouter votre réponse"/>}
-  <label className="mt-4 flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium text-[#316048]"><Upload size={17}/> Importer un fichier audio
-   <input aria-label="Importer un audio" className="sr-only" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg" onChange={e=>{void imported(e.target.files?.[0]);e.target.value='';}}/>
-  </label>
   {error&&<p role="alert" className="mt-3 flex items-center gap-2 text-sm text-red-700"><AlertCircle size={17}/>{error}</p>}
  </div>;
 }

@@ -1,5 +1,5 @@
 import { describe,expect,it } from 'vitest';
-import {draftPayloadSchema,makePage,makeQuestion,duplicateQuestion,duplicatePages,moveQuestionAt,questionTypes} from '../src/shared/studio';
+import {draftPayloadSchema,makePage,makeQuestion,duplicateQuestion,duplicatePages,moveQuestionAt,questionTypes,insertQuestionTypes,questionDisplayName} from '../src/shared/studio';
 
 const versionId='1f8bcdb4-8e77-4700-bcb3-4f06f0d6605b';
 describe('Schémas Studio',()=>{
@@ -7,6 +7,17 @@ describe('Schémas Studio',()=>{
    const page=makePage();page.questions=questionTypes.map(makeQuestion);
    const parsed=draftPayloadSchema.parse({versionId,expectedRevision:0,pages:[page]});
    expect(parsed.pages[0].questions).toHaveLength(9);
+ });
+ it('expose deux variantes audio sans changer le schéma des données',()=>{
+   const audio=makeQuestion('audio');
+   const audioText=makeQuestion('audio_text');
+   expect(insertQuestionTypes).toContain('audio_text');
+   expect(audio.type).toBe('audio');
+   expect(audioText.type).toBe('audio');
+   expect(audioText.settings.allowTextSupplement).toBe(true);
+   expect(questionDisplayName(audioText)).toBe('Audio + texte facultatif');
+   const page=makePage();page.questions=[audio,audioText];
+   expect(draftPayloadSchema.safeParse({versionId,expectedRevision:0,pages:[page]}).success).toBe(true);
  });
  it('rejette les IDs répétés et un choix vide',()=>{
    const page=makePage();const q=makeQuestion('single_choice');page.questions=[q,q];

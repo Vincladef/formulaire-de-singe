@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { sanitizeDocumentHtml } from '../shared/richText';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, CircleAlert, FileQuestion, LoaderCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert, FileQuestion, LoaderCircle } from 'lucide-react';
 import { AudioRecorder } from '../components/AudioRecorder';
 import { audioMode, type AudioDraft, type UploadedAudio, DIRECT_AUDIO_BYTES } from '../shared/audio';
 import { type AnswerValues, type PublicForm, type PublicQuestion, toSubmissionAnswers, validateAnswers, isAnswered, OTHER_VALUE, isOtherAnswer } from '../shared/publicForm';
@@ -44,6 +44,7 @@ export function QuestionField({question,value,onChange,error,audioStatus}: {ques
  const draft=value&&typeof value==='object'&&!Array.isArray(value)&&value.kind==='audio-draft'?value:undefined;
  const audioWithText=question.type==='audio'&&question.settings?.allowTextSupplement===true;
  const supplement=typeof value==='string'?value:value&&typeof value==='object'&&!Array.isArray(value)?value.text??'':'';
+ const [textExpanded,setTextExpanded]=useState(Boolean(supplement));
  const common={id:question.id,'aria-invalid':!!error,'aria-describedby':ariaDesc,required:question.required} as const;
  return <div className={question.type==='statement'?'px-1 py-2 sm:px-3':'rounded-2xl border border-[#e1e9df] bg-white p-5 sm:p-7'}>
   {question.type==='statement' ? <>
@@ -83,16 +84,23 @@ export function QuestionField({question,value,onChange,error,audioStatus}: {ques
         onChange={e=>{const next=OTHER_VALUE+':'+e.target.value;
          onChange(Array.isArray(value)?[...value.filter(v=>!isOtherAnswer(v)),next]:next);
         }}/>}
-    {vocal&&<AudioRecorder value={draft} onChange={next=>onChange(next?(audioWithText?{...next,text:supplement}:next):(audioWithText?supplement||undefined:undefined))} maxSeconds={question.maxAudioSeconds??600} maxBytes={question.maxAudioBytes??15*1048576}/>}
+    {vocal&&<AudioRecorder value={draft} onChange={next=>onChange(next?(audioWithText&&supplement?{...next,text:supplement}:next):(audioWithText?supplement||undefined:undefined))} maxSeconds={question.maxAudioSeconds??600} maxBytes={question.maxAudioBytes??15*1048576}
+      supplementControl={audioWithText?<button type="button" aria-expanded={textExpanded} aria-controls={`supplement-${question.id}`}
+        aria-label={textExpanded?'Masquer le texte facultatif':'Afficher le texte facultatif'}
+        onClick={()=>setTextExpanded(open=>!open)}
+        className="inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 text-xs text-[#557962] hover:bg-[#e4efe4] focus-visible:outline-2 focus-visible:outline-[#45865a]">
+        <ChevronDown size={13} className={`transition-transform ${textExpanded?'rotate-180':''}`}/>
+        <span>Texte</span>{!textExpanded&&supplement&&<span aria-label="Texte renseigné" className="h-1.5 w-1.5 rounded-full bg-[#3a8054]"/>}
+      </button>:undefined}/>}
     {vocal&&draft&&audioStatus&&<p role="status" className="mt-2 text-xs text-[#607265]">{audioStatus==='ready'?'Audio prêt pour l’envoi.':audioStatus==='uploading'?'Transfert sécurisé de l’audio en cours…':'Transfert interrompu ; une nouvelle tentative aura lieu lors de l’envoi.'}</p>}
-    {audioWithText&&<label className="mt-4 block text-sm font-medium text-[#315c3f]">Réponse écrite complémentaire
-      <textarea className={fieldStyle+' mt-2 min-h-20 resize-y'} rows={2} maxLength={500}
-        aria-label="Réponse écrite complémentaire" placeholder="Vous pouvez aussi écrire quelques mots…"
+    {audioWithText&&<div id={`supplement-${question.id}`} hidden={!textExpanded} className="mt-2">
+      <label htmlFor={`supplement-input-${question.id}`} className="sr-only">Réponse écrite complémentaire</label>
+      <textarea id={`supplement-input-${question.id}`} className="min-h-16 w-full resize-y rounded-xl border border-[#dce7dc] bg-white px-3 py-2 text-sm text-[#294735] outline-none focus:border-[#5b986e] focus:ring-2 focus:ring-[#e0eee0]" rows={2} maxLength={500}
+        placeholder="Ajouter quelques mots (facultatif)…"
         value={supplement} onChange={e=>{const text=e.target.value;
           onChange(value&&typeof value==='object'&&!Array.isArray(value)?{...value,text}:text||undefined);
         }}/>
-      <span className="mt-1 block text-xs font-normal text-[#607265]">Vous pouvez répondre par audio, par texte, ou avec les deux.</span>
-    </label>}
+    </div>}
    </div>
    {error&&<p id={errorId} role="alert" className="mt-3 flex items-start gap-2 text-sm font-medium text-[#ad5e4e]"><CircleAlert size={16} className="mt-0.5 shrink-0"/>{error}</p>}
   </>}
