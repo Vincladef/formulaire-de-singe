@@ -51,7 +51,7 @@ export function QuestionField({question,value,onChange,error,audioStatus}: {ques
    {question.description&&<p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-[#607265]">{question.description}</p>}
   </> : <>
    <label htmlFor={question.id} className="font-display mb-2 block text-[17px] font-bold leading-snug text-[#294a34]">
-    {question.label} {question.required ? <span aria-label="obligatoire" className="text-[#a44f3b]">*</span> : <span className="ml-1 text-xs font-normal text-[#607265]">Facultatif</span>}
+    {question.label} {question.required ? <span aria-label="obligatoire" className="text-[#a44f3b]">*</span> : null}
    </label>
    {question.description&&<p id={describedBy} className="mb-4 whitespace-pre-line text-sm leading-6 text-[#607265]">{question.description}</p>}
    <div className={question.description?'mt-3':'mt-4'}>
@@ -85,7 +85,7 @@ export function QuestionField({question,value,onChange,error,audioStatus}: {ques
         }}/>}
     {vocal&&<AudioRecorder value={draft} onChange={next=>onChange(next?(audioWithText?{...next,text:supplement}:next):(audioWithText?supplement||undefined:undefined))} maxSeconds={question.maxAudioSeconds??600} maxBytes={question.maxAudioBytes??15*1048576}/>}
     {vocal&&draft&&audioStatus&&<p role="status" className="mt-2 text-xs text-[#607265]">{audioStatus==='ready'?'Audio prêt pour l’envoi.':audioStatus==='uploading'?'Transfert sécurisé de l’audio en cours…':'Transfert interrompu ; une nouvelle tentative aura lieu lors de l’envoi.'}</p>}
-    {audioWithText&&<label className="mt-4 block text-sm font-medium text-[#315c3f]">Réponse écrite (facultative)
+    {audioWithText&&<label className="mt-4 block text-sm font-medium text-[#315c3f]">Réponse écrite complémentaire
       <textarea className={fieldStyle+' mt-2 min-h-20 resize-y'} rows={2} maxLength={500}
         aria-label="Réponse écrite complémentaire" placeholder="Vous pouvez aussi écrire quelques mots…"
         value={supplement} onChange={e=>{const text=e.target.value;
