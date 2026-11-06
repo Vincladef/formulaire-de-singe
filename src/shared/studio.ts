@@ -2,10 +2,19 @@ import { z } from 'zod';
 
 export const questionTypes = ['short_text','long_text','single_choice','multiple_choice','select','number','date','audio','statement'] as const;
 export type QuestionType = typeof questionTypes[number];
+/** An editor-only option; audio_text is stored as audio with allowTextSupplement=true. */
+export type InsertQuestionType = QuestionType | 'audio_text';
+export const insertQuestionTypes: InsertQuestionType[] = [...questionTypes.slice(0,-1),'audio_text','statement'];
 export const questionTypeNames: Record<QuestionType,string> = {
   short_text:'Texte court', long_text:'Texte long',single_choice:'Choix unique',multiple_choice:'Choix multiples',
   select:'Liste déroulante',number:'Nombre',date:'Date',audio:'Réponse audio',statement:'Bloc explicatif',
 };
+export function insertionQuestionName(type:InsertQuestionType):string {
+  return type==='audio_text'?'Audio + texte facultatif':type==='audio'?'Audio uniquement':questionTypeNames[type];
+}
+export function questionDisplayName(question:Pick<StudioQuestion,'type'|'settings'>):string {
+  return question.type==='audio'&&question.settings.allowTextSupplement===true?'Audio + texte facultatif':insertionQuestionName(question.type);
+}
 export const optionSchema = z.object({id:z.string().uuid(),value:z.string().trim().min(1).max(100),label:z.string().trim().min(1).max(180)}).strict();
 export const questionSchema = z.object({
   id:z.string().uuid(),type:z.enum(questionTypes),label:z.string().trim().min(1).max(50000),
@@ -38,10 +47,12 @@ export type StudioPageData=z.infer<typeof pageSchema>;
 export type StudioQuestion=z.infer<typeof questionSchema>;
 export type DraftPayload=z.infer<typeof draftPayloadSchema>;
 
-export function makeQuestion(type:QuestionType): StudioQuestion {
-  const choices=['single_choice','multiple_choice','select'].includes(type);
-  return {id:crypto.randomUUID(),type,label:type==='statement'?'Un petit mot avant de continuer': 'Votre question', description:null,
-    required:false,settings:{}, options:choices ? ['Option 1','Option 2'].map((label,i)=>({id:crypto.randomUUID(),label,value:`option_${i+1}`})):[]};
+export function makeQuestion(type:InsertQuestionType): StudioQuestion {
+  const storedType:QuestionType=type==='audio_text'?'audio':type;
+  const choices=['single_choice','multiple_choice','select'].includes(storedType);
+  return {id:crypto.randomUUID(),type:storedType,label:storedType==='statement'?'Un petit mot avant de continuer':'Votre question',description:null,
+    required:false,settings:type==='audio_text'?{allowTextSupplement:true}:{},
+    options:choices?['Option 1','Option 2'].map((label,i)=>({id:crypto.randomUUID(),label,value:`option_${i+1}`})):[]};
 }
 export function makePage():StudioPageData{return {id:crypto.randomUUID(),title:'Nouvelle page',description:null,questions:[]};}
 export function duplicateQuestion(q:StudioQuestion):StudioQuestion{return {...q,id:crypto.randomUUID(),options:q.options.map(o=>({...o,id:crypto.randomUUID()})),settings:{...q.settings}};}
