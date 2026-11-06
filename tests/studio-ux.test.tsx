@@ -2,6 +2,8 @@ import { afterEach,describe,expect,it,vi } from 'vitest';
 import { cleanup,fireEvent,render,screen } from '@testing-library/react';
 import { useState } from 'react';
 import { QuestionCard } from '../src/components/studio/QuestionCard';
+import { QuestionSettings } from '../src/components/studio/QuestionSettings';
+import { AudioRecorder } from '../src/components/AudioRecorder';
 import { audioLimits,MAX_AUDIO_SECONDS } from '../src/shared/audio';
 import { makeQuestion } from '../src/shared/studio';
 
@@ -64,5 +66,26 @@ describe('Durées audio',()=>{
   expect(MAX_AUDIO_SECONDS).toBe(1800);
   expect(audioLimits({maxAudioSeconds:1800}).maxSeconds).toBe(1800);
   expect(audioLimits({maxAudioSeconds:9999}).maxSeconds).toBe(1800);
+ });
+});
+
+describe('Options audio',()=>{
+ it('permet de sélectionner directement audio + texte facultatif',()=>{
+  function Options(){
+   const [question,setQuestion]=useState(()=>makeQuestion('audio'));
+   return <QuestionSettings question={question} onUpdate={setQuestion}/>;
+  }
+  render(<Options/>);
+  const choice=screen.getByRole('combobox',{name:'Type de réponse'});
+  expect(choice).toHaveValue('audio');
+  fireEvent.change(choice,{target:{value:'audio_text'}});
+  expect(choice).toHaveValue('audio_text');
+  fireEvent.change(choice,{target:{value:'audio'}});
+  expect(choice).toHaveValue('audio');
+ });
+ it('supprime le téléversement depuis l’enregistreur vocal',()=>{
+  render(<AudioRecorder onChange={()=>{}}/>);
+  expect(screen.queryByLabelText('Importer un audio')).not.toBeInTheDocument();
+  expect(screen.getByRole('button',{name:'Commencer l’enregistrement'})).toBeInTheDocument();
  });
 });
