@@ -17,7 +17,7 @@ export function StudioPreview({pages,title}:{pages:StudioPageData[];title?:strin
       {page.questions.map(q=>{
        const limits=audioLimits(q.settings);
        return <QuestionField key={q.id} question={{id:q.id,type:q.type,label:q.label,description:q.description,
-         required:q.required,settings:q.type==='statement'?q.settings:undefined,options:q.options.map(o=>({value:o.value,label:o.label})),
+         required:q.required,settings:q.type==='statement'||q.type==='audio'?q.settings:undefined,options:q.options.map(o=>({value:o.value,label:o.label})),
          mode:audioMode(q.type,q.settings),maxAudioSeconds:limits.maxSeconds,maxAudioBytes:limits.maxBytes}}
          value={undefined} onChange={()=>{}}/>;
       })}
