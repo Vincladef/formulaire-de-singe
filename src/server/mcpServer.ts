@@ -126,6 +126,12 @@ export function buildMcpServer(
    optionLabel:z.string().min(1).max(180),...cardFields.shape},'forms:write',
   async ({formId,questionId,expectedRevision,optionLabel,...patch})=>extra.updateChoiceCard(userId!,formId,expectedRevision,questionId,optionLabel,patch));
 
+ register('set_choice_cards_bulk','Configurer toutes les cartes en une opération',
+  'WRITE: update images, prices, notes, dates, locations, descriptions and official URLs on several options at once in ONE draft revision. Ideal for weekly event galleries; keeps the rest of the form intact.',
+  {formId:id,questionId:id,expectedRevision:z.number().int().min(0),
+   cards:z.array(z.object({optionLabel:z.string().min(1).max(180),...cardFields.shape}).strict()).min(1).max(100)},'forms:write',
+  async ({formId,questionId,expectedRevision,cards})=>extra.updateChoiceCards(userId!,formId,expectedRevision,questionId,cards));
+
  register('add_form_question','Ajouter une question à une page',
   'WRITE: insert one new question in an existing draft page. Options can be photo-rich cards. All other questions preserved. Configure conditional logic separately with set_question_logic.',
   {formId:id,pageId:id,expectedRevision:z.number().int().min(0),
