@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useParams } from 'react-router-dom';
 import { sanitizeDocumentHtml } from '../shared/richText';
-import { evaluateLogic } from '../shared/conditionalLogic';
+import { evaluateLogic, logicKey, readLogic } from '../shared/conditionalLogic';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert, ExternalLink, FileQuestion, LoaderCircle } from 'lucide-react';
 import { AudioRecorder } from '../components/AudioRecorder';
 import { audioMode, type AudioDraft, type UploadedAudio, DIRECT_AUDIO_BYTES } from '../shared/audio';
@@ -55,11 +55,34 @@ function readChoiceCards(settings:PublicQuestion['settings']):Record<string,Choi
  return results;
 }
 
-export function QuestionField({question,value,onChange,error,audioStatus}: {question:PublicQuestion;value:AnswerValues[string];onChange:(value:AnswerValues[string])=>void;error?:string;audioStatus?:'uploading'|'ready'|'error'}){
+type InlineChoiceGroups={galleryId:string;groups:Record<string,PublicQuestion[]>};
+function findInlineChoiceGroups(form:PublicForm|null):InlineChoiceGroups|null{
+ if(!form||form.pages.length!==2||form.pages[0].questions.length!==1)return null;
+ const gallery=form.pages[0].questions[0];
+ if(gallery.type!=='multiple_choice'||!gallery.settings?.choiceCards)return null;
+ const cards=readChoiceCards(gallery.settings);
+ if(!gallery.options.some(option=>cards[option.value]?.imageSrc))return null;
+ const possible=new Set(gallery.options.map(o=>o.value));
+ const fields=form.pages[1].questions.filter(q=>q.type!=='statement');
+ if(!fields.length)return null;
+ const groups:Record<string,PublicQuestion[]>={};
+ for(const field of fields){
+  const visibility=readLogic(field).visibility;
+  const condition=visibility?.conditions[0];
+  if(visibility?.action!=='show'||visibility.match!=='all'||visibility.conditions.length!==1||
+     !condition||condition.sourceKey!==logicKey(gallery)||condition.operator!=='contains'||
+     !condition.value||!possible.has(condition.value))return null;
+  (groups[condition.value]??=[]).push(field);
+ }
+ return {galleryId:gallery.id,groups};
+}
+
+export function QuestionField({question,value,onChange,error,audioStatus,compact=false,inlineDetails,inlineAnswers,inlineRequired,inlineErrors,onInlineAnswer}: {question:PublicQuestion;value:AnswerValues[string];onChange:(value:AnswerValues[string])=>void;error?:string;audioStatus?:'uploading'|'ready'|'error';compact?:boolean;inlineDetails?:Record<string,PublicQuestion[]>;inlineAnswers?:AnswerValues;inlineRequired?:Set<string>;inlineErrors?:Record<string,string>;onInlineAnswer?:(id:string,value:AnswerValues[string])=>void}){
  const describedBy=`description-${question.id}`;
  const errorId=`error-${question.id}`;
  const ariaDesc=[question.description?describedBy:null,error?errorId:null].filter(Boolean).join(' ')||undefined;
  const options=question.options;
+ const displayLabel=compact&&question.label.startsWith('Quel format pour ')?'Quel format ?':compact&&question.label.startsWith('Quels cercles inviter pour ')?'Quels cercles inviter ?':question.label;
  const choiceCards=question.type==='multiple_choice'?readChoiceCards(question.settings):{};
  const hasChoiceCards=options.some(option=>choiceCards[option.value]?.imageSrc);
  const otherValue=typeof value==='string'&&isOtherAnswer(value)?value:Array.isArray(value)?value.find(isOtherAnswer):undefined;
@@ -73,13 +96,13 @@ export function QuestionField({question,value,onChange,error,audioStatus}: {ques
  const supplement=typeof value==='string'?value:value&&typeof value==='object'&&!Array.isArray(value)?value.text??'':'';
  const [textExpanded,setTextExpanded]=useState(Boolean(supplement));
  const common={id:question.id,'aria-invalid':!!error,'aria-describedby':ariaDesc,required:question.required} as const;
- return <div className={question.type==='statement'?'px-1 py-2 sm:px-3':'rounded-2xl border border-[#e1e9df] bg-[var(--monk-surface)] p-5 sm:p-7'}>
+ return <div id={question.id} className={question.type==='statement'?'px-1 py-2 sm:px-3':compact?'rounded-xl border border-[#e1e9df] bg-white/90 p-3 sm:p-4':'rounded-2xl border border-[#e1e9df] bg-[var(--monk-surface)] p-5 sm:p-7'}>
   {question.type==='statement' ? <>
    <h3 className={question.settings?.textStyle==='heading'?'font-display text-2xl font-bold leading-snug text-[#294a34]':question.settings?.textStyle==='quote'?'border-l-[3px] border-[#a8c4aa] pl-4 text-base italic leading-7 text-[#647c69]':'whitespace-pre-line text-[15px] font-normal leading-8 text-[#526c59]'}>{typeof question.settings?.richHtml==='string'?<span dangerouslySetInnerHTML={{__html:sanitizeDocumentHtml(question.settings.richHtml)}}/>:question.label}</h3>
    {question.description&&<p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-[#607265]">{question.description}</p>}
   </> : <>
    <label htmlFor={question.id} className="font-display mb-2 block text-[17px] font-bold leading-snug text-[#294a34]">
-    {question.label} {question.required ? <span aria-label="obligatoire" className="text-[#a44f3b]">*</span> : null}
+    {displayLabel} {question.required ? <span aria-label="obligatoire" className="text-[#a44f3b]">*</span> : null}
    </label>
    {question.description&&<p id={describedBy} className="mb-4 whitespace-pre-line text-sm leading-6 text-[#607265]">{question.description}</p>}
    <div className={question.description?'mt-3':'mt-4'}>
@@ -94,14 +117,14 @@ export function QuestionField({question,value,onChange,error,audioStatus}: {ques
     {question.type==='select'&&<select {...common} className={fieldStyle} value={typeof value==='string'?(otherSelected?OTHER_VALUE:value):''} onChange={e=>onChange(e.target.value===OTHER_VALUE?OTHER_VALUE+':':e.target.value)}>
       <option value="">Choisir une réponse…</option>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
     </select>}
-    {question.type==='single_choice'&&<fieldset aria-describedby={ariaDesc} aria-invalid={!!error} className="space-y-2">
-      <legend className="sr-only">{question.label}</legend>
+    {question.type==='single_choice'&&<fieldset aria-describedby={ariaDesc} aria-invalid={!!error} className={compact?'grid grid-cols-1 gap-2 sm:grid-cols-2':'space-y-2'}>
+      <legend className="sr-only">{displayLabel}</legend>
       {options.map(o=><label key={o.value} className={'flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm transition '+((o.value===OTHER_VALUE?otherSelected:value===o.value)?'border-[#7eab87] bg-[#eff7ed] text-[#2c6041]':'border-[#e0e9de] hover:bg-[#f7faf5]')}>
         <input type="radio" name={question.id} checked={o.value===OTHER_VALUE?otherSelected:value===o.value} value={o.value} onChange={()=>onChange(o.value===OTHER_VALUE?OTHER_VALUE+':':o.value)} className="h-4 w-4 accent-[#33764c]"/>{o.label}
       </label>)}
     </fieldset>}
-    {question.type==='multiple_choice'&&<fieldset aria-describedby={ariaDesc} aria-invalid={!!error} className={hasChoiceCards?'grid grid-cols-1 gap-5':'space-y-2'}>
-      <legend className="sr-only">{question.label}</legend>
+    {question.type==='multiple_choice'&&<fieldset aria-describedby={ariaDesc} aria-invalid={!!error} className={hasChoiceCards?'grid grid-cols-1 gap-5':compact?'grid grid-cols-1 gap-2 sm:grid-cols-3':'space-y-2'}>
+      <legend className="sr-only">{displayLabel}</legend>
       {options.map(o=>{const checked=Array.isArray(value)&&(o.value===OTHER_VALUE?value.some(isOtherAnswer):value.includes(o.value));
         const card=choiceCards[o.value];
         const toggle=(on:boolean)=>onChange(on?[...(Array.isArray(value)?value:[]),o.value===OTHER_VALUE?OTHER_VALUE+':':o.value]:(Array.isArray(value)?value:[]).filter(v=>o.value===OTHER_VALUE?!isOtherAnswer(v):v!==o.value));
@@ -126,6 +149,12 @@ export function QuestionField({question,value,onChange,error,audioStatus}: {ques
             Voir le programme et réserver <ExternalLink size={14} aria-hidden="true"/>
            </a>
           </div>}
+         {checked&&inlineDetails?.[o.value]?.length&&onInlineAnswer&&<section aria-label={'Configurer '+o.label} className="border-t border-[#c5dfca] bg-[#f6fbf5] px-3 py-4 sm:px-5">
+          <div className="mb-3 flex items-center gap-2 text-sm font-bold text-[#326747]"><ChevronDown className="rotate-180" size={16} aria-hidden="true"/> Configurer cette sortie</div>
+          <div className="space-y-3">{inlineDetails[o.value].map(child=><QuestionField key={child.id} compact
+             question={{...child,required:inlineRequired?.has(child.id)??child.required}}
+             value={inlineAnswers?.[child.id]} onChange={v=>onInlineAnswer(child.id,v)} error={inlineErrors?.[child.id]}/>)}</div>
+         </section>}
          </div>;
         return <label key={o.value} className={'flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm transition '+(checked?'border-[#7eab87] bg-[#eff7ed] text-[#2c6041]':'border-[#e0e9de] hover:bg-[#f7faf5]')}>
          <input type="checkbox" checked={checked} onChange={e=>toggle(e.target.checked)} className="h-4 w-4 accent-[#33764c]"/>{o.label}
@@ -194,7 +223,8 @@ export function PublicFormPage(){
   return()=>controller.abort();
  },[slug]);
  const journey=form?evaluateLogic(form.pages,answers):null;
- const availablePages=journey?.pageIndices??[];
+ const inlineGroups=findInlineChoiceGroups(form);
+ const availablePages=inlineGroups?(journey?.pageIndices??[]).filter(i=>i===0):journey?.pageIndices??[];
  const page=form?.pages[pageIndex];
  const visualChoices=form?.pages.flatMap(p=>p.questions).find(q=>q.type==='multiple_choice'&&q.settings?.choiceCards);
  const selectedVisual=visualChoices&&Array.isArray(answers[visualChoices.id])?(answers[visualChoices.id] as string[]).length:0;
@@ -302,7 +332,7 @@ export function PublicFormPage(){
  async function send(){
   if(!form||inFlightRef.current)return;
   const issue=validateAnswers(form,answers);setErrors(issue);
-  if(Object.keys(issue).length){const first=form.pages.findIndex(p=>p.questions.some(q=>issue[q.id]));if(first>=0)setPageIndex(first);setError('Certaines questions demandent une réponse.');return;}
+  if(Object.keys(issue).length){const first=form.pages.findIndex(p=>p.questions.some(q=>issue[q.id]));if(first>=0)setPageIndex(inlineGroups?0:first);setError('Certaines questions demandent une réponse.');return;}
   inFlightRef.current=true;setSubmitting(true);setError('');
   try{
    const readyValues:AnswerValues={...answers};
@@ -334,7 +364,7 @@ export function PublicFormPage(){
     {(availablePages.length>1||(page?.title&&page.title!=='Nouvelle page'))&&<h2 className={'font-display font-bold text-[#35583f] '+(pageIndex===0?'mt-9 text-2xl':'text-3xl')}>{page?.title||`Page ${pageIndex+1}`}</h2>}
     {page?.description&&<p className="mt-3 whitespace-pre-line text-sm leading-7 text-[#607265]">{page.description}</p>}
    </header>
-   <div className="space-y-4">{page?.questions.filter(q=>journey?.visibleIds.has(q.id)).map(q=><QuestionField key={q.id} question={{...q,required:journey?.requiredIds.has(q.id)??q.required}} value={answers[q.id]} onChange={v=>setAnswer(q.id,v)} error={errors[q.id]} audioStatus={uploadStates[q.id]}/>)}</div>
+   <div className="space-y-4">{page?.questions.filter(q=>journey?.visibleIds.has(q.id)).map(q=><QuestionField key={q.id} question={{...q,required:journey?.requiredIds.has(q.id)??q.required}} value={answers[q.id]} onChange={v=>setAnswer(q.id,v)} error={errors[q.id]} audioStatus={uploadStates[q.id]} inlineDetails={inlineGroups?.galleryId===q.id?inlineGroups.groups:undefined} inlineAnswers={answers} inlineRequired={journey?.requiredIds} inlineErrors={errors} onInlineAnswer={setAnswer}/>)}</div>
    {error&&<div role="alert" className="mt-6 flex gap-3 rounded-2xl border border-[#f0d4cc] bg-[#fff8f4] p-4 text-sm text-[#aa594d]"><CircleAlert className="shrink-0" size={19}/>{error}</div>}
    <nav aria-label="Navigation dans le formulaire" className="mt-9 flex flex-wrap items-center justify-between gap-4">
     {previousPage!==undefined?<button type="button" className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-semibold text-[#42664b] hover:bg-[#edf4eb]" onClick={()=>{setError('');setPageIndex(previousPage!);}}><ArrowLeft size={18}/> Retour</button>:<span/>}
