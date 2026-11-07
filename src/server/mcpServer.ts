@@ -5,6 +5,8 @@ import { FormActions } from './formActions';
 import { McpFormActions } from './mcpFormActions';
 import { McpWorkflowExtras,patchQuestionSchema,cardFields,logicEdit } from './mcpWorkflowExtras';
 import { ResultsFault } from './resultsService';
+import { getFormAnalytics,getFormAppearance,setFormAppearance,getFormSubmission } from './mcpExtended';
+import { formAppearanceSchema } from '../shared/formAppearance';
 import { TranscriptionFault } from './transcriptionService';
 import { mcpCreateFormSchema, mcpFormContentSchema, mcpQuestionSchema } from '../shared/mcpForm';
 import { ConflictFault, PermissionFault } from './studioRepository';
@@ -215,6 +217,25 @@ export function buildMcpServer(
   'HIGH IMPACT WRITE: archive/unarchive one existing form only on explicit user instruction with confirm=true. Published URL state and submissions may be affected.',
   {formId:id,action:z.enum(['archive','unarchive']),confirm:z.literal(true)},'forms:write',
   async ({formId,action,confirm})=>extra.archive(userId!,formId,action,confirm));
+
+ register('get_form_analytics','Statistiques des réponses',
+  'READ-ONLY: exact submitted-response counts, daily trend in Europe/Paris, multiple-choice frequency and numeric averages. No tracking pixels or invented view/conversion data.',
+  {formId:id,days:z.union([z.literal(7),z.literal(30),z.literal(90),z.literal(365)]).default(30)},
+  'forms:read',async ({formId,days})=>getFormAnalytics(userId!,formId,days));
+
+ register('get_submission','Lire une participation précise',
+  'READ-ONLY: inspect a single submitted response by UUID, with all question answers, audio IDs, transcript and transcription status; does not expose private storage keys.',
+  {formId:id,submissionId:id},'forms:read',
+  async ({formId,submissionId})=>getFormSubmission(userId!,formId,submissionId));
+
+ register('get_form_appearance','Lire le thème du formulaire',
+  'READ-ONLY: inspect colors, font and thank-you texts currently configured. Settings apply immediately to public forms.',
+  {formId:id},'forms:read',async ({formId})=>getFormAppearance(userId!,formId));
+
+ register('set_form_appearance','Personnaliser le thème et le remerciement',
+  'WRITE: modify only the specified color, font or thank-you field. Changes are immediately live on a published form: use only after explicit user instruction. All other settings are preserved.',
+  {formId:id,...formAppearanceSchema.shape},'forms:write',
+  async ({formId,...appearance})=>setFormAppearance(userId!,formId,appearance));
 
  register('publish_form','Publier un formulaire',
   'HIGH IMPACT WRITE: publish the current draft publicly. ONLY call after explicit user approval in this conversation and use confirm=true. Read form/revision first. Returns public URL.',
