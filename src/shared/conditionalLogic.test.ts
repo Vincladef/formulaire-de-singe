@@ -9,7 +9,7 @@ const source={id:'source-id',type:'single_choice' as const,required:true,
 const choice={id:'first-id',type:'short_text' as const,required:true,
  settings:{logicId:'persistent-first',logic:{visibility:{action:'show',match:'all',conditions:[{sourceKey:'persistent-source',operator:'not_equals',value:'0'}]}}},
  options:[],label:'Sortie 1',description:null};
-const second={id:'second-id',type:'short_text',required:true,
+const second={id:'second-id',type:'short_text' as const,required:true,
  settings:{logicId:'persistent-second',logic:{visibility:{action:'show',match:'all',conditions:[{sourceKey:'persistent-source',operator:'equals',value:'2'}]}}},
  options:[],label:'Sortie 2',description:null};
 const pages:LogicPage<PublicQuestion>[]=[{id:'page-one',questions:[source]},
