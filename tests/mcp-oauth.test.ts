@@ -54,6 +54,20 @@ describe('OAuth 2.1 ChatGPT / Monk Form',()=>{
   }));
   expect(await verifyClientMetadata(oauthParamsSchema.parse(params),fetcher as unknown as typeof fetch)).toBe(true);
   expect(fetcher).toHaveBeenCalledWith(params.client_id,expect.objectContaining({redirect:'error'}));
+  // Current ChatGPT CIMD publishes both 'none' and 'private_key_jwt', but its
+  // legacy singular preference may point to private_key_jwt.
+  const currentChatGPT=vi.fn(async()=>Response.json({
+   client_id:params.client_id,redirect_uris:[params.redirect_uri],
+   token_endpoint_auth_methods_supported:['none','private_key_jwt'],
+   token_endpoint_auth_method:'private_key_jwt',
+  }));
+  expect(await verifyClientMetadata(oauthParamsSchema.parse(params),currentChatGPT as unknown as typeof fetch)).toBe(true);
+  const signedOnly=vi.fn(async()=>Response.json({
+   client_id:params.client_id,redirect_uris:[params.redirect_uri],
+   token_endpoint_auth_methods_supported:['private_key_jwt'],
+   token_endpoint_auth_method:'none',
+  }));
+  expect(await verifyClientMetadata(oauthParamsSchema.parse(params),signedOnly as unknown as typeof fetch)).toBe(false);
   const fake=vi.fn(async()=>Response.json({client_id:params.client_id,redirect_uris:['https://attacker.invalid/callback']}));
   expect(await verifyClientMetadata(oauthParamsSchema.parse(params),fake as unknown as typeof fetch)).toBe(false);
  });
