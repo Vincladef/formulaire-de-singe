@@ -5,6 +5,7 @@ import { forms, formVersions, pages, questions, questionOptions } from './db/sch
 import { getQuestionType, publicSubmitSchema, type PublicForm, type PublicSubmissionInput, validateAnswers } from '../shared/publicForm';
 import { audioMode,audioLimits } from '../shared/audio';
 import { evaluateLogic } from '../shared/conditionalLogic';
+import { readFormAppearance } from '../shared/formAppearance';
 
 export class PublicFormFault extends Error {
   constructor(public status:number,public code:'NOT_FOUND'|'VALIDATION_ERROR'|'CONFLICT',message:string){super(message);}
@@ -24,7 +25,7 @@ export class NeonPublicFormService implements PublicFormService {
     if(!row)return null;
     const resultPages=await hydratePages(row.versionId);
     return {id:row.id,slug:row.slug,title:row.title,description:row.description,versionId:row.versionId,versionNumber:row.number,
-      requireConsent:false,pages:resultPages};
+      requireConsent:false,appearance:readFormAppearance(row.settings),pages:resultPages};
   }
 
   async submit(slug:string,input:PublicSubmissionInput):Promise<{id:string;alreadySubmitted:boolean}>{
@@ -89,7 +90,7 @@ async function getPublicVersion(slug:string,versionId:string):Promise<PublicForm
     .where(and(eq(forms.slug,slug),isNull(forms.archivedAt),isNull(forms.deletedAt))).limit(1);
   if(!row)return null;
   const resultPages=await hydratePages(row.versionId);
-  return {id:row.id,slug,title:row.title,description:row.description,versionId:row.versionId,versionNumber:row.number,requireConsent:false,pages:resultPages};
+  return {id:row.id,slug,title:row.title,description:row.description,versionId:row.versionId,versionNumber:row.number,requireConsent:false,appearance:readFormAppearance(row.settings),pages:resultPages};
 }
 async function submitValidated(slug:string,form:PublicForm,input:PublicSubmissionInput){
   if(form.requireConsent&&!input.consent)throw new PublicFormFault(400,'VALIDATION_ERROR','Le consentement est nécessaire pour participer.');
