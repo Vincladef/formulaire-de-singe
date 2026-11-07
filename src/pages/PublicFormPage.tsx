@@ -74,6 +74,13 @@ function findInlineChoiceGroups(form:PublicForm|null):InlineChoiceGroups|null{
      !condition.value||!possible.has(condition.value))return null;
   (groups[condition.value]??=[]).push(field);
  }
+ for(const list of Object.values(groups))list.sort((a,b)=>{
+  const order=(q:PublicQuestion)=>q.label.startsWith('Quels cercles inviter pour ')?0:
+   q.label.startsWith('Nombre maximum de personnes pour ')?1:
+   q.label.startsWith('Mes amis peuvent proposer de venir accompagnés pour ')?2:
+   q.label.startsWith('Amis à inviter en priorité pour ')?3:4;
+  return order(a)-order(b);
+ });
  return {galleryId:gallery.id,groups};
 }
 
@@ -82,7 +89,16 @@ export function QuestionField({question,value,onChange,error,audioStatus,compact
  const errorId=`error-${question.id}`;
  const ariaDesc=[question.description?describedBy:null,error?errorId:null].filter(Boolean).join(' ')||undefined;
  const options=question.options;
- const displayLabel=compact&&question.label.startsWith('Quel format pour ')?'Quel format ?':compact&&question.label.startsWith('Quels cercles inviter pour ')?'Quels cercles inviter ?':question.label;
+ const isGuestPlusOne=compact&&question.type==='single_choice'&&question.label.startsWith('Mes amis peuvent proposer de venir accompagnés pour ');
+ const isFriendPicker=compact&&question.type==='multiple_choice'&&question.label.startsWith('Amis à inviter en priorité pour ');
+ const isGuestLimit=compact&&question.type==='number'&&question.label.startsWith('Nombre maximum de personnes pour ');
+ const displayLabel=compact&&question.label.startsWith('Quels cercles inviter pour ')?'Quels cercles inviter ?':
+  isGuestLimit?'Nombre maximum de personnes':
+  isGuestPlusOne?'Venir accompagné':
+  isFriendPicker?'Amis à inviter en particulier':question.label;
+ const friendOptions=isFriendPicker?options.filter(o=>!o.value.startsWith('__FRIENDS_PENDING_')):[];
+ const friendLabel=(label:string)=>label.startsWith('AMI:')&&label.includes('|')?label.slice(label.indexOf('|')+1):label;
+ const yesValue=isGuestPlusOne?options.find(o=>o.label.toLowerCase()==='oui')?.value:undefined;
  const choiceCards=question.type==='multiple_choice'?readChoiceCards(question.settings):{};
  const hasChoiceCards=options.some(option=>choiceCards[option.value]?.imageSrc);
  const otherValue=typeof value==='string'&&isOtherAnswer(value)?value:Array.isArray(value)?value.find(isOtherAnswer):undefined;
@@ -104,7 +120,7 @@ export function QuestionField({question,value,onChange,error,audioStatus,compact
    <label htmlFor={question.id} className="font-display mb-2 block text-[17px] font-bold leading-snug text-[#294a34]">
     {displayLabel} {question.required ? <span aria-label="obligatoire" className="text-[#a44f3b]">*</span> : null}
    </label>
-   {question.description&&<p id={describedBy} className="mb-4 whitespace-pre-line text-sm leading-6 text-[#607265]">{question.description}</p>}
+   {question.description&&!isGuestPlusOne&&<p id={describedBy} className="mb-4 whitespace-pre-line text-sm leading-6 text-[#607265]">{question.description}</p>}
    <div className={question.description?'mt-3':'mt-4'}>
     {mode==='either'&&<div className="mb-4 flex gap-2" role="group" aria-label="Type de réponse">
      <button type="button" className="rounded-lg border px-3 py-2 text-sm" aria-pressed={!preferAudio} onClick={()=>{setPreferAudio(false);onChange(undefined);}}>Écrire</button>
@@ -112,18 +128,35 @@ export function QuestionField({question,value,onChange,error,audioStatus,compact
     </div>}
     {!vocal&&question.type==='short_text'&&<input {...common} className={fieldStyle} type="text" maxLength={500} placeholder="Votre réponse…" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
     {!vocal&&question.type==='long_text'&&<textarea {...common} className={fieldStyle+' min-h-32 resize-y'} rows={4} maxLength={10000} placeholder="Racontez-nous…" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
-    {question.type==='number'&&<input {...common} className={fieldStyle} type="number" placeholder="0" value={typeof value==='number'&&Number.isFinite(value)?value:''} onChange={e=>onChange(e.target.value===''?undefined:Number(e.target.value))}/>}
+    {question.type==='number'&&<input {...common} className={fieldStyle} type="number" min={isGuestLimit?1:undefined} step={isGuestLimit?1:undefined} placeholder={isGuestLimit?'Aucun plafond':'0'} value={typeof value==='number'&&Number.isFinite(value)?value:''} onChange={e=>onChange(e.target.value===''?undefined:Number(e.target.value))}/>}
     {question.type==='date'&&<input {...common} className={fieldStyle} type="date" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
     {question.type==='select'&&<select {...common} className={fieldStyle} value={typeof value==='string'?(otherSelected?OTHER_VALUE:value):''} onChange={e=>onChange(e.target.value===OTHER_VALUE?OTHER_VALUE+':':e.target.value)}>
       <option value="">Choisir une réponse…</option>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
     </select>}
-    {question.type==='single_choice'&&<fieldset aria-describedby={ariaDesc} aria-invalid={!!error} className={compact?'grid grid-cols-1 gap-2 sm:grid-cols-2':'space-y-2'}>
+    {isGuestPlusOne&&<label className="flex cursor-pointer items-center gap-3 rounded-xl border border-[#dce7dc] bg-white px-3 py-3 text-sm leading-relaxed text-[#365a41]">
+      <input type="checkbox" id={question.id} checked={value!==undefined&&value===yesValue} onChange={e=>onChange(e.target.checked?yesValue:undefined)} aria-label="Dire aux invités qu'ils peuvent proposer de venir accompagnés" className="h-5 w-5 shrink-0 accent-[#33764c]"/>
+      Dire aux invités qu'ils peuvent proposer de venir accompagnés
+    </label>}
+    {question.type==='single_choice'&&!isGuestPlusOne&&<fieldset aria-describedby={ariaDesc} aria-invalid={!!error} className={compact?'grid grid-cols-1 gap-2 sm:grid-cols-2':'space-y-2'}>
       <legend className="sr-only">{displayLabel}</legend>
       {options.map(o=><label key={o.value} className={'flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm transition '+((o.value===OTHER_VALUE?otherSelected:value===o.value)?'border-[#7eab87] bg-[#eff7ed] text-[#2c6041]':'border-[#e0e9de] hover:bg-[#f7faf5]')}>
         <input type="radio" name={question.id} checked={o.value===OTHER_VALUE?otherSelected:value===o.value} value={o.value} onChange={()=>onChange(o.value===OTHER_VALUE?OTHER_VALUE+':':o.value)} className="h-4 w-4 accent-[#33764c]"/>{o.label}
       </label>)}
     </fieldset>}
-    {question.type==='multiple_choice'&&<fieldset aria-describedby={ariaDesc} aria-invalid={!!error} className={hasChoiceCards?'grid grid-cols-1 gap-5':compact?'grid grid-cols-1 gap-2 sm:grid-cols-3':'space-y-2'}>
+    {isFriendPicker&&<details className="rounded-xl border border-[#dce7dc] bg-white px-3 py-3">
+     <summary className="cursor-pointer text-sm font-semibold text-[#315c42]">Choisir parmi mes amis {Array.isArray(value)&&value.length>0?'('+value.length+' sélectionné'+(value.length>1?'s':'')+')':''}</summary>
+     {friendOptions.length===0?<p className="mt-3 text-sm leading-6 text-[#6b7d6d]">Aucun ami enregistré pour le moment. Les prénoms apparaîtront ici après ajout dans ta base d'amis.</p>:
+      <fieldset aria-describedby={ariaDesc} className="mt-3 grid max-h-52 grid-cols-1 gap-2 overflow-y-auto">
+       <legend className="sr-only">Amis à inviter en particulier</legend>
+       {friendOptions.map(o=><label key={o.value} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-[#f1f7f1]">
+        <input type="checkbox" checked={Array.isArray(value)&&value.includes(o.value)} onChange={e=>{
+         const selected=Array.isArray(value)?value:[];
+         onChange(e.target.checked?[...selected,o.value]:selected.filter(v=>v!==o.value));
+        }} className="h-4 w-4 accent-[#33764c]"/>{friendLabel(o.label)}
+       </label>)}
+      </fieldset>}
+    </details>}
+    {question.type==='multiple_choice'&&!isFriendPicker&&<fieldset aria-describedby={ariaDesc} aria-invalid={!!error} className={hasChoiceCards?'grid grid-cols-1 gap-5':compact?'grid grid-cols-1 gap-2 sm:grid-cols-3':'space-y-2'}>
       <legend className="sr-only">{displayLabel}</legend>
       {options.map(o=>{const checked=Array.isArray(value)&&(o.value===OTHER_VALUE?value.some(isOtherAnswer):value.includes(o.value));
         const card=choiceCards[o.value];
