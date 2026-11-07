@@ -137,52 +137,58 @@ function applyQuestionPatch(q:StudioQuestion,patch:z.infer<typeof patchQuestionS
   }
  }
  if(patch.answerMode!==undefined){
-  if(!['audio','short_text','long  applyQuestionPatch(q,patch);
-sion);
+  if(!['audio','short_text','long_text'].includes(q.type))throw new ValidationFault('Mode audio incompatible avec cette question');
+  q.settings.answerMode=patch.answerMode;
+ }
+ if(patch.maxAudioSeconds!==undefined){
+  if(!['audio','short_text','long_text'].includes(q.type))throw new ValidationFault('Durée audio incompatible');
+  q.settings.maxAudioSeconds=patch.maxAudioSeconds;
+ }
+ if(patch.allowTextSupplement!==undefined){
+  if(q.type!=='audio')throw new ValidationFault('Le complément texte concerne une réponse audio');
+  q.settings.allowTextSupplement=patch.allowTextSupplement;
+ }
+ if(patch.textStyle!==undefined){
+  if(q.type!=='statement')throw new ValidationFault('Le style de texte concerne un paragraphe');
+  q.settings.textStyle=patch.textStyle;
+ }
+ if(patch.richHtml!==undefined){
+  if(q.type!=='statement')throw new ValidationFault('Seuls les paragraphes acceptent du HTML enrichi');
+  if(patch.richHtml===null)delete q.settings.richHtml;
+  else q.settings.richHtml=patch.richHtml;
+ }
+}
+
+export class McpWorkflowExtras{
+ constructor(private readonly forms:Pick<FormActions,'get'|'save'|'duplicate'|'state'>=new FormActions(),
+ private readonly external={
+  getResults:getFormResults,
+  sheetStatus:getSheetsStatus,
+  syncSheets:syncGoogleSheets,
+  transcriptionStatus:getTranscriptionSummary,
+  transcribe:requestFormTranscription,
+  wake:wakeTranscriptionWorker,
+ }){}
+ private async editable(userId:string,formId:string,expectedRevision:number){
+  const detail=await this.forms.get(userId,formId);
+  if(detail.role==='viewer')throw new PermissionFault('Lecture seule : modification impossible');
+  const {draft,pages}=asPages(detail);
+  if((draft.revision??0)!==expectedRevision)throw new ConflictFault('Brouillon modifié ; récupère la nouvelle révision avant de continuer');
+  return {draft,pages};
+ }
+ private async save(userId:string,formId:string,expectedRevision:number,pages:StudioPageData[]){
+  const {draft}=await this.editable(userId,formId,expectedRevision);
+  const done=await this.forms.save(userId,formId,{versionId:draft.id,expectedRevision,pages});
+  return {formId,versionId:draft.id,revision:done.revision,updated:true,published:false};
+ }
+ async get(userId:string,formId:string,opts?:{version?:'draft'|'published'|'all';includeMedia?:boolean}){
+  return compactForm(await this.forms.get(userId,formId),opts);
+ }
+ async summary(userId:string,formId:string){return formSummary(await this.forms.get(userId,formId));}
+ async updateQuestion(userId:string,formId:string,expectedRevision:number,questionId:string,patch:z.infer<typeof patchQuestionSchema>){
+  const {pages}=await this.editable(userId,formId,expectedRevision);
   const q=findQuestion(pages,questionId);
-  if(patch.label!==undefined){if(q.type!=='statement'&&patch.label.length>600)throw new ValidationFault('Question trop longue');q.label=patch.label;}
-  if(patch.description!==undefined)q.description=patch.description;
-  if(patch.required!==undefined){if(q.type==='statement'&&patch.required)throw new ValidationFault('Un texte explicatif ne peut pas être obligatoire');q.required=patch.required;}
-  if(patch.choices!==undefined){
-   if(!['single_choice','multiple_choice','select'].includes(q.type))throw new ValidationFault('Ce type de question ne possède pas de choix');
-   if(new Set(patch.choices.map(x=>x.toLocaleLowerCase('fr'))).size!==patch.choices.length)throw new ValidationFault('Options répétées');
-   const old=q.options;
-   const used=new Set<string>();
-   q.options=patch.choices.map((label,i)=>{
-    // Keep the original value/ID for moved choices so conditional rules and
-    // image cards still refer to the same semantic option after reordering.
-    const byLabel=old.find(o=>o.label===label&&!used.has(o.id));
-    const byIndex=old[i]&&!used.has(old[i].id)?old[i]:undefined;
-    const original=byLabel??byIndex??old.find(o=>!used.has(o.id));
-    if(original){used.add(original.id);return {...original,label};}
-    return {id:crypto.randomUUID(),value:'option_'+crypto.randomUUID().slice(0,8),label};
-   });
-   const cards=q.settings.choiceCards;
-   if(cards&&typeof cards==='object'&&!Array.isArray(cards)){
-    q.settings.choiceCards=Object.fromEntries(Object.entries(cards).filter(([key])=>q.options.some(o=>o.value===key)));
-   }
-  }
-  if(patch.answerMode!==undefined){
-   if(!['audio','short_text','long_text'].includes(q.type))throw new ValidationFault('Mode audio incompatible avec cette question');
-   q.settings.answerMode=patch.answerMode;
-  }
-  if(patch.maxAudioSeconds!==undefined){
-   if(!['audio','short_text','long_text'].includes(q.type))throw new ValidationFault('Durée audio incompatible');
-   q.settings.maxAudioSeconds=patch.maxAudioSeconds;
-  }
-  if(patch.allowTextSupplement!==undefined){
-   if(q.type!=='audio')throw new ValidationFault('Le complément texte concerne une réponse audio');
-   q.settings.allowTextSupplement=patch.allowTextSupplement;
-  }
-  if(patch.textStyle!==undefined){
-   if(q.type!=='statement')throw new ValidationFault('Le style de texte concerne un paragraphe');
-   q.settings.textStyle=patch.textStyle;
-  }
-  if(patch.richHtml!==undefined){
-   if(q.type!=='statement')throw new ValidationFault('Seuls les paragraphes acceptent du HTML enrichi');
-   if(patch.richHtml===null)delete q.settings.richHtml;
-   else q.settings.richHtml=patch.richHtml;
-  }
+  applyQuestionPatch(q,patch);
   const result=await this.save(userId,formId,expectedRevision,pages);
   return {...result,questionId};
  }
@@ -190,7 +196,6 @@ sion);
   updates:Array<{questionId:string}&z.infer<typeof patchQuestionSchema>>){
   const {pages}=await this.editable(userId,formId,expectedRevision);
   if(new Set(updates.map(u=>u.questionId)).size!==updates.length)throw new ValidationFault('Question en double dans la modification groupée');
-  // Validate all question IDs before changing any property.
   updates.forEach(({questionId})=>findQuestion(pages,questionId));
   for(const {questionId,...patch} of updates){
    if(!Object.keys(patch).length)throw new ValidationFault('Modification vide pour '+questionId);
