@@ -142,6 +142,35 @@ export function buildMcpServer(
   {formId:id,questionId:id,expectedRevision:z.number().int().min(0),...logicEdit.shape},'forms:write',
   async ({formId,questionId,expectedRevision,...logic})=>extra.setLogic(userId!,formId,expectedRevision,questionId,logic));
 
+ register('add_form_page','Ajouter une page au brouillon',
+  'WRITE: add a new page without affecting existing pages or images; configure its questions separately.',
+  {formId:id,expectedRevision:z.number().int().min(0),
+   title:z.string().max(200),description:z.string().max(3000).nullable().optional()},'forms:write',
+  async ({formId,expectedRevision,title,description})=>extra.addPage(userId!,formId,expectedRevision,title,description));
+
+ register('update_form_page','Modifier le titre ou l’introduction d’une page',
+  'WRITE: edit only a page title or description without rebuilding the form.',
+  {formId:id,pageId:id,expectedRevision:z.number().int().min(0),
+   title:z.string().max(200).optional(),description:z.string().max(3000).nullable().optional()},'forms:write',
+  async ({formId,pageId,expectedRevision,title,description})=>extra.updatePage(userId!,formId,expectedRevision,pageId,{title,description}));
+
+ register('remove_form_page','Supprimer une page avec confirmation',
+  'DESTRUCTIVE DRAFT WRITE: remove one page and its draft questions after explicit approval and confirm=true. Leaves published versions intact; rejects broken conditional references.',
+  {formId:id,pageId:id,expectedRevision:z.number().int().min(0),confirm:z.literal(true)},'forms:write',
+  async ({formId,pageId,expectedRevision,confirm})=>extra.deletePage(userId!,formId,expectedRevision,pageId,confirm));
+
+ register('move_form_question','Déplacer une question dans une page',
+  'WRITE: reorder a question, or move it to another page, by UUID and zero-based position. All rules are checked for broken references.',
+  {formId:id,questionId:id,targetPageId:id,position:z.number().int().min(0).max(149),
+   expectedRevision:z.number().int().min(0)},'forms:write',
+  async ({formId,questionId,targetPageId,position,expectedRevision})=>
+   extra.moveQuestion(userId!,formId,expectedRevision,questionId,targetPageId,position));
+
+ register('delete_form','Supprimer un formulaire avec confirmation',
+  'HIGH IMPACT DESTRUCTIVE: owner-only logical deletion, disables public form access. Requires explicit approval in chat and confirm=true. Never use for tests.',
+  {formId:id,confirm:z.literal(true)},'forms:write',
+  async ({formId,confirm})=>extra.deleteForm(userId!,formId,confirm));
+
  register('preview_form_path','Simuler un parcours sans envoyer de réponse',
   'Read-only: simulate choices by question ID and visible option labels; returns only the reached pages and visible/required questions. Never submits responses or changes the form.',
   {formId:id,answers:z.array(z.object({
