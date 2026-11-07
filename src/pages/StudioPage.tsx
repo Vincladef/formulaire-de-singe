@@ -457,7 +457,7 @@ export function StudioPage(){
         </div>
         {editable&&<button className="inline-flex items-center gap-2 text-sm text-[#954840]" onClick={()=>void performState('archive')}><Archive size={15}/> Archiver</button>}
        </section>:
-       preview?<StudioPreview pages={pages} title={detail.title}/>:<div className={`grid items-start gap-4 ${sidebarOpen?'lg:grid-cols-[255px_minmax(0,1fr)]':'lg:grid-cols-[70px_minmax(0,1fr)]'}`}>
+       preview?<StudioPreview pages={pages} title={detail.title}/>:<div className={`grid items-start gap-4 ${sidebarOpen?(sideMode==='logic'?'lg:grid-cols-[335px_minmax(0,1fr)]':'lg:grid-cols-[255px_minmax(0,1fr)]'):'lg:grid-cols-[70px_minmax(0,1fr)]'}`}>
         <StudioSidebar mode={sideMode} onModeChange={mode=>{setSideMode(mode);setSidebarOpen(true);}} open={sidebarOpen} onToggle={()=>setSidebarOpen(v=>!v)} pages={pages} pageIndex={pageIndex}
           onPageIndex={idx=>{setPageIndex(idx);setQuestionId(null);}}
           selected={selected} editable={editable} onQuestionUpdate={updateQuestion} onApplyPageCondition={applyPageCondition}
