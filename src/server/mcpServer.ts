@@ -39,7 +39,7 @@ export function buildMcpServer(
  permissions:McpPermissions={linked:!!userId},
  extra:McpWorkflowExtras=new McpWorkflowExtras(),
 ) {
- const server = new McpServer({ name:'formulaire-de-singe',version:'1.0.0' });
+ const server = new McpServer({ name:'formulaire-de-singe',version:'1.1.0' });
  const authorized=(scope:'forms:read'|'forms:write'|'forms:publish')=>!!userId&&permissions.linked!==false
   &&(permissions.scopes===undefined||permissions.scopes.includes(scope));
  const register=<T extends z.ZodRawShape>(
