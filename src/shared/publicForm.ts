@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { questionTypes, type QuestionType } from './studio';
 import { audioMode, uploadedAudioSchema, type AudioDraft, type UploadedAudio, type AnswerMode } from './audio';
+import { evaluateLogic } from './conditionalLogic';
 
 export const publicAnswerSchema = z.object({
   questionId: z.string().uuid(),
@@ -40,11 +41,12 @@ export function isAnswered(value: AnswerValues[string]): boolean {
 }
 export function validateAnswers(form: PublicForm, values: AnswerValues): Record<string,string> {
   const errors: Record<string,string> = {};
+  const active = evaluateLogic(form.pages, values);
   for (const page of form.pages) for (const q of page.questions) {
-    if (q.type === 'statement') continue;
+    if (q.type === 'statement' || !active.visibleIds.has(q.id)) continue;
     const value=values[q.id];
     if (!isAnswered(value)) {
-      if (q.required) errors[q.id] = 'Cette réponse est obligatoire.';
+      if (active.requiredIds.has(q.id)) errors[q.id] = 'Cette réponse est obligatoire.';
       continue;
     }
     const mode=q.mode??audioMode(q.type);
@@ -75,7 +77,8 @@ export function validateAnswers(form: PublicForm, values: AnswerValues): Record<
   return errors;
 }
 export function toSubmissionAnswers(form:PublicForm,values:AnswerValues):PublicAnswer[]{
-  return form.pages.flatMap(p=>p.questions.filter(q=>q.type!=='statement'&&isAnswered(values[q.id])&&
+  const active=evaluateLogic(form.pages,values);
+  return form.pages.flatMap(p=>p.questions.filter(q=>q.type!=='statement'&&active.visibleIds.has(q.id)&&isAnswered(values[q.id])&&
     (typeof values[q.id]!=='object'||Array.isArray(values[q.id])||(values[q.id] as AudioDraft|UploadedAudio)?.kind!=='audio-draft'))
     .map(q=>({questionId:q.id,value:values[q.id]! as string|number|string[]|UploadedAudio})));
 }
