@@ -47,11 +47,22 @@ export async function verifyClientMetadata(input:OAuthParams,fetcher:typeof fetc
   if(!result.ok)return false;
   const body:unknown=await result.json();
   if(!body||typeof body!=='object')return false;
-  const meta=body as {client_id?:unknown;redirect_uris?:unknown;token_endpoint_auth_method?:unknown};
+  const meta=body as {
+   client_id?:unknown;redirect_uris?:unknown;
+   token_endpoint_auth_method?:unknown;
+   token_endpoint_auth_methods_supported?:unknown;
+  };
+  // ChatGPT CIMD advertises an array of supported methods. The legacy singular
+  // field can prefer private_key_jwt while the public-client method 'none'
+  // remains supported; never mistake a preference for an exclusion.
+  const methods=meta.token_endpoint_auth_methods_supported;
+  const supportsPublicClient=Array.isArray(methods)
+   ?methods.includes('none')
+   :(meta.token_endpoint_auth_method===undefined||meta.token_endpoint_auth_method==='none');
   return meta.client_id===input.client_id
    &&Array.isArray(meta.redirect_uris)
    &&meta.redirect_uris.includes(input.redirect_uri)
-   &&(meta.token_endpoint_auth_method===undefined||meta.token_endpoint_auth_method==='none');
+   &&supportsPublicClient;
  }catch{return false;}
  finally{clearTimeout(timeout);}
 }
