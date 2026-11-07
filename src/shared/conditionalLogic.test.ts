@@ -66,7 +66,7 @@ describe('parcours conditionnels',()=>{
 describe('vérification des règles dans le Studio',()=>{
  const asStudio=(input:typeof pages):StudioPageData[]=>
   input.map(p=>({id:p.id,title:'Page',description:null,questions:p.questions.map(q=>({...q,
-   type:q.type as StudioPageData[number]['questions'][number]['type'],
+   type:q.type as StudioPageData['questions'][number]['type'],
    settings:q.settings as Record<string,unknown>} as StudioPageData[number]['questions'][number]))}));
  it('accepte les dépendances précédentes valides',()=>{
   expect(validateConditionalSettings(asStudio(pages))).toEqual([]);
