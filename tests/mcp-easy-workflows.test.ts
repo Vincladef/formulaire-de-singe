@@ -97,6 +97,28 @@ describe('MCP Monk-Form pratique et économe',()=>{
   await expect(extras.updateQuestion('owner',formId,3,galleryId,{label:'Nouveau titre'})).rejects.toThrow(/Brouillon modifié/);
   expect(save).not.toHaveBeenCalled();
  });
+ it('met à jour plusieurs tarifs et images en une seule sauvegarde',async()=>{
+  save.mockClear();
+  const extras=new McpWorkflowExtras(actions);
+  const result=await extras.updateChoiceCards('owner',formId,4,galleryId,[
+   {optionLabel:'Concert',price:'Gratuit',imageUrl:'https://example.com/concert.jpg'},
+   {optionLabel:'Festival',price:'5 €',url:'https://example.com/tickets'},
+  ]);
+  expect(result.updatedCards).toBe(2);
+  expect(save).toHaveBeenCalledTimes(1);
+  const data=save.mock.calls.at(-1)![2] as {pages:Array<{questions:Array<{settings:Record<string,unknown>}>}>};
+  const cards=data.pages[0].questions[0].settings.choiceCards as Record<string,Record<string,unknown>>;
+  expect(cards.e1).toMatchObject({price:'Gratuit',imageSrc:'https://example.com/concert.jpg'});
+  expect(cards.e2).toMatchObject({price:'5 €',url:'https://example.com/tickets'});
+ });
+ it('garde les identifiants de choix lors du changement d’ordre des options',async()=>{
+  save.mockClear();
+  const extras=new McpWorkflowExtras(actions);
+  await extras.updateQuestion('owner',formId,4,galleryId,{choices:['Festival','Concert']});
+  const data=save.mock.calls.at(-1)![2] as {pages:Array<{questions:Array<{options:Array<{value:string;label:string}>}>}>};
+  expect(data.pages[0].questions[0].options.map(o=>[o.label,o.value]))
+   .toEqual([['Festival','e2'],['Concert','e1']]);
+ });
  it('demande une confirmation avant l’archivage',async()=>{
   const extras=new McpWorkflowExtras(actions);
   await expect(extras.archive('owner',formId,'archive',false)).rejects.toThrow(/Confirme/);
