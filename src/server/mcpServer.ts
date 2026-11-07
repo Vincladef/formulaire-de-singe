@@ -7,6 +7,7 @@ import { McpWorkflowExtras,patchQuestionSchema,cardFields,logicEdit } from './mc
 import { ResultsFault } from './resultsService';
 import { getFormAnalytics,getFormAppearance,setFormAppearance,getFormSubmission } from './mcpExtended';
 import { formAppearanceSchema } from '../shared/formAppearance';
+import { exportFormResults } from './mcpExport';
 import { TranscriptionFault } from './transcriptionService';
 import { mcpCreateFormSchema, mcpFormContentSchema, mcpQuestionSchema } from '../shared/mcpForm';
 import { ConflictFault, PermissionFault } from './studioRepository';
@@ -228,6 +229,14 @@ export function buildMcpServer(
   'HIGH IMPACT WRITE: archive/unarchive one existing form only on explicit user instruction with confirm=true. Published URL state and submissions may be affected.',
   {formId:id,action:z.enum(['archive','unarchive']),confirm:z.literal(true)},'forms:write',
   async ({formId,action,confirm})=>extra.archive(userId!,formId,action,confirm));
+
+ register('export_form_results','Exporter les participations CSV ou JSON',
+  'READ-ONLY: export up to 100 submitted answers per page to spreadsheet-safe CSV or structured JSON. Handles pagination, Europe/Paris timestamps and optional audio transcripts. User data stays private.',
+  {formId:id,page:z.number().int().min(0).max(100000).default(0),
+   limit:z.number().int().min(1).max(100).default(100),
+   format:z.enum(['csv','json']).default('csv'),includeTranscripts:z.boolean().default(false)},
+  'forms:read',async ({formId,page,limit,format,includeTranscripts})=>
+   exportFormResults(userId!,formId,page,limit,format,includeTranscripts));
 
  register('get_form_analytics','Statistiques des réponses',
   'READ-ONLY: exact submitted-response counts, daily trend in Europe/Paris, multiple-choice frequency and numeric averages. No tracking pixels or invented view/conversion data.',
