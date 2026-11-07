@@ -34,3 +34,36 @@ describe('Parcours répondant',()=>{
   expect(fetchMock.mock.calls.filter((c:unknown[])=>(c[1] as RequestInit|undefined)?.method==='POST')).toHaveLength(1);
  });
 });
+
+
+describe('Sélection rapide avec cartes illustrées',()=>{
+ it('affiche les visuels et permet de cocher directement les sorties',async()=>{
+  const optionId=crypto.randomUUID();
+  const original=structuredClone(form);
+  original.pages=[{id:'gallery',title:'Mes sorties',description:null,questions:[{
+   id:optionId,type:'multiple_choice',label:'Quelles sorties te tentent ?',description:null,required:false,
+   settings:{choiceCards:{
+    'E26-001':{imageSrc:'data:image/jpeg;base64,AA==',date:'Dimanche',venue:'Paris 19e',summary:'Entrée gratuite',url:'https://www.paris.fr/evenements/exemple'},
+    'E26-002':{imageSrc:'data:image/jpeg;base64,AA==',date:'Lundi',venue:'Paris 11e',url:'https://www.paris.fr/evenements/autre'},
+   }},
+   options:[{value:'E26-001',label:'Festival insolite'},{value:'E26-002',label:'Concert gratuit'}],
+  }]}];
+  fetchMock.mockImplementation(async (_path:string,opts?:RequestInit)=>({ok:true,status:opts?.method==='POST'?201:200,
+   json:async()=>opts?.method==='POST'?{ok:true,data:{id:'ok'}}:{ok:true,data:original}}));
+  renderForm();
+  await screen.findByText('Festival insolite');
+  expect(screen.getByRole('img',{name:'Illustration de Festival insolite'})).toHaveAttribute('src','data:image/jpeg;base64,AA==');
+  expect(screen.getAllByRole('link',{name:/Détails et réservations/i})).toHaveLength(2);
+  const choice=screen.getByRole('checkbox',{name:'Choisir Festival insolite'});
+  expect(choice).not.toBeChecked();
+  fireEvent.click(choice);
+  expect(choice).toBeChecked();
+  expect(screen.getByRole('checkbox',{name:'Choisir Concert gratuit'})).not.toBeChecked();
+  fireEvent.click(screen.getByRole('button',{name:/Envoyer mes réponses/}));
+  await waitFor(()=>expect(screen.getByText(/Merci pour votre participation/)).toBeInTheDocument());
+  const request=fetchMock.mock.calls.find((call:unknown[])=>(call[1] as RequestInit|undefined)?.method==='POST');
+  expect(request).toBeDefined();
+  const body=JSON.parse((request![1] as RequestInit).body as string);
+  expect(body.answers).toEqual([{questionId:optionId,value:['E26-001']}]);
+ });
+});
