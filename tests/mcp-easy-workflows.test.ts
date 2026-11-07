@@ -83,6 +83,7 @@ describe('MCP Monk-Form pratique et économe',()=>{
   expect(saved.visibility.conditions[0]).toEqual({sourceKey:'stable-gallery',operator:'contains',value:'e1'});
  });
  it('simule le parcours sans enregistrer une réponse',async()=>{
+  save.mockClear();
   const extras=new McpWorkflowExtras(actions);
   const result=await extras.preview('owner',formId,[{questionId:galleryId,value:['Concert']}]);
   expect(result.simulatedOnly).toBe(true);
