@@ -73,6 +73,7 @@ async function hydratePages(versionId:string):Promise<PublicForm['pages']>{
    settings:q.type==='statement'?q.settings:{
     ...(typeof q.settings?.logicId==='string'?{logicId:q.settings.logicId}:{}),
     ...(q.settings?.logic&&typeof q.settings.logic==='object'?{logic:q.settings.logic}:{}),
+     ...(q.settings?.choiceCards&&typeof q.settings.choiceCards==='object'?{choiceCards:q.settings.choiceCards}:{}),
     ...(q.type==='audio'?{allowTextSupplement:q.settings?.allowTextSupplement===true}:{}),
    },
    options:optionsByQuestion.get(q.id)??[],mode:audioMode(q.type,q.settings),
