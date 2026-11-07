@@ -22,6 +22,7 @@ export function QuestionSettings({question,onUpdate}:Props){
     {question.type!=='statement'&&<label className="flex items-center justify-between rounded-xl border border-[#e2e9df] bg-[#f9fbf8] px-3 py-3 text-sm font-medium text-[#47614e]">Réponse obligatoire
       <input type="checkbox" className="h-4 w-4 accent-[#327454]" checked={question.required} onChange={e=>change({required:e.target.checked})}/>
     </label>}
+    <p className="rounded-xl bg-[#edf6eb] p-3 text-xs leading-5 text-[#55735d]">Pour afficher, masquer ou rendre une question obligatoire selon une réponse, ouvre l’onglet <strong>Logique</strong> dans la barre latérale.</p>
     {choice&&<p className="rounded-xl bg-[#f5f9f4] p-3 text-xs leading-5 text-[#607265]">Les choix se modifient directement dans la question. Ajoute « Autre » pour permettre une réponse libre.</p>}
     {['short_text','long_text'].includes(question.type)&&<label className="block space-y-2 text-xs font-semibold text-[#607666]">Mode de réponse
       <select className={input} value={mode} onChange={e=>change({settings:{...question.settings,answerMode:e.target.value}})}>
