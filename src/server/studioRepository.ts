@@ -4,6 +4,7 @@ import { forms } from './db/schema';
 import { formRepository } from './formRepository';
 import { folderActions } from './folderService';
 import type { DraftPayload, StudioPageData } from '../shared/studio';
+import { duplicatePages } from '../shared/studio';
 import { readLogic } from '../shared/conditionalLogic';
 
 export class ConflictFault extends Error {status=409;code='CONFLICT' as const;}
@@ -25,9 +26,13 @@ export async function saveDraft(userId:string,formId:string,input:DraftPayload) 
     // PostgreSQL validates shapes and ownership, while the API validates conditional requiredness.
     // Store unconditional required flags separately when the form contains any branching/visibility.
     const conditional=input.pages.some(p=>p.questions.some(q=>Object.keys(readLogic(q)).length>0));
-    const storedPages=conditional?input.pages.map(p=>({...p,questions:p.questions.map(q=>q.type==='statement'?q:{
-      ...q,required:false,settings:{...q.settings,logicOriginalRequired:q.required},
-    })})):input.pages;
+    const storedPages=input.pages.map(p=>({...p,questions:p.questions.map(q=>{
+      if(q.type==='statement')return q;
+      if(conditional)return {...q,required:false,settings:{...q.settings,logicOriginalRequired:q.required}};
+      const {logicOriginalRequired: _previouslyConditional, ...settings}=q.settings;
+      void _previouslyConditional;
+      return {...q,settings};
+    })}));
     const result=await db.execute(sql`SELECT fs_save_draft(${formId}::uuid,${userId},${input.versionId}::uuid,
         ${input.expectedRevision},${JSON.stringify(storedPages)}::jsonb) AS revision`);
     return {versionId:input.versionId,revision:Number(result.rows[0]?.revision)};
@@ -56,14 +61,13 @@ export async function duplicateForm(userId:string,id:string){
   const created=await formRepository.create(userId,`Copie de ${original.title}`.slice(0,200));
   if(original.role==='owner'&&original.folderId)await folderActions.move(userId,created.id,{folderId:original.folderId});
   if(!source || source.pages.length===0) return created;
-  const pages:StudioPageData[]=source.pages.map(p=>({
-    id:crypto.randomUUID(),title:p.title,description:p.description,
-    questions:p.questions.map(q=>({
-      id:crypto.randomUUID(),type:q.type as StudioPageData['questions'][number]['type'],label:q.label,
-      description:q.description,required:q.required,settings:q.settings,
-      options:q.options.map(o=>({id:crypto.randomUUID(),value:o.value,label:o.label})),
-    })),
+  const originals:StudioPageData[]=source.pages.map(p=>({
+    id:p.id,title:p.title,description:p.description,
+    questions:p.questions.map(q=>({id:q.id,type:q.type as StudioPageData['questions'][number]['type'],
+      label:q.label,description:q.description,required:q.required,settings:q.settings,
+      options:q.options.map(o=>({id:o.id,value:o.value,label:o.label}))})),
   }));
+  const pages=duplicatePages(originals);
   try{await saveDraft(userId,created.id,{versionId:created.draftId,expectedRevision:0,pages});}
   catch(error){await setFormState(userId,created.id,'delete');throw error;}
   return created;
