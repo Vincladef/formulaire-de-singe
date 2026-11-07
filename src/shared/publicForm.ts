@@ -66,7 +66,7 @@ export function validateAnswers(form: PublicForm, values: AnswerValues): Record<
       if(typeof value!=='string') errors[q.id]='Saisissez un texte.';
       else if(value.length>(q.type==='short_text'?500:10000)) errors[q.id]='Votre réponse est trop longue.';
     } else if (q.type==='number') {
-      if (typeof value!=='number'||!Number.isFinite(value)) errors[q.id]='Indiquez un nombre valide.';
+      if (typeof value!=='number'||!Number.isFinite(value)||(q.label.startsWith('Nombre maximum de personnes pour ')&&(!Number.isInteger(value)||value<1))) errors[q.id]='Indiquez un nombre entier supérieur ou égal à 1.';
     } else if (q.type==='date') {
       if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`)) || new Date(`${value}T00:00:00Z`).toISOString().slice(0,10)!==value) errors[q.id]='Indiquez une date valide.';
     } else if (q.type==='single_choice'||q.type==='select') {
