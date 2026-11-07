@@ -58,7 +58,26 @@ export function makeQuestion(type:InsertQuestionType): StudioQuestion {
 }
 export function makePage():StudioPageData{return {id:crypto.randomUUID(),title:'Nouvelle page',description:null,questions:[]};}
 export function duplicateQuestion(q:StudioQuestion):StudioQuestion{return {...q,id:crypto.randomUUID(),options:q.options.map(o=>({...o,id:crypto.randomUUID()})),settings:{...q.settings,logicId:crypto.randomUUID()}};}
-export function duplicatePages(pages:StudioPageData[]):StudioPageData[]{return pages.map(p=>({...p,id:crypto.randomUUID(),questions:p.questions.map(duplicateQuestion)}));}
+export function duplicatePages(pages:StudioPageData[]):StudioPageData[]{
+  const keyMap=new Map<string,string>();
+  const cloned=pages.map(page=>({...page,id:crypto.randomUUID(),questions:page.questions.map(question=>{
+    const copy=duplicateQuestion(question);
+    keyMap.set(typeof question.settings.logicId==='string'?question.settings.logicId:question.id,copy.settings.logicId as string);
+    return copy;
+  })}));
+  return cloned.map(page=>({...page,questions:page.questions.map(question=>{
+    const raw=question.settings.logic;
+    if(!raw||typeof raw!=='object'||Array.isArray(raw))return question;
+    const logic=structuredClone(raw) as Record<string,unknown>;
+    for(const section of ['visibility','requiredWhen','branch']){
+      const group=logic[section] as {conditions?:Array<{sourceKey:string}>;target?:string}|undefined;
+      if(!group||!Array.isArray(group.conditions))continue;
+      group.conditions=group.conditions.map(condition=>({...condition,sourceKey:keyMap.get(condition.sourceKey)??condition.sourceKey}));
+      if(section==='branch'&&group.target&&keyMap.has(group.target))group.target=keyMap.get(group.target)!;
+    }
+    return {...question,settings:{...question.settings,logic}};
+  })}));
+}
 
 /** Immutable reordering helper, usable from drag and keyboard controls. */
 export function moveQuestionAt<T>(items:readonly T[],from:number,to:number):T[]{
