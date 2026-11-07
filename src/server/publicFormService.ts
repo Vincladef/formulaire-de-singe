@@ -4,6 +4,7 @@ import { getDb } from './db/client';
 import { forms, formVersions, pages, questions, questionOptions } from './db/schema';
 import { getQuestionType, publicSubmitSchema, type PublicForm, type PublicSubmissionInput, validateAnswers } from '../shared/publicForm';
 import { audioMode,audioLimits } from '../shared/audio';
+import { evaluateLogic } from '../shared/conditionalLogic';
 
 export class PublicFormFault extends Error {
   constructor(public status:number,public code:'NOT_FOUND'|'VALIDATION_ERROR'|'CONFLICT',message:string){super(message);}
@@ -68,7 +69,11 @@ async function hydratePages(versionId:string):Promise<PublicForm['pages']>{
   const limits=audioLimits(q.settings);
   questionsByPage.get(q.pageId)!.push({
    id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,
-   settings:q.type==='statement'?q.settings:q.type==='audio'?{allowTextSupplement:q.settings?.allowTextSupplement===true}:undefined,
+   settings:q.type==='statement'?q.settings:{
+    ...(typeof q.settings?.logicId==='string'?{logicId:q.settings.logicId}:{}),
+    ...(q.settings?.logic&&typeof q.settings.logic==='object'?{logic:q.settings.logic}:{}),
+    ...(q.type==='audio'?{allowTextSupplement:q.settings?.allowTextSupplement===true}:{}),
+   },
    options:optionsByQuestion.get(q.id)??[],mode:audioMode(q.type,q.settings),
    maxAudioSeconds:limits.maxSeconds,maxAudioBytes:limits.maxBytes,
   });
@@ -90,6 +95,9 @@ async function submitValidated(slug:string,form:PublicForm,input:PublicSubmissio
   if(new Set(input.answers.map(a=>a.questionId)).size!==input.answers.length || input.answers.some(a=>!knownIds.has(a.questionId)))
     throw new PublicFormFault(400,'VALIDATION_ERROR','Réponse inconnue ou en double.');
   const values=Object.fromEntries(input.answers.map(a=>[a.questionId,a.value]));
+  const active=evaluateLogic(form.pages,values);
+  if(input.answers.some(answer=>!active.visibleIds.has(answer.questionId)))
+    throw new PublicFormFault(400,'VALIDATION_ERROR','Une réponse concerne une question non affichée dans ce parcours.');
   const issues=validateAnswers(form,values);
   if(Object.keys(issues).length)throw new PublicFormFault(400,'VALIDATION_ERROR',Object.values(issues)[0]);
   // Hash protects an idempotency key against reuse with a different payload.
