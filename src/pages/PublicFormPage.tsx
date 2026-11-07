@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { sanitizeDocumentHtml } from '../shared/richText';
+import { evaluateLogic } from '../shared/conditionalLogic';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert, FileQuestion, LoaderCircle } from 'lucide-react';
 import { AudioRecorder } from '../components/AudioRecorder';
 import { audioMode, type AudioDraft, type UploadedAudio, DIRECT_AUDIO_BYTES } from '../shared/audio';
@@ -140,18 +141,28 @@ export function PublicFormPage(){
   getPublic(slug,controller.signal).then(data=>{if(!controller.signal.aborted)setForm(data);}).catch(e=>{if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Formulaire indisponible.');}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
   return()=>controller.abort();
  },[slug]);
+ const journey=form?evaluateLogic(form.pages,answers):null;
+ const availablePages=journey?.pageIndices??[];
  const page=form?.pages[pageIndex];
- const totalQuestions=form?.pages.flatMap(p=>p.questions.filter(q=>q.type!=='statement'))??[];
+ const totalQuestions=form?.pages.flatMap(p=>p.questions.filter(q=>q.type!=='statement'&&journey?.visibleIds.has(q.id)))??[];
  const answeredCount=totalQuestions.filter(q=>isAnswered(answers[q.id])).length;
  const progress=totalQuestions.length?Math.round(answeredCount/totalQuestions.length*100):0;
+ const previousPage=availablePages.filter(i=>i<pageIndex).at(-1);
+ const nextPage=availablePages.find(i=>i>pageIndex);
+ useEffect(()=>{
+  if(!form||!availablePages.length||availablePages.includes(pageIndex))return;
+  setPageIndex(availablePages.find(i=>i>pageIndex)??availablePages.at(-1)??0);
+ },[form,pageIndex,answers]);
  function setAnswer(id:string,value:AnswerValues[string]){setAnswers(prev=>({...prev,[id]:value}));setErrors(prev=>{const n={...prev};delete n[id];return n;});}
  function validatePage(){if(!form||!page)return false;
-  const issue=validateAnswers({...form,pages:[page]},answers);
+  const issues=validateAnswers(form,answers);
+  const current=new Set(page.questions.map(q=>q.id));
+  const issue=Object.fromEntries(Object.entries(issues).filter(([id])=>current.has(id)));
   setErrors(issue);
   if(Object.keys(issue).length){document.getElementById(Object.keys(issue)[0])?.focus();return false;}
   return true;
  }
- function next(){if(!validatePage())return;setPageIndex(index=>Math.min(index+1,(form?.pages.length??1)-1));window.scrollTo?.({top:0,behavior:'smooth'});}
+ function next(){if(!validatePage()||nextPage===undefined)return;setPageIndex(nextPage);window.scrollTo?.({top:0,behavior:'smooth'});}
  const uploadDraft=useCallback(async(questionId:string,draft:AudioDraft,currentForm:PublicForm):Promise<UploadedAudio>=>{
   const previous=uploadTasksRef.current.get(questionId);
   if(previous?.file===draft.file)return previous.promise;
@@ -214,7 +225,9 @@ export function PublicFormPage(){
  // Prepare each recording as soon as it is completed, while the respondent fills in the form.
  useEffect(()=>{
   if(!form||submitted)return;
+  const active=evaluateLogic(form.pages,answers);
   for(const [questionId,value] of Object.entries(answers)){
+   if(!active.visibleIds.has(questionId))continue;
    if(value&&typeof value==='object'&&!Array.isArray(value)&&value.kind==='audio-draft'&&
      attemptedUploadsRef.current.get(questionId)!==value.file){
     attemptedUploadsRef.current.set(questionId,value.file);
@@ -229,7 +242,9 @@ export function PublicFormPage(){
   inFlightRef.current=true;setSubmitting(true);setError('');
   try{
    const readyValues:AnswerValues={...answers};
+   const active=evaluateLogic(form.pages,readyValues);
    await Promise.all(Object.entries(readyValues).map(async([questionId,value])=>{
+    if(!active.visibleIds.has(questionId))return;
     if(!value||typeof value!=='object'||Array.isArray(value)||value.kind!=='audio-draft')return;
     const ready=await uploadDraft(questionId,value,form);
     readyValues[questionId]=value.text?{...ready,text:value.text}:ready;
@@ -248,18 +263,18 @@ export function PublicFormPage(){
  if(submitted)return <main className="mx-auto max-w-xl px-6 py-28 text-center" role="status"><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#e4f4e4]"><CheckCircle2 size={44} className="text-[#397b51]"/></div><h1 className="mt-7 font-display text-4xl font-bold">Merci pour votre participation !</h1><p className="mt-4 text-[#607265]">Vos réponses ont bien été enregistrées. Vous pouvez fermer cette page.</p></main>;
  return <main className="min-h-[75vh] bg-[#fafcf8] px-4 pb-24 pt-8 sm:px-7 sm:pt-14">
   <div className="mx-auto max-w-[740px]">
-   <div className="mb-8 flex items-center justify-between text-xs font-semibold uppercase tracking-[.12em] text-[#607265]"><span>Questionnaire</span><span>{form.pages.length===1?`${answeredCount}/${totalQuestions.length} réponses`:`Page ${pageIndex+1} sur ${form.pages.length}`}</span></div>
+   <div className="mb-8 flex items-center justify-between text-xs font-semibold uppercase tracking-[.12em] text-[#607265]"><span>Questionnaire</span><span>{availablePages.length<=1?`${answeredCount}/${totalQuestions.length} réponses`:`Étape ${availablePages.indexOf(pageIndex)+1} sur ${availablePages.length}`}</span></div>
    {totalQuestions.length>1&&<div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e3ece1]" role="progressbar" aria-label="Questions complétées" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full bg-[#5d9b6c] transition-[width] duration-300" style={{width:`${progress}%`}}/></div>}
    <header className="pb-10 pt-10 sm:pt-12">
     {pageIndex===0&&<><h1 className="font-display text-[clamp(2.2rem,6vw,3.5rem)] font-extrabold leading-tight tracking-[-.055em] text-[#254632]">{form.title}</h1>{form.description&&<p className="mt-4 max-w-2xl whitespace-pre-line text-base leading-8 text-[#607265]">{form.description}</p>}</>}
-    {(form.pages.length>1||(page?.title&&page.title!=='Nouvelle page'))&&<h2 className={'font-display font-bold text-[#35583f] '+(pageIndex===0?'mt-9 text-2xl':'text-3xl')}>{page?.title||`Page ${pageIndex+1}`}</h2>}
+    {(availablePages.length>1||(page?.title&&page.title!=='Nouvelle page'))&&<h2 className={'font-display font-bold text-[#35583f] '+(pageIndex===0?'mt-9 text-2xl':'text-3xl')}>{page?.title||`Page ${pageIndex+1}`}</h2>}
     {page?.description&&<p className="mt-3 whitespace-pre-line text-sm leading-7 text-[#607265]">{page.description}</p>}
    </header>
-   <div className="space-y-4">{page?.questions.map(q=><QuestionField key={q.id} question={q} value={answers[q.id]} onChange={v=>setAnswer(q.id,v)} error={errors[q.id]} audioStatus={uploadStates[q.id]}/>)}</div>
+   <div className="space-y-4">{page?.questions.filter(q=>journey?.visibleIds.has(q.id)).map(q=><QuestionField key={q.id} question={{...q,required:journey?.requiredIds.has(q.id)??q.required}} value={answers[q.id]} onChange={v=>setAnswer(q.id,v)} error={errors[q.id]} audioStatus={uploadStates[q.id]}/>)}</div>
    {error&&<div role="alert" className="mt-6 flex gap-3 rounded-2xl border border-[#f0d4cc] bg-[#fff8f4] p-4 text-sm text-[#aa594d]"><CircleAlert className="shrink-0" size={19}/>{error}</div>}
    <nav aria-label="Navigation dans le formulaire" className="mt-9 flex flex-wrap items-center justify-between gap-4">
-    {pageIndex>0?<button type="button" className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-semibold text-[#42664b] hover:bg-[#edf4eb]" onClick={()=>{setError('');setPageIndex(i=>i-1);}}><ArrowLeft size={18}/> Retour</button>:<span/>}
-    {pageIndex<form.pages.length-1?<button type="button" className={solid} onClick={next}>Continuer <ArrowRight size={18}/></button>:<button type="button" disabled={submitting} className={solid} onClick={()=>void send()}>{submitting?<LoaderCircle className="animate-spin" size={18}/>:<Check size={18}/>} {submitting?'Finalisation de l’envoi…':'Envoyer mes réponses'}</button>}
+    {previousPage!==undefined?<button type="button" className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-semibold text-[#42664b] hover:bg-[#edf4eb]" onClick={()=>{setError('');setPageIndex(previousPage!);}}><ArrowLeft size={18}/> Retour</button>:<span/>}
+    {nextPage!==undefined?<button type="button" className={solid} onClick={next}>Continuer <ArrowRight size={18}/></button>:<button type="button" disabled={submitting} className={solid} onClick={()=>void send()}>{submitting?<LoaderCircle className="animate-spin" size={18}/>:<Check size={18}/>} {submitting?'Finalisation de l’envoi…':'Envoyer mes réponses'}</button>}
    </nav>
    
   </div>
