@@ -119,6 +119,42 @@ describe('MCP Monk-Form pratique et économe',()=>{
   expect(data.pages[0].questions[0].options.map(o=>[o.label,o.value]))
    .toEqual([['Festival','e2'],['Concert','e1']]);
  });
+ it('modifie plusieurs questions en une seule révision sans altérer les cartes restantes',async()=>{
+  save.mockClear();
+  const extras=new McpWorkflowExtras(actions);
+  const result=await extras.updateQuestionsBulk('owner',formId,4,[
+   {questionId:galleryId,label:'Choisissez vos sorties'},
+   {questionId:'02d0547f-020f-42e6-9c04-d9c00b733200',label:'Votre commentaire',required:true},
+  ]);
+  expect(result.changedQuestions).toHaveLength(2);
+  expect(save).toHaveBeenCalledTimes(1);
+  const draft=save.mock.calls.at(-1)![2] as {pages:Array<{questions:Array<{label:string;required:boolean;settings:Record<string,unknown>}>}>};
+  expect(draft.pages[0].questions[0].label).toBe('Choisissez vos sorties');
+  expect(draft.pages[0].questions[1].required).toBe(true);
+  expect(draft.pages[0].questions[0].settings.choiceCards).toBeDefined();
+ });
+ it('rejette intégralement un lot qui référence une question inconnue',async()=>{
+  save.mockClear();
+  const extras=new McpWorkflowExtras(actions);
+  await expect(extras.updateQuestionsBulk('owner',formId,4,[
+   {questionId:galleryId,label:'OK'},
+   {questionId:crypto.randomUUID(),label:'Inconnue'},
+  ])).rejects.toThrow(/Question introuvable/);
+  expect(save).not.toHaveBeenCalled();
+ });
+ it('réordonne les pages sans changer les identifiants de questions',async()=>{
+  save.mockClear();
+  const pages=detail();
+  const secondId='8d5a0ee5-ce27-4e19-a54e-59ee0593ce6a';
+  pages.versions[0].pages.push({id:secondId,position:1,title:'Suite',description:null,questions:[]});
+  const localActions={...actions,get:vi.fn(async()=>pages)} as unknown as Pick<FormActions,'get'|'save'|'duplicate'|'state'>;
+  const extras=new McpWorkflowExtras(localActions);
+  const moved=await extras.movePage('owner',formId,4,secondId,0);
+  expect(moved.position).toBe(0);
+  const payload=save.mock.calls.at(-1)![2] as {pages:Array<{id:string;questions:Array<{id:string}>}>};
+  expect(payload.pages[0].id).toBe(secondId);
+  expect(payload.pages[1].questions[0].id).toBe(galleryId);
+ });
  it('demande une confirmation avant l’archivage',async()=>{
   const extras=new McpWorkflowExtras(actions);
   await expect(extras.archive('owner',formId,'archive',false)).rejects.toThrow(/Confirme/);

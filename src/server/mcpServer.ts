@@ -5,6 +5,9 @@ import { FormActions } from './formActions';
 import { McpFormActions } from './mcpFormActions';
 import { McpWorkflowExtras,patchQuestionSchema,cardFields,logicEdit } from './mcpWorkflowExtras';
 import { ResultsFault } from './resultsService';
+import { getFormAnalytics,getFormAppearance,setFormAppearance,getFormSubmission } from './mcpExtended';
+import { formAppearanceSchema } from '../shared/formAppearance';
+import { exportFormResults } from './mcpExport';
 import { TranscriptionFault } from './transcriptionService';
 import { mcpCreateFormSchema, mcpFormContentSchema, mcpQuestionSchema } from '../shared/mcpForm';
 import { ConflictFault, PermissionFault } from './studioRepository';
@@ -120,6 +123,17 @@ export function buildMcpServer(
   {formId:id,questionId:id,expectedRevision:z.number().int().min(0),...patchQuestionSchema.shape},'forms:write',
   async ({formId,questionId,expectedRevision,...patch})=>extra.updateQuestion(userId!,formId,expectedRevision,questionId,patch));
 
+ register('update_form_questions_bulk','Modifier plusieurs questions en un seul appel',
+  'WRITE: atomically edit up to 100 questions in one draft revision without changing others. Supports labels, choices, help, required, rich content and audio settings. First inspect the draft and send expectedRevision.',
+  {formId:id,expectedRevision:z.number().int().min(0),
+   updates:z.array(z.object({questionId:id,...patchQuestionSchema.shape}).strict()).min(1).max(100)},
+  'forms:write',async ({formId,expectedRevision,updates})=>extra.updateQuestionsBulk(userId!,formId,expectedRevision,updates));
+
+ register('move_form_page','Réordonner une page',
+  'WRITE: move an existing page to a zero-based position without replacing its questions, images, or conditional logic. Requires the latest draft revision.',
+  {formId:id,pageId:id,position:z.number().int().min(0).max(39),expectedRevision:z.number().int().min(0)},
+  'forms:write',async ({formId,pageId,position,expectedRevision})=>extra.movePage(userId!,formId,expectedRevision,pageId,position));
+
  register('set_choice_card','Modifier une carte illustrée et son tarif',
   'WRITE: add or edit one option card with an HTTPS image, free/paid price, description, place, date, reservation requirements and official link. No full-form replacement, no base64 uploads.',
   {formId:id,questionId:id,expectedRevision:z.number().int().min(0),
@@ -215,6 +229,33 @@ export function buildMcpServer(
   'HIGH IMPACT WRITE: archive/unarchive one existing form only on explicit user instruction with confirm=true. Published URL state and submissions may be affected.',
   {formId:id,action:z.enum(['archive','unarchive']),confirm:z.literal(true)},'forms:write',
   async ({formId,action,confirm})=>extra.archive(userId!,formId,action,confirm));
+
+ register('export_form_results','Exporter les participations CSV ou JSON',
+  'READ-ONLY: export up to 100 submitted answers per page to spreadsheet-safe CSV or structured JSON. Handles pagination, Europe/Paris timestamps and optional audio transcripts. User data stays private.',
+  {formId:id,page:z.number().int().min(0).max(100000).default(0),
+   limit:z.number().int().min(1).max(100).default(100),
+   format:z.enum(['csv','json']).default('csv'),includeTranscripts:z.boolean().default(false)},
+  'forms:read',async ({formId,page,limit,format,includeTranscripts})=>
+   exportFormResults(userId!,formId,page,limit,format,includeTranscripts));
+
+ register('get_form_analytics','Statistiques des réponses',
+  'READ-ONLY: exact submitted-response counts, daily trend in Europe/Paris, multiple-choice frequency and numeric averages. No tracking pixels or invented view/conversion data.',
+  {formId:id,days:z.union([z.literal(7),z.literal(30),z.literal(90),z.literal(365)]).default(30)},
+  'forms:read',async ({formId,days})=>getFormAnalytics(userId!,formId,days));
+
+ register('get_submission','Lire une participation précise',
+  'READ-ONLY: inspect a single submitted response by UUID, with all question answers, audio IDs, transcript and transcription status; does not expose private storage keys.',
+  {formId:id,submissionId:id},'forms:read',
+  async ({formId,submissionId})=>getFormSubmission(userId!,formId,submissionId));
+
+ register('get_form_appearance','Lire le thème du formulaire',
+  'READ-ONLY: inspect colors, font and thank-you texts currently configured. Settings apply immediately to public forms.',
+  {formId:id},'forms:read',async ({formId})=>getFormAppearance(userId!,formId));
+
+ register('set_form_appearance','Personnaliser le thème et le remerciement',
+  'WRITE: modify only the specified color, font or thank-you field. Changes are immediately live on a published form: use only after explicit user instruction. All other settings are preserved.',
+  {formId:id,...formAppearanceSchema.shape},'forms:write',
+  async ({formId,...appearance})=>setFormAppearance(userId!,formId,appearance));
 
  register('publish_form','Publier un formulaire',
   'HIGH IMPACT WRITE: publish the current draft publicly. ONLY call after explicit user approval in this conversation and use confirm=true. Read form/revision first. Returns public URL.',

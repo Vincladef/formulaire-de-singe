@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { FormAppearance } from './formAppearance';
 import { questionTypes, type QuestionType } from './studio';
 import { audioMode, uploadedAudioSchema, type AudioDraft, type UploadedAudio, type AnswerMode } from './audio';
 import { evaluateLogic } from './conditionalLogic';
@@ -23,7 +24,7 @@ export type PublicQuestion = {
 export type PublicPage = { id: string; title:string; description:string|null; questions:PublicQuestion[] };
 export type PublicForm = {
   id: string; title:string; description:string|null; slug:string;
-  versionId:string; versionNumber:number; requireConsent:boolean;
+  versionId:string; versionNumber:number; requireConsent:boolean;appearance?:FormAppearance;
   pages:PublicPage[];
 };
 export const OTHER_VALUE='__other__';

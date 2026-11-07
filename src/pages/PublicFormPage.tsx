@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useParams } from 'react-router-dom';
 import { sanitizeDocumentHtml } from '../shared/richText';
 import { evaluateLogic } from '../shared/conditionalLogic';
@@ -9,7 +9,7 @@ import { type AnswerValues, type PublicForm, type PublicQuestion, toSubmissionAn
 
 type ApiResult<T>={ok:true;data:T}|{ok:false;error:{code:string;message:string}};
 const fieldStyle='w-full rounded-2xl border border-[#dce7dc] bg-white px-4 py-3.5 text-[#294735] outline-none transition focus:border-[#5b986e] focus:ring-4 focus:ring-[#e0eee0]';
-const solid='inline-flex items-center justify-center gap-2 rounded-2xl bg-[#286846] px-6 py-3.5 font-semibold text-white shadow-sm transition hover:bg-[#1d5337] disabled:cursor-not-allowed disabled:opacity-60';
+const solid='inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--monk-accent)] px-6 py-3.5 font-semibold text-white shadow-sm transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-60';
 
 async function getPublic(slug:string,signal:AbortSignal):Promise<PublicForm>{
  const response=await fetch(`/api/public/forms/${encodeURIComponent(slug)}`,{signal,headers:{Accept:'application/json'},cache:'no-store'});
@@ -73,7 +73,7 @@ export function QuestionField({question,value,onChange,error,audioStatus}: {ques
  const supplement=typeof value==='string'?value:value&&typeof value==='object'&&!Array.isArray(value)?value.text??'':'';
  const [textExpanded,setTextExpanded]=useState(Boolean(supplement));
  const common={id:question.id,'aria-invalid':!!error,'aria-describedby':ariaDesc,required:question.required} as const;
- return <div className={question.type==='statement'?'px-1 py-2 sm:px-3':'rounded-2xl border border-[#e1e9df] bg-white p-5 sm:p-7'}>
+ return <div className={question.type==='statement'?'px-1 py-2 sm:px-3':'rounded-2xl border border-[#e1e9df] bg-[var(--monk-surface)] p-5 sm:p-7'}>
   {question.type==='statement' ? <>
    <h3 className={question.settings?.textStyle==='heading'?'font-display text-2xl font-bold leading-snug text-[#294a34]':question.settings?.textStyle==='quote'?'border-l-[3px] border-[#a8c4aa] pl-4 text-base italic leading-7 text-[#647c69]':'whitespace-pre-line text-[15px] font-normal leading-8 text-[#526c59]'}>{typeof question.settings?.richHtml==='string'?<span dangerouslySetInnerHTML={{__html:sanitizeDocumentHtml(question.settings.richHtml)}}/>:question.label}</h3>
    {question.description&&<p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-[#607265]">{question.description}</p>}
@@ -201,6 +201,14 @@ export function PublicFormPage(){
  const totalQuestions=form?.pages.flatMap(p=>p.questions.filter(q=>q.type!=='statement'&&journey?.visibleIds.has(q.id)))??[];
  const answeredCount=totalQuestions.filter(q=>isAnswered(answers[q.id])).length;
  const progress=totalQuestions.length?Math.round(answeredCount/totalQuestions.length*100):0;
+ const appearance=form?.appearance;
+ const themeStyle={
+  '--monk-accent':appearance?.accent??'#286846',
+  '--monk-surface':appearance?.surface??'#ffffff',
+  '--monk-text':appearance?.text??'#254632',
+  backgroundColor:appearance?.background??'#fafcf8',
+  fontFamily:appearance?.font==='serif'?'Georgia, serif':appearance?.font==='system'?'system-ui, sans-serif':undefined,
+ } as CSSProperties;
  const previousPage=availablePages.filter(i=>i<pageIndex).at(-1);
  const nextPage=availablePages.find(i=>i>pageIndex);
  useEffect(()=>{
@@ -316,13 +324,13 @@ export function PublicFormPage(){
  }
  if(loading)return <main className="mx-auto flex min-h-[65vh] max-w-2xl items-center justify-center px-5" role="status"><LoaderCircle className="animate-spin text-[#356944]" size={30}/><span className="ml-3 text-[#607265]">Chargement du questionnaire…</span></main>;
  if(!form)return <main className="mx-auto max-w-xl px-6 py-28 text-center"><FileQuestion className="mx-auto text-[#5d795f]" size={42}/><h1 className="mt-6 font-display text-3xl font-bold">Formulaire indisponible</h1><p className="mt-4 text-[#607265]">{error||'Ce questionnaire est introuvable ou n’a pas été publié.'}</p></main>;
- if(submitted)return <main className="mx-auto max-w-xl px-6 py-28 text-center" role="status"><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#e4f4e4]"><CheckCircle2 size={44} className="text-[#397b51]"/></div><h1 className="mt-7 font-display text-4xl font-bold">Merci pour votre participation !</h1><p className="mt-4 text-[#607265]">Vos réponses ont bien été enregistrées. Vous pouvez fermer cette page.</p></main>;
- return <main className="min-h-[75vh] bg-[#fafcf8] px-4 pb-24 pt-8 sm:px-7 sm:pt-14">
+ if(submitted)return <main className="mx-auto max-w-xl px-6 py-28 text-center" style={themeStyle} role="status"><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#e4f4e4]"><CheckCircle2 size={44} className="text-[#397b51]"/></div><h1 className="mt-7 font-display text-4xl font-bold" style={{color:'var(--monk-text)'}}>{appearance?.thankYouTitle??'Merci pour votre participation !'}</h1><p className="mt-4 text-[#607265]">{appearance?.thankYouMessage??'Vos réponses ont bien été enregistrées. Vous pouvez fermer cette page.'}</p></main>;
+ return <main className="min-h-[75vh] px-4 pb-24 pt-8 sm:px-7 sm:pt-14" style={themeStyle}>
   <div className="mx-auto max-w-[740px]">
    <div className="mb-8 flex items-center justify-between text-xs font-semibold uppercase tracking-[.12em] text-[#607265]"><span>Questionnaire</span><span>{availablePages.length<=1?`${answeredCount}/${totalQuestions.length} réponses`:`Étape ${availablePages.indexOf(pageIndex)+1} sur ${availablePages.length}`}</span></div>
-   {totalQuestions.length>1&&<div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e3ece1]" role="progressbar" aria-label="Questions complétées" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full bg-[#5d9b6c] transition-[width] duration-300" style={{width:`${progress}%`}}/></div>}
+   {totalQuestions.length>1&&<div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e3ece1]" role="progressbar" aria-label="Questions complétées" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full bg-[var(--monk-accent)] transition-[width] duration-300" style={{width:`${progress}%`}}/></div>}
    <header className="pb-10 pt-10 sm:pt-12">
-    {pageIndex===0&&<><h1 className="font-display text-[clamp(2.2rem,6vw,3.5rem)] font-extrabold leading-tight tracking-[-.055em] text-[#254632]">{form.title}</h1>{form.description&&<p className="mt-4 max-w-2xl whitespace-pre-line text-base leading-8 text-[#607265]">{form.description}</p>}</>}
+    {pageIndex===0&&<><h1 className="font-display text-[clamp(2.2rem,6vw,3.5rem)] font-extrabold leading-tight tracking-[-.055em] " style={{color:'var(--monk-text)'}}>{form.title}</h1>{form.description&&<p className="mt-4 max-w-2xl whitespace-pre-line text-base leading-8 text-[#607265]">{form.description}</p>}</>}
     {(availablePages.length>1||(page?.title&&page.title!=='Nouvelle page'))&&<h2 className={'font-display font-bold text-[#35583f] '+(pageIndex===0?'mt-9 text-2xl':'text-3xl')}>{page?.title||`Page ${pageIndex+1}`}</h2>}
     {page?.description&&<p className="mt-3 whitespace-pre-line text-sm leading-7 text-[#607265]">{page.description}</p>}
    </header>
