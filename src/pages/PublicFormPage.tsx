@@ -335,7 +335,7 @@ export function PublicFormPage(){
    {visualChoices&&pageIndex===0&&<div className="fixed inset-x-0 bottom-0 z-20 border-t border-[#d9e9dc] bg-white/95 px-3 py-2.5 shadow-[0_-5px_22px_rgba(35,66,47,.1)] backdrop-blur-md">
      <div className="mx-auto flex max-w-[740px] items-center justify-between gap-3">
       <p role="status" className="text-xs font-semibold text-[#38634a] sm:text-sm">{selectedVisual===0?'Aucune sortie sélectionnée':selectedVisual+' sortie'+(selectedVisual>1?'s':'')+' retenue'+(selectedVisual>1?'s':'')}</p>
-      <button type="button" disabled={submitting} onClick={()=>{if(nextPage!==undefined)next();else void send();}} className={solid+' !rounded-xl !px-4 !py-2.5 !text-sm'}>{nextPage!==undefined?'Configurer mes sorties':submitting?'Envoi…':'Terminer sans sortie'} {nextPage!==undefined?<ArrowRight size={15}/>:<Check size={15}/>}</button>
+      <button type="button" disabled={submitting} onClick={()=>{if(nextPage!==undefined)next();else void send();}} className={solid+' !rounded-xl !px-4 !py-2.5 !text-sm'}>{nextPage!==undefined?'Configurer mes sorties':submitting?'Envoi…':selectedVisual>0?'Valider mes choix':'Terminer sans sortie'} {nextPage!==undefined?<ArrowRight size={15}/>:<Check size={15}/>}</button>
      </div>
     </div>}
    
