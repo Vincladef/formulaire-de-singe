@@ -68,7 +68,8 @@ async function hydratePages(versionId:string):Promise<PublicForm['pages']>{
   if(!questionsByPage.has(q.pageId))questionsByPage.set(q.pageId,[]);
   const limits=audioLimits(q.settings);
   questionsByPage.get(q.pageId)!.push({
-   id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,required:q.required,
+   id:q.id,type:getQuestionType(q.type),label:q.label,description:q.description,
+   required:typeof q.settings?.logicOriginalRequired==='boolean'?q.settings.logicOriginalRequired:q.required,
    settings:q.type==='statement'?q.settings:{
     ...(typeof q.settings?.logicId==='string'?{logicId:q.settings.logicId}:{}),
     ...(q.settings?.logic&&typeof q.settings.logic==='object'?{logic:q.settings.logic}:{}),
