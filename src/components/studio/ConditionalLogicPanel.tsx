@@ -13,8 +13,9 @@ type Section = 'visibility' | 'requiredWhen' | 'branch';
 type Props = {
  pages: StudioPageData[]; pageIndex: number;
  question: StudioQuestion; onUpdate: (q: StudioQuestion) => void;
+ onApplyToPage?: (rule: VisibilityLogic) => void;
 };
-export function ConditionalLogicPanel({pages,pageIndex,question,onUpdate}:Props){
+export function ConditionalLogicPanel({pages,pageIndex,question,onUpdate,onApplyToPage}:Props){
  const all = pages.flatMap((page,p) => page.questions.map((q,i)=>({page:p,index:i,q})));
  const current = all.findIndex(item=>item.q.id===question.id);
  const sources = all.slice(0,current).filter(item=>item.q.type!=='statement');
@@ -123,6 +124,8 @@ export function ConditionalLogicPanel({pages,pageIndex,question,onUpdate}:Props)
    <p className="text-xs leading-5 text-[#6b8271]">Question sélectionnée : <strong>{question.label.slice(0,90)}</strong></p>
   </div>
   {renderRules('visibility','Afficher ou masquer','Réagir aux réponses précédentes. Une question masquée ne sera pas demandée ni enregistrée.')}
+  {logic.visibility&&pages[pageIndex]?.questions.length>1&&onApplyToPage&&<button type="button" onClick={()=>onApplyToPage(logic.visibility!)}
+    className="w-full rounded-xl border border-[#b7d4b8] bg-[#edf7eb] px-3 py-3 text-left text-xs font-semibold text-[#347247]">Appliquer cette condition à toute la page</button>}
   {question.type!=='statement'&&renderRules('requiredWhen','Rendre obligatoire si','Exiger la réponse seulement lorsque les conditions sont remplies. Décoche « Réponse obligatoire » dans Options pour un déclenchement exclusivement conditionnel.')}
   {question.type!=='statement'&&renderRules('branch','Rediriger après cette page','Si la règle correspond, sauter à une page suivante ou terminer. Les pages ignorées ne sont ni validées ni enregistrées.')}
   <p className="rounded-lg bg-[#edf5eb] p-3 text-xs leading-5 text-[#4b6e55]">Les références sont conservées entre versions publiées. Les retours arrière et réponses modifiées actualisent automatiquement le chemin.</p>
