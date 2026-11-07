@@ -188,6 +188,8 @@ export function PublicFormPage(){
  const journey=form?evaluateLogic(form.pages,answers):null;
  const availablePages=journey?.pageIndices??[];
  const page=form?.pages[pageIndex];
+ const visualChoices=form?.pages.flatMap(p=>p.questions).find(q=>q.type==='multiple_choice'&&q.settings?.choiceCards);
+ const selectedVisual=visualChoices&&Array.isArray(answers[visualChoices.id])?(answers[visualChoices.id] as string[]).length:0;
  const totalQuestions=form?.pages.flatMap(p=>p.questions.filter(q=>q.type!=='statement'&&journey?.visibleIds.has(q.id)))??[];
  const answeredCount=totalQuestions.filter(q=>isAnswered(answers[q.id])).length;
  const progress=totalQuestions.length?Math.round(answeredCount/totalQuestions.length*100):0;
@@ -322,6 +324,12 @@ export function PublicFormPage(){
     {previousPage!==undefined?<button type="button" className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-semibold text-[#42664b] hover:bg-[#edf4eb]" onClick={()=>{setError('');setPageIndex(previousPage!);}}><ArrowLeft size={18}/> Retour</button>:<span/>}
     {nextPage!==undefined?<button type="button" className={solid} onClick={next}>Continuer <ArrowRight size={18}/></button>:<button type="button" disabled={submitting} className={solid} onClick={()=>void send()}>{submitting?<LoaderCircle className="animate-spin" size={18}/>:<Check size={18}/>} {submitting?'Finalisation de l’envoi…':'Envoyer mes réponses'}</button>}
    </nav>
+   {visualChoices&&form.pages.length===1&&<div className="fixed inset-x-0 bottom-0 z-20 border-t border-[#d9e9dc] bg-white/95 px-3 py-2.5 shadow-[0_-5px_22px_rgba(35,66,47,.1)] backdrop-blur-md">
+     <div className="mx-auto flex max-w-[740px] items-center justify-between gap-3">
+      <p role="status" className="text-xs font-semibold text-[#38634a] sm:text-sm">{selectedVisual===0?'Aucune sortie sélectionnée':selectedVisual+' sortie'+(selectedVisual>1?'s':'')+' retenue'+(selectedVisual>1?'s':'')}</p>
+      <button type="button" disabled={submitting} onClick={()=>void send()} className={solid+' !rounded-xl !px-4 !py-2.5 !text-sm'}>{submitting?'Envoi…':'Valider mes choix'} <Check size={15}/></button>
+     </div>
+    </div>}
    
   </div>
  </main>;
