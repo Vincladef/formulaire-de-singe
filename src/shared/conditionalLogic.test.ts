@@ -3,10 +3,10 @@ import { evaluateLogic, validateConditionalSettings } from './conditionalLogic';
 import { toSubmissionAnswers, validateAnswers, type PublicForm } from './publicForm';
 import type { StudioPageData } from './studio';
 
-const source={id:'source-id',type:'single_choice',required:true,
+const source={id:'source-id',type:'single_choice' as const,required:true,
  settings:{logicId:'persistent-source'},options:[{value:'0',label:'Aucune'},{value:'1',label:'Une'},{value:'2',label:'Deux'}],
  label:'Combien de sorties ?',description:null};
-const choice={id:'first-id',type:'short_text',required:true,
+const choice={id:'first-id',type:'short_text' as const,required:true,
  settings:{logicId:'persistent-first',logic:{visibility:{action:'show',match:'all',conditions:[{sourceKey:'persistent-source',operator:'not_equals',value:'0'}]}}},
  options:[],label:'Sortie 1',description:null};
 const second={id:'second-id',type:'short_text',required:true,
@@ -67,7 +67,7 @@ describe('vérification des règles dans le Studio',()=>{
  const asStudio=(input:typeof pages):StudioPageData[]=>
   input.map(p=>({id:p.id,title:'Page',description:null,questions:p.questions.map(q=>({...q,
    type:q.type as StudioPageData['questions'][number]['type'],
-   settings:q.settings as Record<string,unknown>} as StudioPageData[number]['questions'][number]))}));
+   settings:q.settings as Record<string,unknown>} as StudioPageData['questions'][number]))}));
  it('accepte les dépendances précédentes valides',()=>{
   expect(validateConditionalSettings(asStudio(pages))).toEqual([]);
  });
