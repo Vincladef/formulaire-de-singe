@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validateConditionalSettings } from './conditionalLogic';
 
 export const questionTypes = ['short_text','long_text','single_choice','multiple_choice','select','number','date','audio','statement'] as const;
 export type QuestionType = typeof questionTypes[number];
@@ -40,6 +41,7 @@ export const draftPayloadSchema = z.object({versionId:z.string().uuid(),expected
       for(const option of question.options){if(ids.has(option.id))ctx.addIssue({code:'custom',message:'Identifiant de choix répété'});ids.add(option.id);}
     }
   }
+  for(const message of validateConditionalSettings(data.pages))ctx.addIssue({code:'custom',message,path:['pages']});
 });
 export const statusActionSchema=z.object({action:z.enum(['archive','unarchive','delete'])}).strict();
 export const publishInputSchema=z.object({versionId:z.string().uuid(),expectedRevision:z.number().int().min(0)}).strict();
@@ -51,12 +53,31 @@ export function makeQuestion(type:InsertQuestionType): StudioQuestion {
   const storedType:QuestionType=type==='audio_text'?'audio':type;
   const choices=['single_choice','multiple_choice','select'].includes(storedType);
   return {id:crypto.randomUUID(),type:storedType,label:storedType==='statement'?'Un petit mot avant de continuer':'Votre question',description:null,
-    required:false,settings:type==='audio_text'?{allowTextSupplement:true}:{},
+    required:false,settings:type==='audio_text'?{allowTextSupplement:true,logicId:crypto.randomUUID()}:{logicId:crypto.randomUUID()},
     options:choices?['Option 1','Option 2'].map((label,i)=>({id:crypto.randomUUID(),label,value:`option_${i+1}`})):[]};
 }
 export function makePage():StudioPageData{return {id:crypto.randomUUID(),title:'Nouvelle page',description:null,questions:[]};}
-export function duplicateQuestion(q:StudioQuestion):StudioQuestion{return {...q,id:crypto.randomUUID(),options:q.options.map(o=>({...o,id:crypto.randomUUID()})),settings:{...q.settings}};}
-export function duplicatePages(pages:StudioPageData[]):StudioPageData[]{return pages.map(p=>({...p,id:crypto.randomUUID(),questions:p.questions.map(duplicateQuestion)}));}
+export function duplicateQuestion(q:StudioQuestion):StudioQuestion{return {...q,id:crypto.randomUUID(),options:q.options.map(o=>({...o,id:crypto.randomUUID()})),settings:{...q.settings,logicId:crypto.randomUUID()}};}
+export function duplicatePages(pages:StudioPageData[]):StudioPageData[]{
+  const keyMap=new Map<string,string>();
+  const cloned=pages.map(page=>({...page,id:crypto.randomUUID(),questions:page.questions.map(question=>{
+    const copy=duplicateQuestion(question);
+    keyMap.set(typeof question.settings.logicId==='string'?question.settings.logicId:question.id,copy.settings.logicId as string);
+    return copy;
+  })}));
+  return cloned.map(page=>({...page,questions:page.questions.map(question=>{
+    const raw=question.settings.logic;
+    if(!raw||typeof raw!=='object'||Array.isArray(raw))return question;
+    const logic=structuredClone(raw) as Record<string,unknown>;
+    for(const section of ['visibility','requiredWhen','branch']){
+      const group=logic[section] as {conditions?:Array<{sourceKey:string}>;target?:string}|undefined;
+      if(!group||!Array.isArray(group.conditions))continue;
+      group.conditions=group.conditions.map(condition=>({...condition,sourceKey:keyMap.get(condition.sourceKey)??condition.sourceKey}));
+      if(section==='branch'&&group.target&&keyMap.has(group.target))group.target=keyMap.get(group.target)!;
+    }
+    return {...question,settings:{...question.settings,logic}};
+  })}));
+}
 
 /** Immutable reordering helper, usable from drag and keyboard controls. */
 export function moveQuestionAt<T>(items:readonly T[],from:number,to:number):T[]{

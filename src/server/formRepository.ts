@@ -89,7 +89,7 @@ export const formRepository: FormRepository = {
           id: p.id, position: p.position, title: p.title, description: p.description,
           questions: questionRows.filter(q => q.pageId === p.id).map(q => ({
             id: q.id, position: q.position, type: q.type, label: q.label, description: q.description,
-            required: q.required, settings: q.settings,
+            required: typeof q.settings?.logicOriginalRequired==='boolean'?q.settings.logicOriginalRequired:q.required, settings: q.settings,
             options: optionRows.filter(o => o.questionId === q.id).map(o => ({
               id: o.id, position: o.position, value: o.value, label: o.label,
             })),
