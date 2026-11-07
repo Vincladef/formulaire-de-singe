@@ -83,7 +83,8 @@ export function compactForm(detail:FormDetail,opts:{version?:'draft'|'published'
 export function formSummary(detail:FormDetail){
  return {
   id:detail.id,title:detail.title,slug:detail.slug,role:detail.role,folderId:detail.folderId,
-  url:'https://monk-form.netlify.app/f/'+encodeURIComponent(detail.slug),
+  publicUrl:detail.versions.some(v=>v.status==='published')?'https://monk-form.netlify.app/f/'+encodeURIComponent(detail.slug):null,
+  studioUrl:'https://monk-form.netlify.app/studio',
   versions:detail.versions.map(v=>({
    id:v.id,number:v.number,status:v.status,revision:v.revision,publishedAt:v.publishedAt,
    pages:v.pages.length,questions:v.pages.reduce((n,p)=>n+p.questions.filter(q=>q.type!=='statement').length,0),
