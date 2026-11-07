@@ -31,7 +31,7 @@ async function sendAudioChunk(url:string,options:RequestInit):Promise<void>{
  }
 }
 
-type ChoiceCard={imageSrc?:string;date?:string;venue?:string;summary?:string;url?:string};
+type ChoiceCard={imageSrc?:string;date?:string;venue?:string;summary?:string;url?:string;price?:string;priceNote?:string};
 function readChoiceCards(settings:PublicQuestion['settings']):Record<string,ChoiceCard>{
  const raw=settings?.choiceCards;
  if(!raw||typeof raw!=='object'||Array.isArray(raw))return {};
@@ -47,7 +47,9 @@ function readChoiceCards(settings:PublicQuestion['settings']):Record<string,Choi
    imageSrc,url,
    date:typeof o.date==='string'?o.date.slice(0,120):undefined,
    venue:typeof o.venue==='string'?o.venue.slice(0,160):undefined,
-   summary:typeof o.summary==='string'?o.summary.slice(0,260):undefined,
+   summary:typeof o.summary==='string'?o.summary.slice(0,600):undefined,
+   price:typeof o.price==='string'?o.price.slice(0,80):undefined,
+   priceNote:typeof o.priceNote==='string'?o.priceNote.slice(0,200):undefined,
   };
  }
  return results;
@@ -98,27 +100,33 @@ export function QuestionField({question,value,onChange,error,audioStatus}: {ques
         <input type="radio" name={question.id} checked={o.value===OTHER_VALUE?otherSelected:value===o.value} value={o.value} onChange={()=>onChange(o.value===OTHER_VALUE?OTHER_VALUE+':':o.value)} className="h-4 w-4 accent-[#33764c]"/>{o.label}
       </label>)}
     </fieldset>}
-    {question.type==='multiple_choice'&&<fieldset aria-describedby={ariaDesc} aria-invalid={!!error} className={hasChoiceCards?'grid grid-cols-1 gap-3 sm:grid-cols-2':'space-y-2'}>
+    {question.type==='multiple_choice'&&<fieldset aria-describedby={ariaDesc} aria-invalid={!!error} className={hasChoiceCards?'grid grid-cols-1 gap-5':'space-y-2'}>
       <legend className="sr-only">{question.label}</legend>
       {options.map(o=>{const checked=Array.isArray(value)&&(o.value===OTHER_VALUE?value.some(isOtherAnswer):value.includes(o.value));
         const card=choiceCards[o.value];
         const toggle=(on:boolean)=>onChange(on?[...(Array.isArray(value)?value:[]),o.value===OTHER_VALUE?OTHER_VALUE+':':o.value]:(Array.isArray(value)?value:[]).filter(v=>o.value===OTHER_VALUE?!isOtherAnswer(v):v!==o.value));
-        if(hasChoiceCards&&card)return <div key={o.value} className={'flex min-w-0 flex-col overflow-hidden rounded-2xl border-2 transition '+(checked?'border-[#408459] bg-[#eef7ef] shadow-sm':'border-[#e1e9df] bg-white hover:border-[#aac9b0]')}>
-          <label className="flex grow cursor-pointer flex-col">
-           {card.imageSrc&&<img loading="lazy" decoding="async" src={card.imageSrc} alt={'Illustration de '+o.label} className="aspect-[16/8] w-full bg-[#edf3eb] object-cover"/>}
-           <span className="flex grow items-start gap-3 p-3.5">
-            <input type="checkbox" checked={checked} onChange={e=>toggle(e.target.checked)} aria-label={'Choisir '+o.label} className="mt-1 h-5 w-5 shrink-0 accent-[#33764c]"/>
-            <span className="min-w-0 space-y-1">
-             <span className="block font-semibold leading-snug text-[#2c523b]">{o.label}</span>
-             {(card.date||card.venue)&&<span className="block text-xs leading-relaxed text-[#64806b]">{[card.date,card.venue].filter(Boolean).join(' · ')}</span>}
-             {card.summary&&<span className="block text-xs leading-relaxed text-[#627367]">{card.summary}</span>}
+        if(hasChoiceCards&&card)return <div key={o.value} className={'min-w-0 overflow-hidden rounded-[23px] border-2 transition-colors '+(checked?'border-[#438257] bg-[#f0f8ef] shadow-md':'border-[#dce8dc] bg-white hover:border-[#9dc5a6]')}>
+          <label className="grid cursor-pointer grid-cols-1 sm:grid-cols-[minmax(0,40%)_minmax(0,1fr)]">
+           {card.imageSrc&&<img loading="lazy" decoding="async" src={card.imageSrc} alt={'Illustration de '+o.label} className="aspect-[16/9] h-full min-h-[170px] w-full bg-[#edf3eb] object-cover"/>}
+           <span className="flex min-w-0 flex-col gap-3 p-5 sm:px-6 sm:py-5">
+            <span className="flex items-start gap-3">
+             <input type="checkbox" checked={checked} onChange={e=>toggle(e.target.checked)} aria-label={'Choisir '+o.label} className="mt-1 h-[22px] w-[22px] shrink-0 accent-[#33764c]"/>
+             <span className="min-w-0 text-lg font-bold leading-snug text-[#264c35]">{o.label}</span>
             </span>
+            <span className="flex flex-wrap items-center gap-2">
+             <span className="rounded-full bg-[#e4f3e5] px-3 py-1 text-xs font-bold text-[#28633c]">{card.price||'Tarif à vérifier'}</span>
+             {card.priceNote&&<span className="text-xs leading-5 text-[#718372]">{card.priceNote}</span>}
+            </span>
+            {(card.date||card.venue)&&<span className="text-sm font-medium leading-relaxed text-[#456851]">{[card.date,card.venue].filter(Boolean).join(' · ')}</span>}
+            {card.summary&&<span className="text-[14px] leading-[1.7] text-[#536b5a]">{card.summary}</span>}
            </span>
           </label>
-          {card.url&&<a href={card.url} target="_blank" rel="noopener noreferrer" className="mb-3 ml-12 mr-3 inline-flex w-fit items-center gap-1 text-xs font-semibold text-[#2e7453] underline underline-offset-2">
-           Détails et réservations <ExternalLink size={12} aria-hidden="true"/>
-          </a>}
-        </div>;
+          {card.url&&<div className="border-t border-[#e6eee5] px-5 py-3 sm:pl-[calc(40%+1.5rem)]">
+           <a href={card.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#2e7453] underline underline-offset-2">
+            Voir le programme et réserver <ExternalLink size={14} aria-hidden="true"/>
+           </a>
+          </div>}
+         </div>;
         return <label key={o.value} className={'flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm transition '+(checked?'border-[#7eab87] bg-[#eff7ed] text-[#2c6041]':'border-[#e0e9de] hover:bg-[#f7faf5]')}>
          <input type="checkbox" checked={checked} onChange={e=>toggle(e.target.checked)} className="h-4 w-4 accent-[#33764c]"/>{o.label}
         </label>;
@@ -324,10 +332,10 @@ export function PublicFormPage(){
     {previousPage!==undefined?<button type="button" className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-semibold text-[#42664b] hover:bg-[#edf4eb]" onClick={()=>{setError('');setPageIndex(previousPage!);}}><ArrowLeft size={18}/> Retour</button>:<span/>}
     {nextPage!==undefined?<button type="button" className={solid} onClick={next}>Continuer <ArrowRight size={18}/></button>:<button type="button" disabled={submitting} className={solid} onClick={()=>void send()}>{submitting?<LoaderCircle className="animate-spin" size={18}/>:<Check size={18}/>} {submitting?'Finalisation de l’envoi…':'Envoyer mes réponses'}</button>}
    </nav>
-   {visualChoices&&form.pages.length===1&&<div className="fixed inset-x-0 bottom-0 z-20 border-t border-[#d9e9dc] bg-white/95 px-3 py-2.5 shadow-[0_-5px_22px_rgba(35,66,47,.1)] backdrop-blur-md">
+   {visualChoices&&pageIndex===0&&<div className="fixed inset-x-0 bottom-0 z-20 border-t border-[#d9e9dc] bg-white/95 px-3 py-2.5 shadow-[0_-5px_22px_rgba(35,66,47,.1)] backdrop-blur-md">
      <div className="mx-auto flex max-w-[740px] items-center justify-between gap-3">
       <p role="status" className="text-xs font-semibold text-[#38634a] sm:text-sm">{selectedVisual===0?'Aucune sortie sélectionnée':selectedVisual+' sortie'+(selectedVisual>1?'s':'')+' retenue'+(selectedVisual>1?'s':'')}</p>
-      <button type="button" disabled={submitting} onClick={()=>void send()} className={solid+' !rounded-xl !px-4 !py-2.5 !text-sm'}>{submitting?'Envoi…':'Valider mes choix'} <Check size={15}/></button>
+      <button type="button" disabled={submitting} onClick={()=>{if(nextPage!==undefined)next();else void send();}} className={solid+' !rounded-xl !px-4 !py-2.5 !text-sm'}>{nextPage!==undefined?'Configurer mes sorties':submitting?'Envoi…':'Terminer sans sortie'} {nextPage!==undefined?<ArrowRight size={15}/>:<Check size={15}/>}</button>
      </div>
     </div>}
    
