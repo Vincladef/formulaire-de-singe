@@ -150,8 +150,10 @@ export function PublicFormPage(){
  const previousPage=availablePages.filter(i=>i<pageIndex).at(-1);
  const nextPage=availablePages.find(i=>i>pageIndex);
  useEffect(()=>{
-  if(!form||!availablePages.length||availablePages.includes(pageIndex))return;
-  setPageIndex(availablePages.find(i=>i>pageIndex)??availablePages.at(-1)??0);
+  if(!form)return;
+  const indices=evaluateLogic(form.pages,answers).pageIndices;
+  if(!indices.length||indices.includes(pageIndex))return;
+  setPageIndex(indices.find(i=>i>pageIndex)??indices.at(-1)??0);
  },[form,pageIndex,answers]);
  function setAnswer(id:string,value:AnswerValues[string]){setAnswers(prev=>({...prev,[id]:value}));setErrors(prev=>{const n={...prev};delete n[id];return n;});}
  function validatePage(){if(!form||!page)return false;
