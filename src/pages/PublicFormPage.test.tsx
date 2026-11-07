@@ -103,7 +103,7 @@ describe('Sorties conditionnelles par événement',()=>{
   fireEvent.click(screen.getByRole('checkbox',{name:'Choisir Festival insolite'}));
   expect(screen.getByRole('region',{name:'Configurer Festival insolite'})).toBeInTheDocument();
   expect(screen.getByRole('img',{name:'Illustration de Festival insolite'})).toBeInTheDocument();
-  expect(screen.getByText('Une activité intéressante et documentée.')).toBeInTheDocument();
+  expect(screen.getAllByText('Une activité intéressante et documentée.')).toHaveLength(3);
   expect(within(screen.getByRole('region',{name:'Configurer Festival insolite'})).getByRole('group',{name:'Quel format ?'})).toBeInTheDocument();
   expect(screen.queryByRole('region',{name:'Configurer Concert gratuit'})).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('checkbox',{name:'Choisir Exposition curieuse'}));
