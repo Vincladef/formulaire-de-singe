@@ -113,34 +113,32 @@ function optionByLabel(q:StudioQuestion,label:string){
  if(!o)throw new ValidationFault('Option introuvable : '+label);
  return o;
 }
-export class McpWorkflowExtras{
- constructor(private readonly forms:Pick<FormActions,'get'|'save'|'duplicate'|'state'>=new FormActions(),
- private readonly external={
-  getResults:getFormResults,
-  sheetStatus:getSheetsStatus,
-  syncSheets:syncGoogleSheets,
-  transcriptionStatus:getTranscriptionSummary,
-  transcribe:requestFormTranscription,
-  wake:wakeTranscriptionWorker,
- }){}
- private async editable(userId:string,formId:string,expectedRevision:number){
-  const detail=await this.forms.get(userId,formId);
-  if(detail.role==='viewer')throw new PermissionFault('Lecture seule : modification impossible');
-  const {draft,pages}=asPages(detail);
-  if((draft.revision??0)!==expectedRevision)throw new ConflictFault('Brouillon modifié ; récupère la nouvelle révision avant de continuer');
-  return {draft,pages};
+function applyQuestionPatch(q:StudioQuestion,patch:z.infer<typeof patchQuestionSchema>){
+ if(patch.label!==undefined){if(q.type!=='statement'&&patch.label.length>600)throw new ValidationFault('Question trop longue');q.label=patch.label;}
+ if(patch.description!==undefined)q.description=patch.description;
+ if(patch.required!==undefined){if(q.type==='statement'&&patch.required)throw new ValidationFault('Un texte explicatif ne peut pas être obligatoire');q.required=patch.required;}
+ if(patch.choices!==undefined){
+  if(!['single_choice','multiple_choice','select'].includes(q.type))throw new ValidationFault('Ce type de question ne possède pas de choix');
+  if(new Set(patch.choices.map(x=>x.toLocaleLowerCase('fr'))).size!==patch.choices.length)throw new ValidationFault('Options répétées');
+  const old=q.options;
+  const used=new Set<string>();
+  q.options=patch.choices.map((label,i)=>{
+   // Keep the original value/ID for moved choices so conditional rules and
+   // image cards still refer to the same semantic option after reordering.
+   const byLabel=old.find(o=>o.label===label&&!used.has(o.id));
+   const byIndex=old[i]&&!used.has(old[i].id)?old[i]:undefined;
+   const original=byLabel??byIndex??old.find(o=>!used.has(o.id));
+   if(original){used.add(original.id);return {...original,label};}
+   return {id:crypto.randomUUID(),value:'option_'+crypto.randomUUID().slice(0,8),label};
+  });
+  const cards=q.settings.choiceCards;
+  if(cards&&typeof cards==='object'&&!Array.isArray(cards)){
+   q.settings.choiceCards=Object.fromEntries(Object.entries(cards).filter(([key])=>q.options.some(o=>o.value===key)));
+  }
  }
- private async save(userId:string,formId:string,expectedRevision:number,pages:StudioPageData[]){
-  const {draft}=await this.editable(userId,formId,expectedRevision);
-  const done=await this.forms.save(userId,formId,{versionId:draft.id,expectedRevision,pages});
-  return {formId,versionId:draft.id,revision:done.revision,updated:true,published:false};
- }
- async get(userId:string,formId:string,opts?:{version?:'draft'|'published'|'all';includeMedia?:boolean}){
-  return compactForm(await this.forms.get(userId,formId),opts);
- }
- async summary(userId:string,formId:string){return formSummary(await this.forms.get(userId,formId));}
- async updateQuestion(userId:string,formId:string,expectedRevision:number,questionId:string,patch:z.infer<typeof patchQuestionSchema>){
-  const {pages}=await this.editable(userId,formId,expectedRevision);
+ if(patch.answerMode!==undefined){
+  if(!['audio','short_text','long  applyQuestionPatch(q,patch);
+sion);
   const q=findQuestion(pages,questionId);
   if(patch.label!==undefined){if(q.type!=='statement'&&patch.label.length>600)throw new ValidationFault('Question trop longue');q.label=patch.label;}
   if(patch.description!==undefined)q.description=patch.description;
@@ -187,6 +185,26 @@ export class McpWorkflowExtras{
   }
   const result=await this.save(userId,formId,expectedRevision,pages);
   return {...result,questionId};
+ }
+ async updateQuestionsBulk(userId:string,formId:string,expectedRevision:number,
+  updates:Array<{questionId:string}&z.infer<typeof patchQuestionSchema>>){
+  const {pages}=await this.editable(userId,formId,expectedRevision);
+  if(new Set(updates.map(u=>u.questionId)).size!==updates.length)throw new ValidationFault('Question en double dans la modification groupée');
+  // Validate all question IDs before changing any property.
+  updates.forEach(({questionId})=>findQuestion(pages,questionId));
+  for(const {questionId,...patch} of updates){
+   if(!Object.keys(patch).length)throw new ValidationFault('Modification vide pour '+questionId);
+   applyQuestionPatch(findQuestion(pages,questionId),patch);
+  }
+  return {...await this.save(userId,formId,expectedRevision,pages),changedQuestions:updates.map(u=>u.questionId)};
+ }
+ async movePage(userId:string,formId:string,expectedRevision:number,pageId:string,position:number){
+  const {pages}=await this.editable(userId,formId,expectedRevision);
+  const old=pages.findIndex(p=>p.id===pageId);
+  if(old<0)throw new NotFoundFault('Page introuvable');
+  const [page]=pages.splice(old,1);
+  pages.splice(Math.min(position,pages.length),0,page);
+  return {...await this.save(userId,formId,expectedRevision,pages),pageId,position:pages.findIndex(p=>p.id===pageId)};
  }
  async updateChoiceCard(userId:string,formId:string,expectedRevision:number,questionId:string,
   optionLabel:string,patch:z.infer<typeof cardFields>){
