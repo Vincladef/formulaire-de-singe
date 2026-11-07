@@ -77,6 +77,7 @@ function readableValue(raw: unknown): string {
 }
 function isEmpty(raw: unknown): boolean {
   if (Array.isArray(raw)) return raw.length === 0;
+  if (object(raw) && (raw.kind === 'audio' || raw.kind === 'audio-draft')) return false;
   return raw === undefined || raw === null || readableValue(raw).trim() === '';
 }
 
@@ -88,6 +89,7 @@ function matchesCondition(condition: LogicCondition, answers: LogicAnswers, sour
   if (condition.operator === 'not_empty') return !isEmpty(raw);
   if (isEmpty(raw)) return false;
   const value = condition.value ?? '';
+  if (typeof raw !== 'string' && typeof raw !== 'number' && !Array.isArray(raw)) return false;
   const text = readableValue(raw);
   if (condition.operator === 'equals') return Array.isArray(raw) ? raw.includes(value) : text === value;
   if (condition.operator === 'not_equals') return Array.isArray(raw) ? !raw.includes(value) : text !== value;
