@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { sanitizeDocumentHtml } from '../shared/richText';
 import { evaluateLogic } from '../shared/conditionalLogic';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert, FileQuestion, LoaderCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert, ExternalLink, FileQuestion, LoaderCircle } from 'lucide-react';
 import { AudioRecorder } from '../components/AudioRecorder';
 import { audioMode, type AudioDraft, type UploadedAudio, DIRECT_AUDIO_BYTES } from '../shared/audio';
 import { type AnswerValues, type PublicForm, type PublicQuestion, toSubmissionAnswers, validateAnswers, isAnswered, OTHER_VALUE, isOtherAnswer } from '../shared/publicForm';
@@ -31,11 +31,35 @@ async function sendAudioChunk(url:string,options:RequestInit):Promise<void>{
  }
 }
 
+type ChoiceCard={imageSrc?:string;date?:string;venue?:string;summary?:string;url?:string};
+function readChoiceCards(settings:PublicQuestion['settings']):Record<string,ChoiceCard>{
+ const raw=settings?.choiceCards;
+ if(!raw||typeof raw!=='object'||Array.isArray(raw))return {};
+ const results:Record<string,ChoiceCard>={};
+ for(const [key,entry] of Object.entries(raw)){
+  if(!entry||typeof entry!=='object'||Array.isArray(entry))continue;
+  const o=entry as Record<string,unknown>;
+  const imageSrc=typeof o.imageSrc==='string'&&
+    (/^data:image\/(jpeg|png|webp);base64,[a-zA-Z0-9+/=]+$/.test(o.imageSrc)||/^https:\/\//.test(o.imageSrc))
+    ?o.imageSrc:undefined;
+  const url=typeof o.url==='string'&&/^https:\/\//.test(o.url)?o.url:undefined;
+  results[key]={
+   imageSrc,url,
+   date:typeof o.date==='string'?o.date.slice(0,120):undefined,
+   venue:typeof o.venue==='string'?o.venue.slice(0,160):undefined,
+   summary:typeof o.summary==='string'?o.summary.slice(0,260):undefined,
+  };
+ }
+ return results;
+}
+
 export function QuestionField({question,value,onChange,error,audioStatus}: {question:PublicQuestion;value:AnswerValues[string];onChange:(value:AnswerValues[string])=>void;error?:string;audioStatus?:'uploading'|'ready'|'error'}){
  const describedBy=`description-${question.id}`;
  const errorId=`error-${question.id}`;
  const ariaDesc=[question.description?describedBy:null,error?errorId:null].filter(Boolean).join(' ')||undefined;
  const options=question.options;
+ const choiceCards=question.type==='multiple_choice'?readChoiceCards(question.settings):{};
+ const hasChoiceCards=options.some(option=>choiceCards[option.value]?.imageSrc);
  const otherValue=typeof value==='string'&&isOtherAnswer(value)?value:Array.isArray(value)?value.find(isOtherAnswer):undefined;
  const otherSelected=otherValue!==undefined;
  const otherText=otherSelected?otherValue.slice(OTHER_VALUE.length+1):'';
@@ -74,11 +98,31 @@ export function QuestionField({question,value,onChange,error,audioStatus}: {ques
         <input type="radio" name={question.id} checked={o.value===OTHER_VALUE?otherSelected:value===o.value} value={o.value} onChange={()=>onChange(o.value===OTHER_VALUE?OTHER_VALUE+':':o.value)} className="h-4 w-4 accent-[#33764c]"/>{o.label}
       </label>)}
     </fieldset>}
-    {question.type==='multiple_choice'&&<fieldset aria-describedby={ariaDesc} aria-invalid={!!error} className="space-y-2">
+    {question.type==='multiple_choice'&&<fieldset aria-describedby={ariaDesc} aria-invalid={!!error} className={hasChoiceCards?'grid grid-cols-1 gap-3 sm:grid-cols-2':'space-y-2'}>
       <legend className="sr-only">{question.label}</legend>
-      {options.map(o=>{const checked=Array.isArray(value)&&(o.value===OTHER_VALUE?value.some(isOtherAnswer):value.includes(o.value));return <label key={o.value} className={'flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm transition '+(checked?'border-[#7eab87] bg-[#eff7ed] text-[#2c6041]':'border-[#e0e9de] hover:bg-[#f7faf5]')}>
-        <input type="checkbox" checked={checked} onChange={e=>onChange(e.target.checked?[...(Array.isArray(value)?value:[]),o.value===OTHER_VALUE?OTHER_VALUE+':':o.value]:(Array.isArray(value)?value:[]).filter(v=>o.value===OTHER_VALUE?!isOtherAnswer(v):v!==o.value))} className="h-4 w-4 accent-[#33764c]"/>{o.label}
-      </label>})}
+      {options.map(o=>{const checked=Array.isArray(value)&&(o.value===OTHER_VALUE?value.some(isOtherAnswer):value.includes(o.value));
+        const card=choiceCards[o.value];
+        const toggle=(on:boolean)=>onChange(on?[...(Array.isArray(value)?value:[]),o.value===OTHER_VALUE?OTHER_VALUE+':':o.value]:(Array.isArray(value)?value:[]).filter(v=>o.value===OTHER_VALUE?!isOtherAnswer(v):v!==o.value));
+        if(hasChoiceCards&&card)return <div key={o.value} className={'flex min-w-0 flex-col overflow-hidden rounded-2xl border-2 transition '+(checked?'border-[#408459] bg-[#eef7ef] shadow-sm':'border-[#e1e9df] bg-white hover:border-[#aac9b0]')}>
+          <label className="flex grow cursor-pointer flex-col">
+           {card.imageSrc&&<img loading="lazy" decoding="async" src={card.imageSrc} alt={'Illustration de '+o.label} className="aspect-[16/8] w-full bg-[#edf3eb] object-cover"/>}
+           <span className="flex grow items-start gap-3 p-3.5">
+            <input type="checkbox" checked={checked} onChange={e=>toggle(e.target.checked)} aria-label={'Choisir '+o.label} className="mt-1 h-5 w-5 shrink-0 accent-[#33764c]"/>
+            <span className="min-w-0 space-y-1">
+             <span className="block font-semibold leading-snug text-[#2c523b]">{o.label}</span>
+             {(card.date||card.venue)&&<span className="block text-xs leading-relaxed text-[#64806b]">{[card.date,card.venue].filter(Boolean).join(' · ')}</span>}
+             {card.summary&&<span className="block text-xs leading-relaxed text-[#627367]">{card.summary}</span>}
+            </span>
+           </span>
+          </label>
+          {card.url&&<a href={card.url} target="_blank" rel="noopener noreferrer" className="mb-3 ml-12 mr-3 inline-flex w-fit items-center gap-1 text-xs font-semibold text-[#2e7453] underline underline-offset-2">
+           Détails et réservations <ExternalLink size={12} aria-hidden="true"/>
+          </a>}
+        </div>;
+        return <label key={o.value} className={'flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm transition '+(checked?'border-[#7eab87] bg-[#eff7ed] text-[#2c6041]':'border-[#e0e9de] hover:bg-[#f7faf5]')}>
+         <input type="checkbox" checked={checked} onChange={e=>toggle(e.target.checked)} className="h-4 w-4 accent-[#33764c]"/>{o.label}
+        </label>;
+      })}
     </fieldset>}
     {!vocal&&otherSelected&&<input className={fieldStyle+' mt-3'} aria-label="Précisez votre réponse Autre"
         placeholder="Précisez votre réponse…" maxLength={300} value={otherText}
