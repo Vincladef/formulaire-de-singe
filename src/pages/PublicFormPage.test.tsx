@@ -126,3 +126,68 @@ describe('Sorties conditionnelles par événement',()=>{
   ]);
  });
 });
+
+
+describe('Configuration inline des sorties entre amis',()=>{
+ it('gère les cercles, la capacité, les accompagnants et plusieurs amis dans une seule carte',async()=>{
+  const galleryId=crypto.randomUUID(),circlesId=crypto.randomUUID(),maxId=crypto.randomUUID(),plusOneId=crypto.randomUUID(),friendsId=crypto.randomUUID();
+  const visibility={visibility:{match:'all' as const,action:'show' as const,conditions:[{sourceKey:'gallery-key',operator:'contains' as const,value:'E26-001'}]}};
+  const live:PublicForm={...form,pages:[
+   {id:'gallery',title:'Choisis tes sorties',description:null,questions:[{
+    id:galleryId,type:'multiple_choice',label:'Quelles sorties te tentent ?',description:null,required:false,
+    options:[{value:'E26-001',label:'Festival insolite'}],
+    settings:{logicId:'gallery-key',choiceCards:{'E26-001':{imageSrc:'data:image/jpeg;base64,AA==',summary:'Une sortie insolite à Paris.',price:'Gratuit'}}},
+   }]},
+   {id:'options',title:'Configuration des sorties',description:null,questions:[
+    {id:plusOneId,type:'single_choice',label:'Mes amis peuvent proposer de venir accompagnés pour Festival insolite ?',description:null,required:false,settings:{logic:visibility},
+     options:[{value:'duo',label:'Oui'},{value:'proches',label:'Non'}]},
+    {id:circlesId,type:'multiple_choice',label:'Quels cercles inviter pour Festival insolite ?',description:null,required:false,settings:{logic:visibility},
+     options:[{value:'proches',label:'Amis proches'},{value:'amis',label:'Amis'},{value:'connaissances',label:'Connaissances'}]},
+    {id:maxId,type:'number',label:'Nombre maximum de personnes pour Festival insolite (toi compris)',description:null,required:false,settings:{logic:visibility},options:[]},
+    {id:friendsId,type:'multiple_choice',label:'Amis à inviter en priorité pour Festival insolite',description:null,required:false,settings:{logic:visibility},
+     options:[{value:'AMI:A1|Sophie',label:'AMI:A1|Sophie'},{value:'AMI:A2|Marc',label:'AMI:A2|Marc'}]},
+   ]},
+  ]};
+  fetchMock.mockImplementation(async (_path:string,opts?:RequestInit)=>({ok:true,status:opts?.method==='POST'?201:200,
+   json:async()=>opts?.method==='POST'?{ok:true,data:{id:'ok'}}:{ok:true,data:live}}));
+  renderForm();await screen.findByText('Festival insolite');
+  expect(screen.queryByText(/Quel format/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('checkbox',{name:'Choisir Festival insolite'}));
+  const region=screen.getByRole('region',{name:'Configurer Festival insolite'});
+  expect(within(region).getByRole('group',{name:'Quels cercles inviter ?'})).toBeInTheDocument();
+  fireEvent.click(within(region).getByRole('checkbox',{name:'Amis proches'}));
+  fireEvent.change(within(region).getByRole('spinbutton'),{target:{value:'6'}});
+  fireEvent.click(within(region).getByRole('checkbox',{name:/Dire aux invités/i}));
+  fireEvent.click(within(region).getByText('Choisir parmi mes amis'));
+  fireEvent.click(within(region).getByRole('checkbox',{name:'Sophie'}));
+  fireEvent.click(within(region).getByRole('checkbox',{name:'Marc'}));
+  expect(within(region).getByText(/2 sélectionnés/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:/Valider mes choix/i}));
+  await waitFor(()=>expect(screen.getByText(/Merci pour votre participation/i)).toBeInTheDocument());
+  const call=fetchMock.mock.calls.find((entry:unknown[])=>(entry[1] as RequestInit|undefined)?.method==='POST');
+  const body=JSON.parse((call![1] as RequestInit).body as string);
+  const answer=Object.fromEntries(body.answers.map((entry:{questionId:string;value:unknown})=>[entry.questionId,entry.value]));
+  expect(answer[galleryId]).toEqual(['E26-001']);
+  expect(answer[circlesId]).toEqual(['proches']);
+  expect(answer[maxId]).toBe(6);
+  expect(answer[plusOneId]).toBe('duo');
+  expect(answer[friendsId]).toEqual(['AMI:A1|Sophie','AMI:A2|Marc']);
+ });
+ it('affiche un répertoire vide sans proposer de faux contacts',async()=>{
+  const galleryId=crypto.randomUUID(),friendsId=crypto.randomUUID();
+  const live:PublicForm={...form,pages:[
+   {id:'p1',title:'Sorties',description:null,questions:[{id:galleryId,type:'multiple_choice',label:'Choisir',description:null,required:false,
+    settings:{logicId:'gal',choiceCards:{'E26-001':{imageSrc:'data:image/jpeg;base64,AA=='}}},options:[{value:'E26-001',label:'Festival'}]}]},
+   {id:'p2',title:'Invités',description:null,questions:[{id:friendsId,type:'multiple_choice',label:'Amis à inviter en priorité pour Festival',description:null,required:false,
+    options:[{value:'__FRIENDS_PENDING_A__',label:'__FRIENDS_PENDING_A__'},{value:'__FRIENDS_PENDING_B__',label:'__FRIENDS_PENDING_B__'}],
+    settings:{logic:{visibility:{match:'all',action:'show',conditions:[{sourceKey:'gal',operator:'contains',value:'E26-001'}]}}}}]},
+  ]};
+  fetchMock.mockImplementation(async (_path:string,opts?:RequestInit)=>({ok:true,status:opts?.method==='POST'?201:200,
+   json:async()=>opts?.method==='POST'?{ok:true,data:{id:'ok'}}:{ok:true,data:live}}));
+  renderForm();await screen.findByText('Festival');
+  fireEvent.click(screen.getByRole('checkbox',{name:'Choisir Festival'}));
+  fireEvent.click(within(screen.getByRole('region',{name:'Configurer Festival'})).getByText('Choisir parmi mes amis'));
+  expect(screen.getByText(/Aucun ami enregistré pour le moment/i)).toBeInTheDocument();
+  expect(screen.queryByText('__FRIENDS_PENDING_A__')).not.toBeInTheDocument();
+ });
+});
