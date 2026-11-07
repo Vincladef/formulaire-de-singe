@@ -97,7 +97,7 @@ export function QuestionField({question,value,onChange,error,audioStatus,compact
   isGuestLimit?'Nombre maximum de personnes':
   isGuestPlusOne?'Venir accompagné':
   isFriendPicker?'Amis à inviter en particulier':question.label;
- const friendOptions=isFriendPicker?options.filter(o=>!o.value.startsWith('__FRIENDS_PENDING_')):[];
+ const friendOptions=isFriendPicker?options.filter(o=>!o.value.startsWith('__FRIENDS_PENDING_')&&!o.label.startsWith('__FRIENDS_PENDING_')):[];
  const friendLabel=(label:string)=>label.startsWith('AMI:')&&label.includes('|')?label.slice(label.indexOf('|')+1):label;
  const yesValue=isGuestPlusOne?options.find(o=>o.label.toLowerCase()==='oui')?.value:undefined;
  const choiceCards=question.type==='multiple_choice'?readChoiceCards(question.settings):{};
