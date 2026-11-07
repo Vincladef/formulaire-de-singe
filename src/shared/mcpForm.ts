@@ -45,6 +45,7 @@ export const mcpQuestionSchema=z.object({
  allowOther:z.boolean().optional().describe('Include an Other/free-text choice'),
  answerMode:z.enum(['text','audio','either']).optional().describe('For text fields: text-only, audio-only or either. Dedicated audio questions are always audio.'),
  maxAudioSeconds:z.number().int().min(15).max(1800).optional().describe('Maximum response duration for audio fields in seconds; default 600'),
+ allowTextSupplement:z.boolean().optional().describe('For audio questions: allow a discreet optional written supplement; audio stays the primary input'),
  textStyle:z.enum(['paragraph','heading','quote']).optional().describe('For statements only: display as paragraph, heading or quote'),
  richHtml:z.string().max(250000).optional().describe('Optional rich HTML in a statement, including allowed embedded data:image/jpeg/png/webp; sanitized when displayed'),
  logic:mcpLogicSchema.optional().describe('Optional conditional visibility, dynamic requiredness, and branching rules with 0-based question/page references'),
@@ -58,6 +59,7 @@ export const mcpQuestionSchema=z.object({
  if(q.type==='statement'&&(q.answerMode||q.maxAudioSeconds))ctx.addIssue({code:'custom',message:'Un paragraphe explicatif ne peut pas enregistrer une réponse audio'});
  if(q.answerMode&&!['short_text','long_text','audio'].includes(q.type))ctx.addIssue({code:'custom',message:'Mode vocal incompatible avec ce type de réponse',path:['answerMode']});
  if(q.maxAudioSeconds&&!(['short_text','long_text','audio'].includes(q.type)))ctx.addIssue({code:'custom',message:'Durée audio incompatible avec ce type de réponse',path:['maxAudioSeconds']});
+ if(q.allowTextSupplement!==undefined&&q.type!=='audio')ctx.addIssue({code:'custom',message:'Le supplément texte est réservé aux questions audio',path:['allowTextSupplement']});
  if(q.textStyle&&q.type!=='statement')ctx.addIssue({code:'custom',message:'Le style de texte est réservé aux paragraphes',path:['textStyle']});
  if(q.richHtml&&q.type!=='statement')ctx.addIssue({code:'custom',message:'Le HTML enrichi est réservé aux paragraphes',path:['richHtml']});
  if(q.type==='statement'&&(q.logic?.branch||q.logic?.requiredWhen))ctx.addIssue({code:'custom',message:'Une redirection ou obligation nécessite une question répondable',path:['logic']});
@@ -91,12 +93,15 @@ export function compileMcpPages(input:McpFormContent):StudioPageData[]{
    const settings:Record<string,unknown>={};
    if(item.answerMode)settings.answerMode=item.answerMode;
    if(item.maxAudioSeconds)settings.maxAudioSeconds=item.maxAudioSeconds;
+   if(item.allowTextSupplement!==undefined)settings.allowTextSupplement=item.allowTextSupplement;
    if(item.textStyle)settings.textStyle=item.textStyle;
    if(item.richHtml)settings.richHtml=item.richHtml;
    settings.logicId=logicKey(q);
    q.settings=settings;
    if(item.choices){
-    q.options=item.choices.map((choice,index)=>({id:crypto.randomUUID(),value:'option_'+(index+1),
+    // An explicitly listed Autre and allowOther=true must not produce duplicate choices.
+    const otherIndex=item.allowOther?item.choices.findIndex(choice=>(typeof choice==='string'?choice:choice.label).trim().toLocaleLowerCase('fr')==='autre'):-1;
+    q.options=item.choices.map((choice,index)=>({id:crypto.randomUUID(),value:index===otherIndex?OTHER_VALUE:'option_'+(index+1),
       label:typeof choice==='string'?choice:choice.label}));
     const cardEntries=item.choices.flatMap((choice,index)=>typeof choice==='string'?[]:[
       ['option_'+(index+1),{
@@ -110,7 +115,7 @@ export function compileMcpPages(input:McpFormContent):StudioPageData[]{
       }] as const,
     ]);
     if(cardEntries.length)q.settings.choiceCards=Object.fromEntries(cardEntries);
-    if(item.allowOther)q.options.push({id:crypto.randomUUID(),value:OTHER_VALUE,label:'Autre'});
+    if(item.allowOther&&otherIndex===-1)q.options.push({id:crypto.randomUUID(),value:OTHER_VALUE,label:'Autre'});
    } else q.options=[];
    return q;
   });
