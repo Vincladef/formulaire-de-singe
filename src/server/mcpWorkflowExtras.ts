@@ -96,7 +96,7 @@ function asPages(detail:FormDetail){
  const pages:StudioPageData[]=draft.pages.map(p=>({
   id:p.id,title:p.title,description:p.description,
   questions:p.questions.map(q=>({
-   id:q.id,type:q.type,label:q.label,description:q.description,required:q.required,
+   id:q.id,type:q.type as StudioQuestion['type'],label:q.label,description:q.description,required:q.required,
    settings:structuredClone(q.settings),options:q.options.map(o=>({id:o.id,value:o.value,label:o.label})),
   })),
  }));
