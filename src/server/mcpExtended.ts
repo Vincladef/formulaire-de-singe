@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from './db/client';
-import { NotFoundFault, PermissionFault } from './formActions';
+import { NotFoundFault, ValidationFault } from './formActions';
+import { PermissionFault } from './studioRepository';
 import { formAppearanceSchema,readFormAppearance,type FormAppearance } from '../shared/formAppearance';
 
 /** Enforce ownership or membership on every report, without exposing owner IDs. */
@@ -25,7 +26,7 @@ export async function getFormAppearance(userId:string,formId:string){
 }
 export async function setFormAppearance(userId:string,formId:string,patch:FormAppearance){
  const parsed=formAppearanceSchema.parse(patch);
- if(Object.keys(parsed).length===0)throw new Error('Précisez au moins un paramètre de présentation');
+ if(Object.keys(parsed).length===0)throw new ValidationFault('Précisez au moins un paramètre de présentation');
  const form=await access(userId,formId);
  if(form.role==='viewer')throw new PermissionFault('Modification interdite en lecture seule');
  const db=getDb();
