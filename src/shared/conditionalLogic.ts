@@ -108,7 +108,7 @@ export function matchesGroup(group: LogicGroup | undefined, answers: LogicAnswer
  * Simulate a form in page order. Only reached, visible answers can affect downstream rules.
  * Forward-only jumps make cycles impossible. Pages with only hidden input questions are skipped.
  */
-export function evaluateLogic<T extends LogicQuestion>(pages: LogicPage<T>[], answers: LogicAnswers): LogicEvaluation {
+export function evaluateLogic(pages: LogicPage[], answers: LogicAnswers): LogicEvaluation {
   const visibleIds = new Set<string>();
   const requiredIds = new Set<string>();
   const pageIndices: number[] = [];
