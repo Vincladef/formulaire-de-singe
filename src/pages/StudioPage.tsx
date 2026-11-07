@@ -4,7 +4,7 @@ import {formatParisDate,formatParisDateTime} from '../shared/presentation';
 import { getAccessToken } from '../authClient';
 import type { FormDetail, FormSummary } from '../shared/formApi';
 import { draftPayloadSchema, makePage, type QuestionType, type StudioPageData, type StudioQuestion } from '../shared/studio';
-import { withStableLogicKeys } from '../shared/conditionalLogic';
+import { withStableLogicKeys, readLogic, type VisibilityLogic } from '../shared/conditionalLogic';
 import { DocumentCanvas, type DocumentCanvasHandle } from '../components/studio/DocumentCanvas';
 import { StudioSidebar, type SidebarMode } from '../components/studio/StudioSidebar';
 import { ResultsPanel } from '../components/studio/ResultsPanel';
@@ -194,6 +194,12 @@ export function StudioPage(){
  function updateQuestion(question:StudioQuestion){
   setSaveState('pending');
   setPages(prev=>prev.map((p,i)=>i===pageIndex?{...p,questions:p.questions.map(q=>q.id===question.id?question:q)}:p));
+ }
+ function applyPageCondition(rule:VisibilityLogic){
+  setSaveState('pending');
+  setPages(previous=>previous.map((p,i)=>i!==pageIndex?p:{...p,questions:p.questions.map(q=>({...q,
+    settings:{...q.settings,logic:{...readLogic(q),visibility:structuredClone(rule)}},
+  }))}));
  }
  function deleteQuestion(id:string){if(!page)return;
    setSaveState('pending');setPages(prev=>prev.map((p,i)=>i===pageIndex?{...p,questions:p.questions.filter(q=>q.id!==id)}:p));if(questionId===id)setQuestionId(null);}
@@ -454,7 +460,7 @@ export function StudioPage(){
        preview?<StudioPreview pages={pages} title={detail.title}/>:<div className={`grid items-start gap-4 ${sidebarOpen?'lg:grid-cols-[255px_minmax(0,1fr)]':'lg:grid-cols-[70px_minmax(0,1fr)]'}`}>
         <StudioSidebar mode={sideMode} onModeChange={mode=>{setSideMode(mode);setSidebarOpen(true);}} open={sidebarOpen} onToggle={()=>setSidebarOpen(v=>!v)} pages={pages} pageIndex={pageIndex}
           onPageIndex={idx=>{setPageIndex(idx);setQuestionId(null);}}
-          selected={selected} editable={editable} onQuestionUpdate={updateQuestion}
+          selected={selected} editable={editable} onQuestionUpdate={updateQuestion} onApplyPageCondition={applyPageCondition}
           onAddQuestion={type=>documentRef.current?.insert(type)} onAddPage={addPage} onDeletePage={()=>void deletePage()}/>
         <section aria-label="Éditeur de page" className="min-w-0 rounded-[22px] border border-[#e4eae1] bg-white px-5 py-7 sm:px-10 sm:py-10">
          {page&&<>
