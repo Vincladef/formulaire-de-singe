@@ -1,5 +1,6 @@
 import { GitBranch, Layers3,Plus,Settings2,SlidersHorizontal,PanelLeftClose,PanelLeftOpen } from 'lucide-react';
 import { ConditionalLogicPanel } from './ConditionalLogicPanel';
+import type { VisibilityLogic } from '../../shared/conditionalLogic';
 import { QuestionSettings } from './QuestionSettings';
 import { insertQuestionTypes,insertionQuestionName,type InsertQuestionType,type StudioPageData,type StudioQuestion } from '../../shared/studio';
 
@@ -8,11 +9,11 @@ type Props={
  mode:SidebarMode;onModeChange:(mode:SidebarMode)=>void;open:boolean;onToggle:()=>void;
  pages:StudioPageData[];pageIndex:number;onPageIndex:(index:number)=>void;
  selected:StudioQuestion|null;editable:boolean;
- onQuestionUpdate:(q:StudioQuestion)=>void;onAddQuestion:(type:InsertQuestionType)=>void;
+ onQuestionUpdate:(q:StudioQuestion)=>void;onApplyPageCondition:(rule:VisibilityLogic)=>void;onAddQuestion:(type:InsertQuestionType)=>void;
  onAddPage:()=>void;onDeletePage:()=>void;
 };
 export function StudioSidebar({mode,onModeChange,open,onToggle,pages,pageIndex,onPageIndex,selected,editable,
- onQuestionUpdate,onAddQuestion,onAddPage,onDeletePage}:Props){
+ onQuestionUpdate,onApplyPageCondition,onAddQuestion,onAddPage,onDeletePage}:Props){
  const tools=[{mode:'add',name:'Ajouter',icon:Plus},{mode:'settings',name:'Options',icon:SlidersHorizontal},
  {mode:'logic',name:'Logique',icon:GitBranch},{mode:'pages',name:'Pages',icon:Layers3}] as const;
  return <aside aria-label="Outils du formulaire" className={open?"fixed inset-x-3 top-20 z-40 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl border border-[#e4eae1] bg-white p-3 shadow-xl lg:sticky lg:inset-auto lg:top-4 lg:max-h-none lg:overflow-visible lg:p-2.5 lg:shadow-none":"flex flex-row items-center justify-between rounded-2xl border border-[#e4eae1] bg-white p-2 lg:sticky lg:top-4 lg:flex-col"}>
@@ -43,7 +44,7 @@ export function StudioSidebar({mode,onModeChange,open,onToggle,pages,pageIndex,o
       <Settings2 size={20} className="mb-3"/>Clique dans une question pour modifier ses options.</div>}
    </div>}
    {mode==='logic'&&<div>
-     {selected&&editable?<ConditionalLogicPanel pages={pages} pageIndex={pageIndex} question={selected} onUpdate={onQuestionUpdate}/>:
+     {selected&&editable?<ConditionalLogicPanel pages={pages} pageIndex={pageIndex} question={selected} onUpdate={onQuestionUpdate} onApplyToPage={onApplyPageCondition}/>:
        <div className="rounded-xl bg-[#f7faf5] p-4 text-sm leading-6 text-[#607265]">Sélectionne une question dans le document pour ajouter des conditions d'affichage, de validation ou une redirection.</div>}
    </div>}
    {mode==='pages'&&<div className="space-y-2">
