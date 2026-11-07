@@ -20,12 +20,28 @@ const mcpLogicSchema=z.object({
  requiredWhen:mcpGroupSchema.optional(),
  branch:mcpGroupSchema.extend({targetPage:z.union([z.number().int().min(0).max(39),z.literal('end')])}).optional(),
 }).strict();
+const httpsUrl=z.string().url().max(2048).refine(v=>v.startsWith('https://'),{
+ message:'Utilisez une URL HTTPS publique',
+});
+export const mcpChoiceSchema=z.union([
+ z.string().trim().min(1).max(180),
+ z.object({
+  label:z.string().trim().min(1).max(180),
+  imageUrl:httpsUrl.optional().describe('Image publique HTTPS affichée directement dans la carte'),
+  price:z.string().trim().min(1).max(80).optional().describe('Ex. Gratuit, 5 €, ou Tarif à confirmer'),
+  priceNote:z.string().max(200).optional().describe('Ex. Sur réservation, achat facultatif'),
+  date:z.string().max(120).optional(),
+  venue:z.string().max(160).optional(),
+  summary:z.string().max(600).optional().describe('Description visible sur la carte'),
+  url:httpsUrl.optional().describe('Lien officiel vers la sortie ou les réservations'),
+ }).strict(),
+]);
 export const mcpQuestionSchema=z.object({
  type:mcpAnswerType.describe('short_text, long_text, single_choice, multiple_choice, select, number, date, audio, or statement (instructional text)'),
  label:z.string().trim().min(1).max(10000).describe('Question text or explanatory paragraph. Regular questions max 600 characters.'),
  description:z.string().max(3000).nullable().optional().describe('Optional help text'),
  required:z.boolean().optional().describe('Whether a reply is mandatory. Not applicable to statements.'),
- choices:z.array(z.string().trim().min(1).max(180)).min(2).max(100).optional().describe('Labels for choice questions, at least two; otherwise omit'),
+ choices:z.array(mcpChoiceSchema).min(2).max(100).optional().describe('Options simples ou cartes riches avec imageUrl, price, priceNote, date, venue, summary, url. Pour les sorties, utilise les objets.'),
  allowOther:z.boolean().optional().describe('Include an Other/free-text choice'),
  answerMode:z.enum(['text','audio','either']).optional().describe('For text fields: text-only, audio-only or either. Dedicated audio questions are always audio.'),
  maxAudioSeconds:z.number().int().min(15).max(1800).optional().describe('Maximum response duration for audio fields in seconds; default 600'),
@@ -45,7 +61,7 @@ export const mcpQuestionSchema=z.object({
  if(q.textStyle&&q.type!=='statement')ctx.addIssue({code:'custom',message:'Le style de texte est réservé aux paragraphes',path:['textStyle']});
  if(q.richHtml&&q.type!=='statement')ctx.addIssue({code:'custom',message:'Le HTML enrichi est réservé aux paragraphes',path:['richHtml']});
  if(q.type==='statement'&&(q.logic?.branch||q.logic?.requiredWhen))ctx.addIssue({code:'custom',message:'Une redirection ou obligation nécessite une question répondable',path:['logic']});
- if(choice&&new Set(q.choices?.map(x=>x.toLocaleLowerCase('fr'))).size!==q.choices?.length)
+ if(choice&&new Set(q.choices?.map(x=>(typeof x==='string'?x:x.label).toLocaleLowerCase('fr'))).size!==q.choices?.length)
   ctx.addIssue({code:'custom',message:'Choix répétés',path:['choices']});
 });
 export const mcpPageSchema=z.object({
@@ -80,7 +96,20 @@ export function compileMcpPages(input:McpFormContent):StudioPageData[]{
    settings.logicId=logicKey(q);
    q.settings=settings;
    if(item.choices){
-    q.options=item.choices.map((label,index)=>({id:crypto.randomUUID(),value:'option_'+(index+1),label}));
+    q.options=item.choices.map((choice,index)=>({id:crypto.randomUUID(),value:'option_'+(index+1),
+      label:typeof choice==='string'?choice:choice.label}));
+    const cardEntries=item.choices.flatMap((choice,index)=>typeof choice==='string'?[]:[
+      ['option_'+(index+1),{
+       ...(choice.imageUrl?{imageSrc:choice.imageUrl}:{}),
+       ...(choice.price?{price:choice.price}:{}),
+       ...(choice.priceNote?{priceNote:choice.priceNote}:{}),
+       ...(choice.date?{date:choice.date}:{}),
+       ...(choice.venue?{venue:choice.venue}:{}),
+       ...(choice.summary?{summary:choice.summary}:{}),
+       ...(choice.url?{url:choice.url}:{}),
+      }] as const,
+    ]);
+    if(cardEntries.length)q.settings.choiceCards=Object.fromEntries(cardEntries);
     if(item.allowOther)q.options.push({id:crypto.randomUUID(),value:OTHER_VALUE,label:'Autre'});
    } else q.options=[];
    return q;
