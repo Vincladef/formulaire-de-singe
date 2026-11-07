@@ -2,7 +2,7 @@ import { getFormResults,type FormResults } from './resultsService';
 
 /** Spreadsheet-safe CSV: prevent formula execution when opened in Excel/Sheets. */
 export function csvCell(input:unknown){
- const value=typeof input==='string'?input:input==null?'':JSON.stringify(input);
+ const value=typeof input==='string'?input:input==null?'':JSON.stringify(input)??'';
  const safe=/^[\s]*[=+@-]/.test(value)?"'"+value:value;
  return '"'+safe.replace(/"/g,'""')+'"';
 }
