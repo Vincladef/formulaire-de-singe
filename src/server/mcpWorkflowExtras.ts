@@ -205,6 +205,29 @@ export class McpWorkflowExtras{
   const result=await this.save(userId,formId,expectedRevision,pages);
   return {...result,questionId,option:option.label,card:{...card,imageSrc:typeof card.imageSrc==='string'&&card.imageSrc.startsWith('data:image/')?'[image intégrée]':card.imageSrc}};
  }
+ async updateChoiceCards(userId:string,formId:string,expectedRevision:number,questionId:string,
+  patches:Array<{optionLabel:string}&z.infer<typeof cardFields>>){
+  const {pages}=await this.editable(userId,formId,expectedRevision);
+  const q=findQuestion(pages,questionId);
+  if(!['single_choice','multiple_choice','select'].includes(q.type))throw new ValidationFault('Ce type de question ne possède pas de cartes');
+  if(new Set(patches.map(p=>p.optionLabel)).size!==patches.length)throw new ValidationFault('Option répétée dans le lot');
+  const initial=q.settings.choiceCards&&typeof q.settings.choiceCards==='object'&&!Array.isArray(q.settings.choiceCards)
+   ?q.settings.choiceCards as Record<string,Record<string,unknown>>:{};
+  const cards={...initial};
+  for(const {optionLabel,...patch} of patches){
+   const option=optionByLabel(q,optionLabel);
+   const card={...cards[option.value]};
+   for(const [name,value] of Object.entries(patch)){
+    const key=name==='imageUrl'?'imageSrc':name;
+    if(value===null)delete card[key];
+    else if(value!==undefined)card[key]=value;
+   }
+   cards[option.value]=card;
+  }
+  q.settings.choiceCards=cards;
+  const result=await this.save(userId,formId,expectedRevision,pages);
+  return {...result,questionId,updatedCards:patches.length};
+ }
  async addQuestion(userId:string,formId:string,expectedRevision:number,pageId:string,
   question:z.infer<typeof mcpQuestionSchema>,position?:number){
   if(question.logic)throw new ValidationFault('Pour une nouvelle question, applique sa logique dans une deuxième opération');
