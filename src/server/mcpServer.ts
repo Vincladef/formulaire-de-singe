@@ -122,6 +122,17 @@ export function buildMcpServer(
   {formId:id,questionId:id,expectedRevision:z.number().int().min(0),...patchQuestionSchema.shape},'forms:write',
   async ({formId,questionId,expectedRevision,...patch})=>extra.updateQuestion(userId!,formId,expectedRevision,questionId,patch));
 
+ register('update_form_questions_bulk','Modifier plusieurs questions en un seul appel',
+  'WRITE: atomically edit up to 100 questions in one draft revision without changing others. Supports labels, choices, help, required, rich content and audio settings. First inspect the draft and send expectedRevision.',
+  {formId:id,expectedRevision:z.number().int().min(0),
+   updates:z.array(z.object({questionId:id,...patchQuestionSchema.shape}).strict()).min(1).max(100)},
+  'forms:write',async ({formId,expectedRevision,updates})=>extra.updateQuestionsBulk(userId!,formId,expectedRevision,updates));
+
+ register('move_form_page','Réordonner une page',
+  'WRITE: move an existing page to a zero-based position without replacing its questions, images, or conditional logic. Requires the latest draft revision.',
+  {formId:id,pageId:id,position:z.number().int().min(0).max(39),expectedRevision:z.number().int().min(0)},
+  'forms:write',async ({formId,pageId,position,expectedRevision})=>extra.movePage(userId!,formId,expectedRevision,pageId,position));
+
  register('set_choice_card','Modifier une carte illustrée et son tarif',
   'WRITE: add or edit one option card with an HTTPS image, free/paid price, description, place, date, reservation requirements and official link. No full-form replacement, no base64 uploads.',
   {formId:id,questionId:id,expectedRevision:z.number().int().min(0),
