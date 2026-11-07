@@ -254,6 +254,53 @@ export class McpWorkflowExtras{
   const result=await this.save(userId,formId,expectedRevision,pages);
   return {...result,questionId,logic:settings};
  }
+ async addPage(userId:string,formId:string,expectedRevision:number,title:string,description?:string|null){
+  const {pages}=await this.editable(userId,formId,expectedRevision);
+  if(pages.length>=40)throw new ValidationFault('Limite de 40 pages atteinte');
+  const page={id:crypto.randomUUID(),title,description:description??null,questions:[]};
+  pages.push(page);
+  const result=await this.save(userId,formId,expectedRevision,pages);
+  return {...result,pageId:page.id,title};
+ }
+ async updatePage(userId:string,formId:string,expectedRevision:number,pageId:string,
+  patch:{title?:string;description?:string|null}){
+  const {pages}=await this.editable(userId,formId,expectedRevision);
+  const page=pages.find(p=>p.id===pageId);
+  if(!page)throw new NotFoundFault('Page introuvable');
+  if(patch.title!==undefined)page.title=patch.title;
+  if(patch.description!==undefined)page.description=patch.description;
+  return {...await this.save(userId,formId,expectedRevision,pages),pageId};
+ }
+ async deletePage(userId:string,formId:string,expectedRevision:number,pageId:string,confirm:boolean){
+  if(!confirm)throw new ValidationFault('Confirme explicitement la suppression de cette page');
+  const {pages}=await this.editable(userId,formId,expectedRevision);
+  if(pages.length<2)throw new ValidationFault('Un formulaire doit conserver au moins une page');
+  const index=pages.findIndex(p=>p.id===pageId);
+  if(index<0)throw new NotFoundFault('Page introuvable');
+  pages.splice(index,1);
+  return {...await this.save(userId,formId,expectedRevision,pages),pageId,deleted:true};
+ }
+ async moveQuestion(userId:string,formId:string,expectedRevision:number,questionId:string,
+  targetPageId:string,position:number){
+  const {pages}=await this.editable(userId,formId,expectedRevision);
+  const source=pages.find(p=>p.questions.some(q=>q.id===questionId));
+  const target=pages.find(p=>p.id===targetPageId);
+  if(!source||!target)throw new NotFoundFault('Page ou question introuvable');
+  const questionIndex=source.questions.findIndex(q=>q.id===questionId);
+  const [question]=source.questions.splice(questionIndex,1);
+  if(target.questions.length>=150){source.questions.splice(questionIndex,0,question);
+   throw new ValidationFault('La page cible est pleine (150 questions)');}
+  target.questions.splice(Math.min(position,target.questions.length),0,question);
+  return {...await this.save(userId,formId,expectedRevision,pages),questionId,pageId:targetPageId};
+ }
+ async deleteForm(userId:string,formId:string,confirm:boolean){
+  if(!confirm)throw new ValidationFault('Confirme explicitement la suppression du formulaire');
+  const detail=await this.forms.get(userId,formId);
+  if(detail.role!=='owner')throw new PermissionFault('Seul le propriétaire peut supprimer ce formulaire');
+  const result=await this.forms.state(userId,formId,{action:'delete'});
+  if(!result)throw new NotFoundFault('Formulaire introuvable');
+  return {formId,deleted:true,notice:'Suppression logique. Les versions publiées ne sont plus accessibles.'};
+ }
  async preview(userId:string,formId:string,answers:Array<{questionId:string;value:string|string[]}>){
   const detail=await this.forms.get(userId,formId);
   const {pages}=asPages(detail);
