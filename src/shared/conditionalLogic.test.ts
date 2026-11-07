@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateLogic, validateConditionalSettings } from './conditionalLogic';
-import { toSubmissionAnswers, validateAnswers, type PublicForm } from './publicForm';
+import { evaluateLogic, validateConditionalSettings, type LogicPage } from './conditionalLogic';
+import { toSubmissionAnswers, validateAnswers, type PublicForm, type PublicQuestion } from './publicForm';
 import type { StudioPageData } from './studio';
 
 const source={id:'source-id',type:'single_choice' as const,required:true,
@@ -12,7 +12,7 @@ const choice={id:'first-id',type:'short_text' as const,required:true,
 const second={id:'second-id',type:'short_text',required:true,
  settings:{logicId:'persistent-second',logic:{visibility:{action:'show',match:'all',conditions:[{sourceKey:'persistent-source',operator:'equals',value:'2'}]}}},
  options:[],label:'Sortie 2',description:null};
-const pages=[{id:'page-one',questions:[source]},
+const pages:LogicPage<PublicQuestion>[]=[{id:'page-one',questions:[source]},
  {id:'page-two',questions:[choice]},
  {id:'page-three',questions:[second]}];
 const asForm=():PublicForm=>({id:'form',slug:'sorties',title:'Sorties',description:null,versionId:'version',versionNumber:1,requireConsent:false,
@@ -64,10 +64,10 @@ describe('parcours conditionnels',()=>{
 });
 
 describe('vérification des règles dans le Studio',()=>{
- const asStudio=(input:typeof pages):StudioPageData[]=>
+ const asStudio=(input:LogicPage<PublicQuestion>[]):StudioPageData[]=>
   input.map(p=>({id:p.id,title:'Page',description:null,questions:p.questions.map(q=>({...q,
-   type:q.type as StudioPageData['questions'][number]['type'],
-   settings:q.settings as Record<string,unknown>} as StudioPageData['questions'][number]))}));
+   type:q.type,settings:q.settings??{},
+   options:q.options.map((o,i)=>({id:q.id+'-option-'+i,value:o.value,label:o.label}))}))}));
  it('accepte les dépendances précédentes valides',()=>{
   expect(validateConditionalSettings(asStudio(pages))).toEqual([]);
  });
