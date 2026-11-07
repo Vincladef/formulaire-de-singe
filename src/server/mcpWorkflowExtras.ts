@@ -148,7 +148,16 @@ export class McpWorkflowExtras{
    if(!['single_choice','multiple_choice','select'].includes(q.type))throw new ValidationFault('Ce type de question ne possède pas de choix');
    if(new Set(patch.choices.map(x=>x.toLocaleLowerCase('fr'))).size!==patch.choices.length)throw new ValidationFault('Options répétées');
    const old=q.options;
-   q.options=patch.choices.map((label,i)=>old[i]?{...old[i],label}:{id:crypto.randomUUID(),value:'option_'+crypto.randomUUID().slice(0,8),label});
+   const used=new Set<string>();
+   q.options=patch.choices.map((label,i)=>{
+    // Keep the original value/ID for moved choices so conditional rules and
+    // image cards still refer to the same semantic option after reordering.
+    const byLabel=old.find(o=>o.label===label&&!used.has(o.id));
+    const byIndex=old[i]&&!used.has(old[i].id)?old[i]:undefined;
+    const original=byLabel??byIndex??old.find(o=>!used.has(o.id));
+    if(original){used.add(original.id);return {...original,label};}
+    return {id:crypto.randomUUID(),value:'option_'+crypto.randomUUID().slice(0,8),label};
+   });
    const cards=q.settings.choiceCards;
    if(cards&&typeof cards==='object'&&!Array.isArray(cards)){
     q.settings.choiceCards=Object.fromEntries(Object.entries(cards).filter(([key])=>q.options.some(o=>o.value===key)));
