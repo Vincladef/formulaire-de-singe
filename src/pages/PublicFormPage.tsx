@@ -92,7 +92,8 @@ export function QuestionField({question,value,onChange,error,audioStatus,compact
  const isGuestPlusOne=compact&&question.type==='single_choice'&&question.label.startsWith('Mes amis peuvent proposer de venir accompagnés pour ');
  const isFriendPicker=compact&&question.type==='multiple_choice'&&question.label.startsWith('Amis à inviter en priorité pour ');
  const isGuestLimit=compact&&question.type==='number'&&question.label.startsWith('Nombre maximum de personnes pour ');
- const displayLabel=compact&&question.label.startsWith('Quels cercles inviter pour ')?'Quels cercles inviter ?':
+ const displayLabel=compact&&question.label.startsWith('Quel format pour ')?'Quel format ?':
+  compact&&question.label.startsWith('Quels cercles inviter pour ')?'Quels cercles inviter ?':
   isGuestLimit?'Nombre maximum de personnes':
   isGuestPlusOne?'Venir accompagné':
   isFriendPicker?'Amis à inviter en particulier':question.label;
