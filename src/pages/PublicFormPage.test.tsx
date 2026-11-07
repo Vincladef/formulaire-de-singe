@@ -105,9 +105,9 @@ describe('Sorties conditionnelles par événement',()=>{
   expect(screen.getByText('2 sorties retenues')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button',{name:/Configurer mes sorties/i}));
   expect(await screen.findByText('Avec qui ?')).toBeInTheDocument();
-  expect(screen.getByText('Quel format pour Festival insolite ?')).toBeInTheDocument();
-  expect(screen.queryByText('Quel format pour Concert gratuit ?')).not.toBeInTheDocument();
-  expect(screen.getByText('Quel format pour Exposition curieuse ?')).toBeInTheDocument();
+  expect(screen.getByRole('group',{name:'Quel format pour Festival insolite ?'})).toBeInTheDocument();
+  expect(screen.queryByRole('group',{name:'Quel format pour Concert gratuit ?'})).not.toBeInTheDocument();
+  expect(screen.getByRole('group',{name:'Quel format pour Exposition curieuse ?'})).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button',{name:/Envoyer mes réponses/i}));
   expect(screen.getAllByText('Cette réponse est obligatoire.')).toHaveLength(2);
   fireEvent.click(within(screen.getByRole('group',{name:'Quel format pour Festival insolite ?'})).getByLabelText('En duo'));
