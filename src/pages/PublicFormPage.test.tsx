@@ -53,7 +53,7 @@ describe('Sélection rapide avec cartes illustrées',()=>{
   renderForm();
   await screen.findByText('Festival insolite');
   expect(screen.getByRole('img',{name:'Illustration de Festival insolite'})).toHaveAttribute('src','data:image/jpeg;base64,AA==');
-  expect(screen.getAllByRole('link',{name:/Détails et réservations/i})).toHaveLength(2);
+  expect(screen.getAllByRole('link',{name:/Voir le programme et réserver/i})).toHaveLength(2);
   const choice=screen.getByRole('checkbox',{name:'Choisir Festival insolite'});
   expect(choice).not.toBeChecked();
   fireEvent.click(choice);
@@ -65,5 +65,59 @@ describe('Sélection rapide avec cartes illustrées',()=>{
   expect(request).toBeDefined();
   const body=JSON.parse((request![1] as RequestInit).body as string);
   expect(body.answers).toEqual([{questionId:optionId,value:['E26-001']}]);
+ });
+});
+
+
+describe('Sorties conditionnelles par événement',()=>{
+ it('montre les photos et prix puis configure uniquement les activités choisies',async()=>{
+  const events=['E26-001','E26-002','E26-003'];
+  const titles=['Festival insolite','Concert gratuit','Exposition curieuse'];
+  const galleryId=crypto.randomUUID();
+  const cond=(code:string)=>({visibility:{action:'show' as const,match:'all' as const,
+    conditions:[{sourceKey:'gallery-key',operator:'contains' as const,value:code}]}});
+  const base={id:crypto.randomUUID(),type:'multiple_choice' as const,label:'Quelles sorties te tentent ?',
+    description:null,required:false,settings:{logicId:'gallery-key',choiceCards:Object.fromEntries(events.map((code,index)=>[
+      code,{imageSrc:'data:image/jpeg;base64,AA==',price:'Gratuit',priceNote:'Sur inscription',
+      date:'Samedi',venue:'Paris',summary:'Une activité intéressante et documentée.',url:'https://www.paris.fr/evenements/exemple-'+index}])),
+    },options:events.map((code,index)=>({value:code,label:titles[index]}))};
+  const followUps=events.flatMap((code,index)=>[
+    {id:crypto.randomUUID(),type:'single_choice' as const,label:'Quel format pour '+titles[index]+' ?',
+      description:null,required:false,settings:{logicId:code+'-format',logic:{visibility:cond(code).visibility,
+        requiredWhen:{match:'all' as const,conditions:[{sourceKey:'gallery-key',operator:'contains' as const,value:code}]}}},
+      options:[{value:'duo',label:'En duo'},{value:'groupe',label:'En groupe'}]},
+    {id:crypto.randomUUID(),type:'multiple_choice' as const,label:'Quels cercles pour '+titles[index]+' ?',
+      description:null,required:false,settings:{logicId:code+'-circles',logic:cond(code)},
+      options:[{value:'proches',label:'Proches'},{value:'amis',label:'Amis'}]},
+  ]);
+  const conditional:PublicForm={...form,pages:[
+    {id:'gallery',title:'Choix des sorties',description:null,questions:[{...base,id:galleryId}]},
+    {id:'people',title:'Avec qui ?',description:null,questions:followUps},
+  ]};
+  fetchMock.mockImplementation(async (_path:string,opts?:RequestInit)=>({ok:true,status:opts?.method==='POST'?201:200,
+    json:async()=>opts?.method==='POST'?{ok:true,data:{id:'ok'}}:{ok:true,data:conditional}}));
+  renderForm();await screen.findByText('Festival insolite');
+  expect(screen.getAllByText('Gratuit')).toHaveLength(3);
+  expect(screen.getAllByText('Sur inscription')).toHaveLength(3);
+  expect(screen.getAllByRole('img',{name:/Illustration de/})).toHaveLength(3);
+  fireEvent.click(screen.getByRole('checkbox',{name:'Choisir Festival insolite'}));
+  fireEvent.click(screen.getByRole('checkbox',{name:'Choisir Exposition curieuse'}));
+  expect(screen.getByText('2 sorties retenues')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:/Configurer mes sorties/i}));
+  expect(await screen.findByText('Avec qui ?')).toBeInTheDocument();
+  expect(screen.getByText('Quel format pour Festival insolite ?')).toBeInTheDocument();
+  expect(screen.queryByText('Quel format pour Concert gratuit ?')).not.toBeInTheDocument();
+  expect(screen.getByText('Quel format pour Exposition curieuse ?')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:/Envoyer mes réponses/i}));
+  expect(screen.getAllByText('Cette réponse est obligatoire.')).toHaveLength(2);
+  fireEvent.click(within(screen.getByRole('group',{name:'Quel format pour Festival insolite ?'})).getByLabelText('En duo'));
+  fireEvent.click(within(screen.getByRole('group',{name:'Quel format pour Exposition curieuse ?'})).getByLabelText('En groupe'));
+  fireEvent.click(screen.getByRole('button',{name:/Envoyer mes réponses/i}));
+  await waitFor(()=>expect(screen.getByText(/Merci pour votre participation/i)).toBeInTheDocument());
+  const request=fetchMock.mock.calls.find((call:unknown[])=>(call[1] as RequestInit|undefined)?.method==='POST');
+  const submitted=JSON.parse((request![1] as RequestInit).body as string);
+  expect(submitted.answers.map((entry:{questionId:string})=>entry.questionId)).toEqual([
+    galleryId,followUps[0].id,followUps[4].id,
+  ]);
  });
 });
