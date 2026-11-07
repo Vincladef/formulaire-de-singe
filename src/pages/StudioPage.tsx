@@ -4,6 +4,7 @@ import {formatParisDate,formatParisDateTime} from '../shared/presentation';
 import { getAccessToken } from '../authClient';
 import type { FormDetail, FormSummary } from '../shared/formApi';
 import { draftPayloadSchema, makePage, type QuestionType, type StudioPageData, type StudioQuestion } from '../shared/studio';
+import { withStableLogicKeys } from '../shared/conditionalLogic';
 import { DocumentCanvas, type DocumentCanvasHandle } from '../components/studio/DocumentCanvas';
 import { StudioSidebar, type SidebarMode } from '../components/studio/StudioSidebar';
 import { ResultsPanel } from '../components/studio/ResultsPanel';
@@ -78,8 +79,8 @@ export function StudioPage(){
      const form=await request<FormDetail>(`/api/forms/${id}`);
      setDetail(form);const draft=form.versions.find(v=>v.status==='draft');
      draftRef.current=draft?.id??null;revisionRef.current=draft?.revision??0;
-     const next:StudioPageData[]=draft?.pages.map(p=>({id:p.id,title:p.title,description:p.description,
-       questions:p.questions.map(q=>({id:q.id,type:q.type as QuestionType,label:q.label,description:q.description,required:q.required,settings:q.settings,options:q.options.map(o=>({id:o.id,value:o.value,label:o.label}))}))})) ?? [];
+     const next:StudioPageData[]=withStableLogicKeys(draft?.pages.map(p=>({id:p.id,title:p.title,description:p.description,
+       questions:p.questions.map(q=>({id:q.id,type:q.type as QuestionType,label:q.label,description:q.description,required:q.required,settings:q.settings,options:q.options.map(o=>({id:o.id,value:o.value,label:o.label}))}))})) ?? []);
      savedRef.current=JSON.stringify(next);setPages(next.length?next:[makePage()]);setPageIndex(0);setQuestionId(null);setPreview(false);setActiveTab(tab??(form.versions.some(v=>v.status==='published')?'overview':'questions'));setSideMode('add');setSaveState('saved');
    }catch(e){setError(e instanceof Error?e.message:'Chargement impossible');}finally{setOperation(false);}
  },[]);
