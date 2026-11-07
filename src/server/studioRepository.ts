@@ -4,6 +4,7 @@ import { forms } from './db/schema';
 import { formRepository } from './formRepository';
 import { folderActions } from './folderService';
 import type { DraftPayload, StudioPageData } from '../shared/studio';
+import { readLogic } from '../shared/conditionalLogic';
 
 export class ConflictFault extends Error {status=409;code='CONFLICT' as const;}
 export class PermissionFault extends Error {status=403;code='FORBIDDEN' as const;}
@@ -21,8 +22,14 @@ const dbError=(error:unknown):never=>{
 export async function saveDraft(userId:string,formId:string,input:DraftPayload) {
   try{
     const db=getDb();
+    // PostgreSQL validates shapes and ownership, while the API validates conditional requiredness.
+    // Store unconditional required flags separately when the form contains any branching/visibility.
+    const conditional=input.pages.some(p=>p.questions.some(q=>Object.keys(readLogic(q)).length>0));
+    const storedPages=conditional?input.pages.map(p=>({...p,questions:p.questions.map(q=>q.type==='statement'?q:{
+      ...q,required:false,settings:{...q.settings,logicOriginalRequired:q.required},
+    })})):input.pages;
     const result=await db.execute(sql`SELECT fs_save_draft(${formId}::uuid,${userId},${input.versionId}::uuid,
-        ${input.expectedRevision},${JSON.stringify(input.pages)}::jsonb) AS revision`);
+        ${input.expectedRevision},${JSON.stringify(storedPages)}::jsonb) AS revision`);
     return {versionId:input.versionId,revision:Number(result.rows[0]?.revision)};
   }catch(error){return dbError(error);}
 }
