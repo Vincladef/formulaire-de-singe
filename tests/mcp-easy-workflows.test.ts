@@ -24,7 +24,7 @@ const detail=():FormDetail=>({
   ]}],
  }],
 });
-const save=vi.fn(async()=>({versionId:draftId,revision:5}));
+const save=vi.fn(async (_owner:string,_formId:string,_payload:unknown)=>{void _owner;void _formId;void _payload;return {versionId:draftId,revision:5};});
 const get=vi.fn(async()=>detail());
 const actions={get,save,duplicate:vi.fn(async()=>({id:formId})),state:vi.fn(async()=>({id:formId}))} as unknown as Pick<FormActions,'get'|'save'|'duplicate'|'state'>;
 
