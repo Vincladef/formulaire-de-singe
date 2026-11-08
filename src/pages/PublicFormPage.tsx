@@ -133,7 +133,8 @@ export function QuestionField({question,value,onChange,error,audioStatus,compact
  const isFriendPicker=compact&&question.type==='multiple_choice'&&question.label.startsWith('Amis à inviter en priorité pour ');
  const isGuestLimit=compact&&question.type==='number'&&question.label.startsWith('Nombre maximum de personnes pour ');
  const isContactMulti=compact&&question.type==='long_text'&&/^Étape [12] · Invités /.test(question.label)&&question.description?.startsWith('MONK_CONTACTS_V1:');
- const isMessageQuestion=compact&&/^Étape [12] · (Mode de message|Message exact)/.test(question.label);
+ const isMessageQuestion=compact&&/^Étape [12] · (Mode de message|Message exact|Consignes pour l'IA)/.test(question.label);
+ const isAiInstructions=compact&&question.type==='long_text'&&/^Étape [12] · Consignes pour l'IA /.test(question.label);
  const displayLabel=compact&&question.label.startsWith('Quel format pour ')?'Quel format ?':
   compact&&question.label.startsWith('Quels cercles inviter pour ')?'Quels cercles inviter ?':
   isGuestLimit?'Nombre maximum de personnes':
@@ -171,7 +172,7 @@ export function QuestionField({question,value,onChange,error,audioStatus,compact
     </div>}
     {!vocal&&question.type==='short_text'&&<input {...common} className={fieldStyle} type="text" maxLength={500} placeholder="Votre réponse…" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
     {isContactMulti&&<ContactMultiPicker value={value} onChange={onChange} description={question.description}/>}
-    {!vocal&&question.type==='long_text'&&!isContactMulti&&<textarea {...common} className={fieldStyle+' min-h-32 resize-y'} rows={4} maxLength={10000} placeholder="Racontez-nous…" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
+    {!vocal&&question.type==='long_text'&&!isContactMulti&&<textarea {...common} className={fieldStyle+(isAiInstructions?' min-h-20 resize-y':' min-h-32 resize-y')} rows={isAiInstructions?2:4} maxLength={isAiInstructions?800:10000} placeholder={isAiInstructions?'Ex. Ton chaleureux, propose jeudi soir, sans trop insister…':'Racontez-nous…'} value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
     {question.type==='number'&&<input {...common} className={fieldStyle} type="number" min={isGuestLimit?1:undefined} step={isGuestLimit?1:undefined} placeholder={isGuestLimit?'Aucun plafond':'0'} value={typeof value==='number'&&Number.isFinite(value)?value:''} onChange={e=>onChange(e.target.value===''?undefined:Number(e.target.value))}/>}
     {question.type==='date'&&<input {...common} className={fieldStyle} type="date" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
     {question.type==='select'&&<select {...common} className={fieldStyle} value={typeof value==='string'?(otherSelected?OTHER_VALUE:value):''} onChange={e=>onChange(e.target.value===OTHER_VALUE?OTHER_VALUE+':':e.target.value)}>
@@ -229,10 +230,11 @@ export function QuestionField({question,value,onChange,error,audioStatus,compact
          {checked&&inlineDetails?.[o.value]?.length&&onInlineAnswer&&<section aria-label={'Configurer '+o.label} className="border-t border-[#c5dfca] bg-[#f6fbf5] px-3 py-4 sm:px-5">
           <div className="mb-3 flex items-center gap-2 text-sm font-bold text-[#326747]"><ChevronDown className="rotate-180" size={16} aria-hidden="true"/> Configurer cette sortie</div>
           <div className="space-y-3">{inlineDetails[o.value].filter(child=>{
-            const stage=child.label.match(/^Étape ([12]) · Message exact /);
+            const stage=child.label.match(/^Étape ([12]) · (Message exact|Consignes pour l'IA) /);
             if(!stage)return true;
             const modeQuestion=inlineDetails[o.value].find(q=>q.label.startsWith('Étape '+stage[1]+' · Mode de message '));
-            return !!modeQuestion&&inlineAnswers?.[modeQuestion.id]===modeQuestion.options[0]?.value;
+            const wantedOption=stage[2]==='Message exact'?0:1;
+            return !!modeQuestion&&inlineAnswers?.[modeQuestion.id]===modeQuestion.options[wantedOption]?.value;
            }).map(child=><QuestionField key={child.id} compact
              question={{...child,required:inlineRequired?.has(child.id)??child.required}}
              value={inlineAnswers?.[child.id]} onChange={v=>onInlineAnswer(child.id,v)} error={inlineErrors?.[child.id]}/>)}</div>
@@ -317,10 +319,11 @@ export function PublicFormPage(){
   if(inlineGroups){
    const activity=q.label.match(/\[(E26-\d{3})\]$/)?.[1];
    if(activity&&!selectedActivities.includes(activity))return false;
-   const stage=q.label.match(/^Étape ([12]) · Message exact /);
+   const stage=q.label.match(/^Étape ([12]) · (Message exact|Consignes pour l'IA) /);
    if(stage){
     const modeQuestion=form.pages[1].questions.find(candidate=>candidate.label==='Étape '+stage[1]+' · Mode de message ['+activity+']');
-    if(!modeQuestion||answers[modeQuestion.id]!==modeQuestion.options[0]?.value)return false;
+    const wantedOption=stage[2]==='Message exact'?0:1;
+    if(!modeQuestion||answers[modeQuestion.id]!==modeQuestion.options[wantedOption]?.value)return false;
    }
   }
   return true;
@@ -355,10 +358,13 @@ export function PublicFormPage(){
    }
    if(form){
     const modeQuestion=form.pages[1]?.questions.find(q=>q.id===id&&/^Étape [12] · Mode de message /.test(q.label));
-    if(modeQuestion&&value!==modeQuestion.options[0]?.value){
-     const exactLabel=modeQuestion.label.replace('Mode de message','Message exact');
-     const exactField=form.pages[1].questions.find(q=>q.label===exactLabel);
-     if(exactField)delete next[exactField.id];
+    if(modeQuestion){
+     for(const [index,fieldName] of ['Message exact',"Consignes pour l'IA"].entries()){
+      if(value===modeQuestion.options[index]?.value)continue;
+      const conditionalLabel=modeQuestion.label.replace('Mode de message',fieldName);
+      const conditionalField=form.pages[1].questions.find(q=>q.label===conditionalLabel);
+      if(conditionalField)delete next[conditionalField.id];
+     }
     }
    }
    return next;
