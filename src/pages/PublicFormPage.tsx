@@ -55,6 +55,41 @@ function readChoiceCards(settings:PublicQuestion['settings']):Record<string,Choi
  return results;
 }
 
+
+type ContactChoice={name:string;category:'p'|'a'|'c'|'u'};
+const contactCategoryName:Record<ContactChoice['category'],string>={p:'Amis proches',a:'Amis',c:'Connaissances',u:'À classer'};
+function decodeContacts(description:string|undefined):ContactChoice[]{
+ if(!description?.startsWith('MONK_CONTACTS_V1:'))return [];
+ return description.slice('MONK_CONTACTS_V1:'.length).split('|').flatMap(item=>{
+  const category=item.slice(0,1) as ContactChoice['category'];
+  const name=item.slice(2).trim();
+  return item.charAt(1)===':'&&name&&contactCategoryName[category]?[{category,name}]:[];
+ });
+}
+function ContactMultiPicker({value,onChange,description}:{value:AnswerValues[string];onChange:(value:AnswerValues[string])=>void;description:string|undefined}){
+ const [search,setSearch]=useState('');
+ const contacts=decodeContacts(description);
+ let selected:string[]=[];
+ if(typeof value==='string'){try{const parsed:unknown=JSON.parse(value);if(Array.isArray(parsed))selected=parsed.filter((name):name is string=>typeof name==='string');}catch{selected=[];}}
+ const filtered=contacts.filter(c=>c.name.toLocaleLowerCase('fr').includes(search.trim().toLocaleLowerCase('fr')));
+ const groups=(['p','a','c','u'] as const).map(category=>({category,items:filtered.filter(c=>c.category===category)})).filter(g=>g.items.length);
+ const change=(name:string,checked:boolean)=>onChange(JSON.stringify(checked?[...selected.filter(x=>x!==name),name]:selected.filter(x=>x!==name)));
+ return <details className="rounded-xl border border-[#dce7dc] bg-white px-3 py-3">
+  <summary className="cursor-pointer text-sm font-semibold text-[#315c42]">{selected.length?selected.length+' ami'+(selected.length>1?'s':'')+' sélectionné'+(selected.length>1?'s':''):'Choisir parmi mes amis'} <span className="text-[#7b8d80]">▾</span></summary>
+  <div className="mt-3 space-y-3">
+   <input aria-label="Rechercher un ami" type="search" placeholder="Rechercher un prénom…" value={search} onChange={e=>setSearch(e.target.value)} className="w-full rounded-xl border border-[#dce7dc] bg-white px-3 py-2 text-sm outline-none focus:border-[#5b986e]"/>
+   <div className="max-h-56 space-y-3 overflow-y-auto pr-1">{groups.map(group=><fieldset key={group.category} className="space-y-1">
+    <legend className="pb-1 text-xs font-bold uppercase tracking-wide text-[#607665]">{contactCategoryName[group.category]}</legend>
+    {group.items.map(contact=><label key={contact.name} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm text-[#365a41] hover:bg-[#f1f7f1]">
+     <input type="checkbox" checked={selected.includes(contact.name)} onChange={e=>change(contact.name,e.target.checked)} className="h-4 w-4 shrink-0 accent-[#33764c]"/>{contact.name}
+    </label>)}
+   </fieldset>)}
+   {!groups.length&&<p className="text-sm text-[#6d7f70]">Aucun contact trouvé.</p>}
+   </div>
+  </div>
+ </details>;
+}
+
 type InlineChoiceGroups={galleryId:string;groups:Record<string,PublicQuestion[]>};
 function findInlineChoiceGroups(form:PublicForm|null):InlineChoiceGroups|null{
  if(!form||form.pages.length!==2||form.pages[0].questions.length!==1)return null;
@@ -67,6 +102,11 @@ function findInlineChoiceGroups(form:PublicForm|null):InlineChoiceGroups|null{
  if(!fields.length)return null;
  const groups:Record<string,PublicQuestion[]>={};
  for(const field of fields){
+  const activitySuffix=field.label.match(/\[(E26-\d{3})\]$/);
+  if(activitySuffix&&possible.has(activitySuffix[1])){
+   (groups[activitySuffix[1]]??=[]).push(field);
+   continue;
+  }
   const visibility=readLogic(field).visibility;
   const condition=visibility?.conditions[0];
   if(visibility?.action!=='show'||visibility.match!=='all'||visibility.conditions.length!==1||
@@ -92,11 +132,13 @@ export function QuestionField({question,value,onChange,error,audioStatus,compact
  const isGuestPlusOne=compact&&question.type==='single_choice'&&question.label.startsWith('Mes amis peuvent proposer de venir accompagnés pour ');
  const isFriendPicker=compact&&question.type==='multiple_choice'&&question.label.startsWith('Amis à inviter en priorité pour ');
  const isGuestLimit=compact&&question.type==='number'&&question.label.startsWith('Nombre maximum de personnes pour ');
+ const isContactMulti=compact&&question.type==='long_text'&&/^Étape [12] · Invités /.test(question.label)&&question.description?.startsWith('MONK_CONTACTS_V1:');
+ const isMessageQuestion=compact&&/^Étape [12] · (Mode de message|Message exact)/.test(question.label);
  const displayLabel=compact&&question.label.startsWith('Quel format pour ')?'Quel format ?':
   compact&&question.label.startsWith('Quels cercles inviter pour ')?'Quels cercles inviter ?':
   isGuestLimit?'Nombre maximum de personnes':
   isGuestPlusOne?'Venir accompagné':
-  isFriendPicker?'Amis à inviter en particulier':question.label;
+  isFriendPicker?'Amis à inviter en particulier':isContactMulti||isMessageQuestion?question.label.replace(/ \[E26-\d{3}\]$/,''):question.label;
  const friendOptions=isFriendPicker?options.filter(o=>!o.value.startsWith('__FRIENDS_PENDING_')&&!o.label.startsWith('__FRIENDS_PENDING_')):[];
  const friendLabel=(label:string)=>label.startsWith('AMI:')&&label.includes('|')?label.slice(label.indexOf('|')+1):label;
  const yesValue=isGuestPlusOne?options.find(o=>o.label.toLowerCase()==='oui')?.value:undefined;
@@ -121,14 +163,15 @@ export function QuestionField({question,value,onChange,error,audioStatus,compact
    <label htmlFor={question.id} className="font-display mb-2 block text-[17px] font-bold leading-snug text-[#294a34]">
     {displayLabel} {question.required ? <span aria-label="obligatoire" className="text-[#a44f3b]">*</span> : null}
    </label>
-   {question.description&&!isGuestPlusOne&&<p id={describedBy} className="mb-4 whitespace-pre-line text-sm leading-6 text-[#607265]">{question.description}</p>}
+   {question.description&&!isGuestPlusOne&&!isContactMulti&&<p id={describedBy} className="mb-4 whitespace-pre-line text-sm leading-6 text-[#607265]">{question.description}</p>}
    <div className={question.description?'mt-3':'mt-4'}>
     {mode==='either'&&<div className="mb-4 flex gap-2" role="group" aria-label="Type de réponse">
      <button type="button" className="rounded-lg border px-3 py-2 text-sm" aria-pressed={!preferAudio} onClick={()=>{setPreferAudio(false);onChange(undefined);}}>Écrire</button>
      <button type="button" className="rounded-lg border px-3 py-2 text-sm" aria-pressed={preferAudio} onClick={()=>{setPreferAudio(true);onChange(undefined);}}>Parler</button>
     </div>}
     {!vocal&&question.type==='short_text'&&<input {...common} className={fieldStyle} type="text" maxLength={500} placeholder="Votre réponse…" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
-    {!vocal&&question.type==='long_text'&&<textarea {...common} className={fieldStyle+' min-h-32 resize-y'} rows={4} maxLength={10000} placeholder="Racontez-nous…" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
+    {isContactMulti&&<ContactMultiPicker value={value} onChange={onChange} description={question.description}/>}
+    {!vocal&&question.type==='long_text'&&!isContactMulti&&<textarea {...common} className={fieldStyle+' min-h-32 resize-y'} rows={4} maxLength={10000} placeholder="Racontez-nous…" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
     {question.type==='number'&&<input {...common} className={fieldStyle} type="number" min={isGuestLimit?1:undefined} step={isGuestLimit?1:undefined} placeholder={isGuestLimit?'Aucun plafond':'0'} value={typeof value==='number'&&Number.isFinite(value)?value:''} onChange={e=>onChange(e.target.value===''?undefined:Number(e.target.value))}/>}
     {question.type==='date'&&<input {...common} className={fieldStyle} type="date" value={typeof value==='string'?value:''} onChange={e=>onChange(e.target.value)}/>}
     {question.type==='select'&&<select {...common} className={fieldStyle} value={typeof value==='string'?(otherSelected?OTHER_VALUE:value):''} onChange={e=>onChange(e.target.value===OTHER_VALUE?OTHER_VALUE+':':e.target.value)}>
@@ -185,7 +228,12 @@ export function QuestionField({question,value,onChange,error,audioStatus,compact
           </div>}
          {checked&&inlineDetails?.[o.value]?.length&&onInlineAnswer&&<section aria-label={'Configurer '+o.label} className="border-t border-[#c5dfca] bg-[#f6fbf5] px-3 py-4 sm:px-5">
           <div className="mb-3 flex items-center gap-2 text-sm font-bold text-[#326747]"><ChevronDown className="rotate-180" size={16} aria-hidden="true"/> Configurer cette sortie</div>
-          <div className="space-y-3">{inlineDetails[o.value].map(child=><QuestionField key={child.id} compact
+          <div className="space-y-3">{inlineDetails[o.value].filter(child=>{
+            const stage=child.label.match(/^Étape ([12]) · Message exact /);
+            if(!stage)return true;
+            const modeQuestion=inlineDetails[o.value].find(q=>q.label.startsWith('Étape '+stage[1]+' · Mode de message '));
+            return !!modeQuestion&&inlineAnswers?.[modeQuestion.id]===modeQuestion.options[0]?.value;
+           }).map(child=><QuestionField key={child.id} compact
              question={{...child,required:inlineRequired?.has(child.id)??child.required}}
              value={inlineAnswers?.[child.id]} onChange={v=>onInlineAnswer(child.id,v)} error={inlineErrors?.[child.id]}/>)}</div>
          </section>}
