@@ -58,7 +58,7 @@ function readChoiceCards(settings:PublicQuestion['settings']):Record<string,Choi
 
 type ContactChoice={name:string;category:'p'|'a'|'c'|'u'};
 const contactCategoryName:Record<ContactChoice['category'],string>={p:'Amis proches',a:'Amis',c:'Connaissances',u:'À classer'};
-function decodeContacts(description:string|undefined):ContactChoice[]{
+function decodeContacts(description:string|null|undefined):ContactChoice[]{
  if(!description?.startsWith('MONK_CONTACTS_V1:'))return [];
  return description.slice('MONK_CONTACTS_V1:'.length).split('|').flatMap(item=>{
   const category=item.slice(0,1) as ContactChoice['category'];
@@ -66,7 +66,7 @@ function decodeContacts(description:string|undefined):ContactChoice[]{
   return item.charAt(1)===':'&&name&&contactCategoryName[category]?[{category,name}]:[];
  });
 }
-function ContactMultiPicker({value,onChange,description}:{value:AnswerValues[string];onChange:(value:AnswerValues[string])=>void;description:string|undefined}){
+function ContactMultiPicker({value,onChange,description}:{value:AnswerValues[string];onChange:(value:AnswerValues[string])=>void;description:string|null|undefined}){
  const [search,setSearch]=useState('');
  const contacts=decodeContacts(description);
  let selected:string[]=[];
