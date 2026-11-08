@@ -73,7 +73,7 @@ function ContactMultiPicker({value,onChange,description}:{value:AnswerValues[str
  if(typeof value==='string'){try{const parsed:unknown=JSON.parse(value);if(Array.isArray(parsed))selected=parsed.filter((name):name is string=>typeof name==='string');}catch{selected=[];}}
  const filtered=contacts.filter(c=>c.name.toLocaleLowerCase('fr').includes(search.trim().toLocaleLowerCase('fr')));
  const groups=(['p','a','c','u'] as const).map(category=>({category,items:filtered.filter(c=>c.category===category)})).filter(g=>g.items.length);
- const change=(name:string,checked:boolean)=>onChange(JSON.stringify(checked?[...selected.filter(x=>x!==name),name]:selected.filter(x=>x!==name)));
+ const change=(name:string,checked:boolean)=>{const next=checked?[...selected.filter(x=>x!==name),name]:selected.filter(x=>x!==name);onChange(next.length?JSON.stringify(next):undefined);};
  return <details className="rounded-xl border border-[#dce7dc] bg-white px-3 py-3">
   <summary className="cursor-pointer text-sm font-semibold text-[#315c42]">{selected.length?selected.length+' ami'+(selected.length>1?'s':'')+' sélectionné'+(selected.length>1?'s':''):'Choisir parmi mes amis'} <span className="text-[#7b8d80]">▾</span></summary>
   <div className="mt-3 space-y-3">
@@ -310,7 +310,21 @@ export function PublicFormPage(){
  const page=form?.pages[pageIndex];
  const visualChoices=form?.pages.flatMap(p=>p.questions).find(q=>q.type==='multiple_choice'&&q.settings?.choiceCards);
  const selectedVisual=visualChoices&&Array.isArray(answers[visualChoices.id])?(answers[visualChoices.id] as string[]).length:0;
- const totalQuestions=form?.pages.flatMap(p=>p.questions.filter(q=>q.type!=='statement'&&journey?.visibleIds.has(q.id)))??[];
+ const chosen=inlineGroups?answers[inlineGroups.galleryId]:undefined;
+ const selectedActivities=Array.isArray(chosen)?chosen:[];
+ const totalQuestions=form?.pages.flatMap(p=>p.questions.filter(q=>{
+  if(q.type==='statement'||!journey?.visibleIds.has(q.id))return false;
+  if(inlineGroups){
+   const activity=q.label.match(/\[(E26-\d{3})\]$/)?.[1];
+   if(activity&&!selectedActivities.includes(activity))return false;
+   const stage=q.label.match(/^Étape ([12]) · Message exact /);
+   if(stage){
+    const modeQuestion=form.pages[1].questions.find(candidate=>candidate.label==='Étape '+stage[1]+' · Mode de message ['+activity+']');
+    if(!modeQuestion||answers[modeQuestion.id]!==modeQuestion.options[0]?.value)return false;
+   }
+  }
+  return true;
+ }))??[];
  const answeredCount=totalQuestions.filter(q=>isAnswered(answers[q.id])).length;
  const progress=totalQuestions.length?Math.round(answeredCount/totalQuestions.length*100):0;
  const appearance=form?.appearance;
@@ -329,7 +343,28 @@ export function PublicFormPage(){
   if(!indices.length||indices.includes(pageIndex))return;
   setPageIndex(indices.find(i=>i>pageIndex)??indices.at(-1)??0);
  },[form,pageIndex,answers]);
- function setAnswer(id:string,value:AnswerValues[string]){setAnswers(prev=>({...prev,[id]:value}));setErrors(prev=>{const n={...prev};delete n[id];return n;});}
+ function setAnswer(id:string,value:AnswerValues[string]){
+  setAnswers(prev=>{
+   const next={...prev,[id]:value};
+   if(form&&id===form.pages[0]?.questions[0]?.id&&Array.isArray(value)){
+    const activeActivities=new Set(value);
+    for(const q of form.pages[1]?.questions??[]){
+     const activity=q.label.match(/\[(E26-\d{3})\]$/)?.[1];
+     if(activity&&!activeActivities.has(activity))delete next[q.id];
+    }
+   }
+   if(form){
+    const modeQuestion=form.pages[1]?.questions.find(q=>q.id===id&&/^Étape [12] · Mode de message /.test(q.label));
+    if(modeQuestion&&value!==modeQuestion.options[0]?.value){
+     const exactLabel=modeQuestion.label.replace('Mode de message','Message exact');
+     const exactField=form.pages[1].questions.find(q=>q.label===exactLabel);
+     if(exactField)delete next[exactField.id];
+    }
+   }
+   return next;
+  });
+  setErrors(prev=>{const n={...prev};delete n[id];return n;});
+ }
  function validatePage(){if(!form||!page)return false;
   const issues=validateAnswers(form,answers);
   const current=new Set(page.questions.map(q=>q.id));
