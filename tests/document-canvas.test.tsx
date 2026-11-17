@@ -4,6 +4,7 @@ import { cleanup } from '@testing-library/react';
 import { DocumentCanvas } from '../src/components/studio/DocumentCanvas';
 import { sanitizeDocumentHtml } from '../src/shared/richText';
 import { makePage, makeQuestion } from '../src/shared/studio';
+import { freeformPage, isFreeformMarker } from '../src/shared/freeformLayout';
 
 vi.mock('../src/shared/clipboardImage',()=>({
  clipboardImageToDataUrl:vi.fn(async()=> 'data:image/png;base64,'+'A'.repeat(80)),
@@ -27,6 +28,30 @@ function cursor(node:Node,offset=0){
  const r=document.createRange();r.setStart(node,offset);r.collapse(true);
  const selected=window.getSelection()!;selected.removeAllRanges();selected.addRange(r);
 }
+describe('Mise en page libre et sans en-tête obligatoire',()=>{
+ it('permet d’éditer ou retirer Pour commencer comme un bloc normal',()=>{
+  const legacy=makePage();
+  legacy.title='Pour commencer';legacy.description='Texte explicatif';
+  const page=freeformPage(legacy,'Titre du questionnaire','Présentation du questionnaire',true);
+  const onChange=vi.fn();
+  render(<DocumentCanvas page={page} editable onChange={onChange}
+   onSelectQuestion={vi.fn()} onOpenSettings={vi.fn()} onDeleteQuestion={vi.fn()}/>);
+  const editor=screen.getByRole('textbox',{name:'Éditeur de document'});
+  expect(editor.querySelector('[data-role]')).toBeNull();
+  expect(within(editor).getByRole('heading',{level:1,name:'Titre du questionnaire'})).toBeInTheDocument();
+  const heading=within(editor).getByRole('heading',{level:2,name:'Pour commencer'});
+  heading.textContent='Déroulement libre';
+  fireEvent.input(editor);
+  let snapshot=onChange.mock.lastCall![0] as typeof page;
+  expect(snapshot.questions.filter(isFreeformMarker)).toHaveLength(1);
+  expect(snapshot.questions.map(q=>q.label)).toContain('Déroulement libre');
+  heading.textContent='';
+  fireEvent.input(editor);
+  snapshot=onChange.mock.lastCall![0] as typeof page;
+  expect(snapshot.questions.map(q=>q.label)).not.toContain('Pour commencer');
+  expect(snapshot.questions.filter(isFreeformMarker)).toHaveLength(1);
+ });
+});
 describe('éditeur documentaire unique',()=>{
  it('contient une seule surface éditable, du texte libre et les questions dans le même document',()=>{
   const {documentEditor}=setup();
