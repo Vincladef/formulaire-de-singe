@@ -6,7 +6,7 @@ import type { AnswerValues } from '../../shared/publicForm';
 import { QuestionField } from '../../pages/PublicFormPage';
 import type { StudioPageData } from '../../shared/studio';
 
-export function StudioPreview({pages,title}:{pages:StudioPageData[];title?:string}){
+export function StudioPreview({pages,title,description}:{pages:StudioPageData[];title?:string;description?:string|null}){
  const [answers,setAnswers]=useState<AnswerValues>({});
  const [pageIndex,setPageIndex]=useState(0);
  const journey=evaluateLogic(pages,answers);
@@ -25,7 +25,10 @@ export function StudioPreview({pages,title}:{pages:StudioPageData[];title?:strin
    <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[.12em] text-[#789280]">
     <span>Questionnaire</span><span>Étape {available.indexOf(current)+1} sur {available.length} · {count} questions visibles</span>
    </div>
-   {current===0&&<h1 className="font-display text-4xl font-extrabold text-[#254632]">{title||'Votre questionnaire'}</h1>}
+   {current===0&&<div>
+    <h1 className="font-display text-4xl font-extrabold text-[#254632]">{title||'Votre questionnaire'}</h1>
+    {description&&<p className="mt-4 whitespace-pre-line text-base leading-8 text-[#607265]">{description}</p>}
+   </div>}
    <header className="pb-5 pt-5">
     <h2 className="font-display text-2xl font-bold text-[#35583f]">{page.title||'Page '+(current+1)}</h2>
     {page.description&&<p className="mt-3 whitespace-pre-line text-sm leading-7 text-[#819385]">{page.description}</p>}
