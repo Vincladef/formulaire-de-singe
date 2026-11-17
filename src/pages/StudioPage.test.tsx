@@ -16,7 +16,7 @@ describe('Studio',()=>{
     expect(screen.getByRole('button',{name:/Nouveau formulaire/i})).toBeInTheDocument();
     expect(await screen.findByRole('alert')).toHaveTextContent(/Impossible de récupérer le jeton de connexion/);
   });
-  it('affiche en permanence les onglets de pages et permet de modifier l’introduction du formulaire',async()=>{
+  it('intègre titres et introductions dans le document libre, avec pages toujours accessibles',async()=>{
     vi.mocked(getAccessToken).mockResolvedValue('test-jwt');
     const id='d8ee0d8b-9d43-4609-8865-fd9b090c7fe9';
     const summary={id,title:'Vos courses alimentaires',slug:'courses-alimentaires',role:'owner',
@@ -28,9 +28,9 @@ describe('Studio',()=>{
         {id:'183c502d-7944-4406-8919-2bc3a915cece',position:1,title:'Vos habitudes',description:null,questions:[]},
       ]
     }]};
-    const fetchMock=vi.fn(async(input:string,init?:RequestInit)=>({
-      json:async()=>({ok:true,data:input.includes('/api/forms/'+id+'/description')?
-       {id,description:JSON.parse(String(init?.body)).description}:
+    const fetchMock=vi.fn(async(input:string)=>({
+      json:async()=>({ok:true,data:
+       input.endsWith('/draft')?{revision:1}:
        input.includes('/api/folders')?[]:
        input.endsWith('/api/forms/'+id)?form:[summary]})
     }));
@@ -40,16 +40,19 @@ describe('Studio',()=>{
     const nav=await screen.findByRole('tablist',{name:'Pages du formulaire'});
     expect(within(nav).getAllByRole('tab')).toHaveLength(2);
     expect(within(nav).getByRole('tab',{name:/Page 1 Pour commencer/i})).toHaveAttribute('aria-selected','true');
-    expect(screen.getByRole('textbox',{name:'Introduction du formulaire'})).toHaveValue('Texte de présentation existant');
-    fireEvent.click(within(nav).getByRole('tab',{name:/Page 2 Vos habitudes/i}));
+    const document=screen.getByRole('textbox',{name:'Éditeur de document'});
+    expect(document.querySelector('[data-role="title"]')).toBeNull();
     expect(screen.queryByRole('textbox',{name:'Introduction du formulaire'})).not.toBeInTheDocument();
+    expect(within(document).getByRole('heading',{name:'Vos courses alimentaires'})).toBeInTheDocument();
+    expect(within(document).getByText('Texte de présentation existant')).toBeInTheDocument();
+    expect(within(document).getByRole('heading',{name:'Pour commencer'})).toBeInTheDocument();
+    expect(within(document).getByText('Environ 5 minutes.')).toBeInTheDocument();
+    await waitFor(()=>expect(fetchMock.mock.calls.some(call=>String(call[0]).endsWith('/draft'))).toBe(true));
+    fireEvent.click(within(nav).getByRole('tab',{name:/Page 2 Vos habitudes/i}));
+    expect(screen.queryByRole('heading',{name:'Pour commencer'})).not.toBeInTheDocument();
+    expect(screen.getByRole('heading',{name:'Vos habitudes'})).toBeInTheDocument();
     fireEvent.click(within(nav).getByRole('tab',{name:/Page 1 Pour commencer/i}));
-    const intro=screen.getByRole('textbox',{name:'Introduction du formulaire'});
-    fireEvent.change(intro,{target:{value:'Nouvelle présentation de l’étude'}});
-    fireEvent.blur(intro);
-    await waitFor(()=>expect(fetchMock.mock.calls.some(call=>
-      String(call[0]).endsWith('/description')&&call[1]?.method==='PATCH'
-      &&JSON.parse(String(call[1]?.body)).description==='Nouvelle présentation de l’étude')).toBe(true));
+    expect(screen.getByRole('heading',{name:'Pour commencer'})).toBeInTheDocument();
   });
   it('rend visible l’onglet Intégrations et son action Google Sheets',async()=>{
     vi.mocked(getAccessToken).mockResolvedValue('test-jwt');
