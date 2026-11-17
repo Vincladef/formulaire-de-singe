@@ -12,6 +12,30 @@ beforeEach(()=>{vi.restoreAllMocks();fetchMock.mockReset();vi.stubGlobal('fetch'
  fetchMock.mockImplementation(async (_path:string,opts?:RequestInit)=>({ok:true,status:opts?.method==='POST'?201:200,json:async()=>opts?.method==='POST'?{ok:true,data:{id:'ok'}}:{ok:true,data:form}}));
  vi.stubGlobal('scrollTo',vi.fn());});
 const renderForm=()=>render(<MemoryRouter initialEntries={['/f/demo']}><Routes><Route path="/f/:slug" element={<PublicFormPage/>}/></Routes></MemoryRouter>);
+describe('Document libre sur la première page',()=>{
+ it('affiche uniquement les blocs composés dans l’éditeur, sans doubler le titre historique',async()=>{
+  const freeform:PublicForm={...form,title:'Titre interne seulement',description:'Introduction héritée',
+   pages:[{id:'p1',title:'Pour commencer',description:'Ancien résumé de page',questions:[
+    {id:crypto.randomUUID(),type:'statement',label:'\\u2060',description:null,required:false,
+     settings:{freeformMarker:'monk-freeform-layout-v1'},options:[]},
+    {id:crypto.randomUUID(),type:'statement',label:'Titre libre',description:null,required:false,
+     settings:{textStyle:'display'},options:[]},
+    {id:crypto.randomUUID(),type:'statement',label:'Introduction libre',description:null,required:false,
+     settings:{textStyle:'paragraph'},options:[]},
+    {id:crypto.randomUUID(),type:'statement',label:'Pour commencer, à ma façon',description:null,required:false,
+     settings:{textStyle:'heading'},options:[]},
+   ]}]};
+  fetchMock.mockImplementation(async()=>({ok:true,status:200,json:async()=>({ok:true,data:freeform})}));
+  renderForm();
+  expect(await screen.findByRole('heading',{name:'Titre libre',level:1})).toBeInTheDocument();
+  expect(screen.getByText('Introduction libre')).toBeInTheDocument();
+  expect(screen.getByRole('heading',{name:'Pour commencer, à ma façon',level:2})).toBeInTheDocument();
+  expect(screen.queryByText('Titre interne seulement')).not.toBeInTheDocument();
+  expect(screen.queryByText('Introduction héritée')).not.toBeInTheDocument();
+  expect(screen.queryByText('Ancien résumé de page')).not.toBeInTheDocument();
+  expect(screen.queryByText('Pour commencer',{exact:true})).not.toBeInTheDocument();
+ });
+});
 describe('Parcours répondant',()=>{
  it('préserve la saisie lorsqu’on revient en arrière et refuse une réponse absente',async()=>{
   renderForm();expect(await screen.findByText('Mon enquête')).toBeInTheDocument();
