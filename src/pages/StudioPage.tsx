@@ -8,6 +8,7 @@ import { withStableLogicKeys, readLogic, type VisibilityLogic } from '../shared/
 import { DocumentCanvas, type DocumentCanvasHandle } from '../components/studio/DocumentCanvas';
 import { StudioSidebar, type SidebarMode } from '../components/studio/StudioSidebar';
 import { PageNavigator } from '../components/studio/PageNavigator';
+import { freeformDraft, freeformPage } from '../shared/freeformLayout';
 import { ResultsPanel } from '../components/studio/ResultsPanel';
 import { GoogleSheetsPanel } from '../components/studio/GoogleSheetsPanel';
 import { StudioPreview } from '../components/studio/StudioPreview';
@@ -44,8 +45,6 @@ export function StudioPage(){
  const [sideMode,setSideMode]=useState<SidebarMode>('add');
  const [sidebarOpen,setSidebarOpen]=useState(false);
  const [saveState,setSaveState]=useState<SaveState>('saved');
- const [introText,setIntroText]=useState('');
- const [introStatus,setIntroStatus]=useState<SaveState>('saved');
  const [error,setError]=useState('');
  const [operation,setOperation]=useState(false);
  const [showArchived,setShowArchived]=useState(false);
@@ -64,7 +63,6 @@ export function StudioPage(){
  const revisionRef=useRef(0);const draftRef=useRef<string|null>(null);
  const documentRef=useRef<DocumentCanvasHandle|null>(null);
  const savedRef=useRef('');const latestRef=useRef<StudioPageData[]>([]);const savingRef=useRef(false);
- const introSavedRef=useRef('');const introTextRef=useRef('');const introSavingRef=useRef(false);
  const page=pages[pageIndex];const selected=page?.questions.find(q=>q.id===questionId)??null;
  const published=detail?.versions.some(v=>v.status==='published')??false;
  const editable=!!detail && !detail.archivedAt && detail.role!=='viewer' && !!draftRef.current;
@@ -82,14 +80,14 @@ export function StudioPage(){
    try{
      const form=await request<FormDetail>(`/api/forms/${id}`);
      setDetail(form);
-     const introduction=form.description??'';
-     introSavedRef.current=introduction;introTextRef.current=introduction;
-     setIntroText(introduction);setIntroStatus('saved');
      const draft=form.versions.find(v=>v.status==='draft');
      draftRef.current=draft?.id??null;revisionRef.current=draft?.revision??0;
      const next:StudioPageData[]=withStableLogicKeys(draft?.pages.map(p=>({id:p.id,title:p.title,description:p.description,
        questions:p.questions.map(q=>({id:q.id,type:q.type as QuestionType,label:q.label,description:q.description,required:q.required,settings:q.settings,options:q.options.map(o=>({id:o.id,value:o.value,label:o.label}))}))})) ?? []);
-     savedRef.current=JSON.stringify(next);setPages(next.length?next:[makePage()]);setPageIndex(0);setQuestionId(null);setPreview(false);setActiveTab(tab??(form.versions.some(v=>v.status==='published')?'overview':'questions'));setSideMode('add');setSaveState('saved');
+     const normalized=next.length?next:[makePage()];
+     const freeform=freeformDraft(normalized,form.title,form.description);
+     // Persist the migration in the editable draft, never mutate the published snapshot.
+     savedRef.current=JSON.stringify(normalized);setPages(freeform);setPageIndex(0);setQuestionId(null);setPreview(false);setActiveTab(tab??(form.versions.some(v=>v.status==='published')?'overview':'questions'));setSideMode('add');setSaveState('saved');
    }catch(e){setError(e instanceof Error?e.message:'Chargement impossible');}finally{setOperation(false);}
  },[]);
  useEffect(()=>{
@@ -187,34 +185,9 @@ export function StudioPage(){
    if(!editable||JSON.stringify(pages)===savedRef.current)return;
    const t=setTimeout(()=>{void saveNow();},850);return()=>clearTimeout(t);
  },[pages,editable,saveNow]);
- const saveIntroduction=useCallback(async()=>{
-  if(!detail||!editable||introSavingRef.current)return;
-  const formId=detail.id;
-  if(introSavedRef.current===introTextRef.current.trim())return;
-  introSavingRef.current=true;setIntroStatus('saving');
-  try{
-   while(activeIdRef.current===formId && introTextRef.current.trim()!==introSavedRef.current){
-    const description=introTextRef.current.trim()||null;
-    await request<{id:string;description:string|null}>(`/api/forms/${formId}/description`,'PATCH',{description});
-    if(activeIdRef.current!==formId)break;
-    introSavedRef.current=description??'';
-    setDetail(prev=>prev?.id===formId?{...prev,description}:prev);
-   }
-   if(activeIdRef.current===formId)setIntroStatus('saved');
-  }catch(e){
-   if(activeIdRef.current===formId){setIntroStatus('error');setError(e instanceof Error?e.message:'Enregistrement de l’introduction impossible');}
-  }finally{introSavingRef.current=false;}
- },[detail,editable]);
- useEffect(()=>{
-  if(!editable||introText.trim()===introSavedRef.current)return;
-  const timer=setTimeout(()=>{void saveIntroduction();},850);
-  return()=>clearTimeout(timer);
- },[introText,editable,saveIntroduction]);
  async function publishForm(){if(!detail||!editable||operation)return;
   if(!(await askDialog({kind:'confirm',title:'Publier ce formulaire ?',description:'La version publiée sera figée ; un nouveau brouillon sera créé pour les prochaines modifications.',confirmLabel:'Publier'})))return;
   setOperation(true);try{
-    await saveIntroduction();
-    if(introTextRef.current.trim()!==introSavedRef.current)throw new Error('L’introduction doit être enregistrée avant publication.');
     await saveNow();
     if(JSON.stringify(latestRef.current)!==savedRef.current)throw new Error('Enregistre les changements avant publication.');
     const result=await request<{draftId:string}>(`/api/forms/${detail.id}/publish`,'POST',
@@ -236,7 +209,7 @@ export function StudioPage(){
  }
  function deleteQuestion(id:string){if(!page)return;
    setSaveState('pending');setPages(prev=>prev.map((p,i)=>i===pageIndex?{...p,questions:p.questions.filter(q=>q.id!==id)}:p));if(questionId===id)setQuestionId(null);}
- function addPage(){setSaveState('pending');setPages(p=>[...p,makePage()]);setPageIndex(pages.length);setQuestionId(null);}
+ function addPage(){setSaveState('pending');setPages(p=>[...p,freeformPage(makePage())]);setPageIndex(pages.length);setQuestionId(null);}
  async function deletePage(){if(pages.length<2||!(await askDialog({kind:'confirm',title:'Supprimer cette page ?',description:'La page et toutes ses questions seront retirées du brouillon.',confirmLabel:'Supprimer la page',danger:true})))return;
    setSaveState('pending');setPages(p=>p.filter((_,i)=>i!==pageIndex));setPageIndex(0);setQuestionId(null);}
  async function createFolder(parentId:string|null=null){
@@ -430,11 +403,11 @@ export function StudioPage(){
     </section>
    </div> : <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e3ebdf] bg-white px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3"><button title="Liste des formulaires" onClick={()=>void (async()=>{if((saveState!=='saved'||introTextRef.current.trim()!==introSavedRef.current) && !(await askDialog({kind:'confirm',title:'Quitter l’éditeur ?',description:'Les modifications récentes ne sont pas encore confirmées comme enregistrées.',confirmLabel:'Quitter'})))return;setDetail(null);draftRef.current=null;})()} aria-label="Revenir aux formulaires" className="flex h-11 w-11 items-center justify-center rounded-lg text-[#41674e] hover:bg-[#edf4ed]"><ArrowLeft size={19}/></button><div><h1 className="max-w-[330px] truncate font-bold text-[#294936]">{detail.title}</h1><span className="text-xs text-[#607265]">{published?'Version publiée + brouillon':'Brouillon'} · {countQuestions(pages)} question(s)</span></div></div>
+        <div className="flex min-w-0 items-center gap-3"><button title="Liste des formulaires" onClick={()=>void (async()=>{if((saveState!=='saved'||false) && !(await askDialog({kind:'confirm',title:'Quitter l’éditeur ?',description:'Les modifications récentes ne sont pas encore confirmées comme enregistrées.',confirmLabel:'Quitter'})))return;setDetail(null);draftRef.current=null;})()} aria-label="Revenir aux formulaires" className="flex h-11 w-11 items-center justify-center rounded-lg text-[#41674e] hover:bg-[#edf4ed]"><ArrowLeft size={19}/></button><div><h1 className="max-w-[330px] truncate font-bold text-[#294936]">{detail.title}</h1><span className="text-xs text-[#607265]">{published?'Version publiée + brouillon':'Brouillon'} · {countQuestions(pages)} question(s)</span></div></div>
         <div className="flex flex-wrap items-center gap-2">{detail&&<span role="status" aria-live="polite" className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium ${saveState==='error'?'bg-red-50 text-red-700':saveState==='pending'?'bg-[#fff6e5] text-[#825e2b]':saveState==='saving'?'bg-[#edf2ec] text-[#506957]':'bg-[#eaf2e7] text-[#315c42]'}`}>
          {saveState==='saving'?<LoaderCircle size={14} className="animate-spin"/>:saveState==='error'?<CircleAlert size={14}/>:saveState==='pending'?<Clock3 size={14}/>:<CheckCircle2 size={14}/>}
          {{saved:'Enregistré',saving:'Enregistrement…',pending:'Non enregistré',error:'Sauvegarde échouée'}[saveState]}
-       </span>}{published&&<><a className={light} target="_blank" rel="noopener noreferrer" href={`/f/${encodeURIComponent(detail.slug)}`}><Eye size={16}/> Voir le lien public</a><button className={light} onClick={()=>{void (async()=>{try{await navigator.clipboard.writeText(`${window.location.origin}/f/${encodeURIComponent(detail.slug)}`);}catch{setError("Copie impossible. Utilise le lien public.");}})();}}><Copy size={15}/> Copier le lien</button></>}<button className={light} onClick={()=>{setActiveTab('questions');setPreview(v=>!v);}}><Eye size={16}/>{preview?'Éditer':'Aperçu'}</button><button className={cta} disabled={!editable||operation||saveState==='saving'||saveState==='error'||introStatus==='saving'||introStatus==='error'} onClick={()=>void publishForm()}><Send size={15}/> Publier</button></div>
+       </span>}{published&&<><a className={light} target="_blank" rel="noopener noreferrer" href={`/f/${encodeURIComponent(detail.slug)}`}><Eye size={16}/> Voir le lien public</a><button className={light} onClick={()=>{void (async()=>{try{await navigator.clipboard.writeText(`${window.location.origin}/f/${encodeURIComponent(detail.slug)}`);}catch{setError("Copie impossible. Utilise le lien public.");}})();}}><Copy size={15}/> Copier le lien</button></>}<button className={light} onClick={()=>{setActiveTab('questions');setPreview(v=>!v);}}><Eye size={16}/>{preview?'Éditer':'Aperçu'}</button><button className={cta} disabled={!editable||operation||saveState==='saving'||saveState==='error'} onClick={()=>void publishForm()}><Send size={15}/> Publier</button></div>
       </div>
       <nav aria-label="Sections du formulaire" className="mb-5 flex gap-1.5 overflow-x-auto border-b border-[#dfe8dc] pb-2 sm:gap-2">
         {(['overview','questions','results','integrations','settings'] as const).filter(tab=>published||tab!=='overview').map(tab=><button key={tab} type="button"
@@ -490,7 +463,7 @@ export function StudioPage(){
         </div>
         {editable&&<button className="inline-flex items-center gap-2 text-sm text-[#954840]" onClick={()=>void performState('archive')}><Archive size={15}/> Archiver</button>}
        </section>:
-       preview?<StudioPreview pages={pages} title={detail.title} description={introText}/>:<div className="space-y-4">
+       preview?<StudioPreview pages={pages} title={detail.title} description={detail.description}/>:<div className="space-y-4">
         <PageNavigator pages={pages} pageIndex={pageIndex} editable={editable}
          onSelect={idx=>{setPageIndex(idx);setQuestionId(null);}}
          onAdd={addPage}/>
@@ -500,22 +473,6 @@ export function StudioPage(){
           onAddQuestion={type=>documentRef.current?.insert(type)}/>
         <section id="monk-page-editor" aria-label="Éditeur de page" className="min-w-0 rounded-[22px] border border-[#e4eae1] bg-white px-5 py-7 sm:px-10 sm:py-10">
          {page&&<>
-          {pageIndex===0&&<div className="mb-8 border-b border-[#e2ebdf] pb-7">
-           <div className="mb-4">
-            <p className="mb-2 text-xs font-bold uppercase tracking-[.1em] text-[#6c8871]">En-tête du questionnaire</p>
-            <h2 className="font-display text-2xl font-extrabold leading-tight text-[#284d36] sm:text-3xl">{detail.title}</h2>
-           </div>
-           <label htmlFor="monk-form-introduction" className="block text-sm font-bold text-[#315942]">Introduction du formulaire</label>
-           <p className="mt-1 text-xs leading-5 text-[#718576]">Texte affiché sous le titre général, avant la page 1.</p>
-           <textarea id="monk-form-introduction" aria-label="Introduction du formulaire" rows={5} maxLength={3000} disabled={!editable}
-            value={introText} onChange={e=>{introTextRef.current=e.target.value;setIntroText(e.target.value);setIntroStatus('pending');}}
-            onBlur={()=>{void saveIntroduction();}} placeholder="Présente ton questionnaire, sa durée et les informations importantes…"
-            className="mt-3 block w-full resize-y rounded-xl border border-[#cfdfcf] bg-[#fafcf9] px-4 py-3 text-sm leading-7 text-[#314e3b] outline-none placeholder:text-[#8b9a8e] focus:border-[#77a281] focus:ring-2 focus:ring-[#dcebd9] disabled:opacity-70"/>
-           <p className={`mt-2 text-xs ${introStatus==='error'?'text-red-700':'text-[#728678]'}`} role="status">
-            {introStatus==='saved'?'Introduction enregistrée':introStatus==='saving'?'Enregistrement de l’introduction…':introStatus==='error'?'Échec de sauvegarde : réessaie ou vérifie la connexion.':'Modification non enregistrée'}
-            {published?' · Les changements de cette introduction apparaissent immédiatement sur le formulaire public.':''}
-           </p>
-          </div>}
           <div className="mb-5 flex items-center justify-between gap-3">
            <span className="text-xs font-medium text-[#607265]">Page {pageIndex+1} sur {pages.length}</span>
           </div>
