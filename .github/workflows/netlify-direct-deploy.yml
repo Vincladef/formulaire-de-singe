@@ -20,6 +20,12 @@ jobs:
     env:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN || secrets.NETLIFY_API_TOKEN }}
       NETLIFY_SITE_ID: 2f2e535c-336b-41ce-a0ce-e1a65a5ff909
+      # Neon Auth's public URL, confirmed against its production branch.
+      # Do not take this variable from a masked Netlify env read: the literal
+      # masked value produced a white screen in production.
+      VITE_NEON_AUTH_URL: https://ep-cool-pine-bav7txar.neonauth.c-8.eu-central-1.aws.neon.tech/formulaire_de_singe/auth
+      NEON_AUTH_URL: https://ep-cool-pine-bav7txar.neonauth.c-8.eu-central-1.aws.neon.tech/formulaire_de_singe/auth
+      NEON_AUTH_JWKS_URL: https://ep-cool-pine-bav7txar.neonauth.c-8.eu-central-1.aws.neon.tech/formulaire_de_singe/auth/.well-known/jwks.json
       CI: true
     steps:
       - uses: actions/checkout@v4
@@ -34,8 +40,28 @@ jobs:
       - name: Publier en production sans consommer les minutes de build Netlify
         if: ${{ env.NETLIFY_AUTH_TOKEN != '' }}
         run: |
+          # Reassert known, public auth endpoints for the entire local build;
+          # the Netlify CLI may expose a redacted placeholder for secret env vars.
+          export VITE_NEON_AUTH_URL NEON_AUTH_URL NEON_AUTH_JWKS_URL
           npx netlify build --context production
-          npx netlify deploy --prod --no-build --dir=dist --functions=netlify/functions --site "$NETLIFY_SITE_ID" --message "MonkForm: copier-coller des images"
+          # Fail closed: never publish a bundle with a masked or missing auth URL.
+          node --input-type=module -e '
+            import fs from "node:fs"; import path from "node:path";
+            const dir="dist/assets";
+            const js=fs.readdirSync(dir).filter(f=>f.endsWith(".js"))
+              .map(f=>fs.readFileSync(path.join(dir,f),"utf8")).join("\\n");
+            const expected=process.env.VITE_NEON_AUTH_URL;
+            if(!expected || !js.includes(expected)) {
+              console.error("ERREUR : URL Neon Auth absente du bundle. Publication annulée.");
+              process.exit(1);
+            }
+            if(/\\*{8,}auth/.test(js)||js.includes("YOUR-NEON-AUTH-URL")) {
+              console.error("ERREUR : une URL Neon Auth masquée ou fictive a été compilée.");
+              process.exit(1);
+            }
+            console.log("Neon Auth public URL OK. Publication autorisée.");
+          '
+          npx netlify deploy --prod --no-build --dir=dist --functions=netlify/functions --site "$NETLIFY_SITE_ID" --message "MonkForm: correction URL Neon Auth"
       - name: Signaler l'absence d'autorisation Netlify
         if: ${{ env.NETLIFY_AUTH_TOKEN == '' }}
         run: |
