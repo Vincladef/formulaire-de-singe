@@ -30,6 +30,7 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Vérifications
         run: npm run check
+      # Relance explicite après installation du jeton Netlify dans GitHub Actions.
       - name: Publier en production sans consommer les minutes de build Netlify
         if: ${{ env.NETLIFY_AUTH_TOKEN != '' }}
         run: |
