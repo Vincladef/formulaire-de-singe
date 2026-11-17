@@ -10,9 +10,8 @@ type Props={
  pages:StudioPageData[];pageIndex:number;
  selected:StudioQuestion|null;editable:boolean;
  onQuestionUpdate:(q:StudioQuestion)=>void;onApplyPageCondition:(rule:VisibilityLogic)=>void;onAddQuestion:(type:InsertQuestionType)=>void;
-
 };
-export function StudioSidebar({mode,onModeChange,open,onToggle,pages,pageIndex,onPageIndex,selected,editable,
+export function StudioSidebar({mode,onModeChange,open,onToggle,pages,pageIndex,selected,editable,
  onQuestionUpdate,onApplyPageCondition,onAddQuestion}:Props){
  const tools=[{mode:'add',name:'Ajouter',icon:Plus},{mode:'settings',name:'Options',icon:SlidersHorizontal},
  {mode:'logic',name:'Logique',icon:GitBranch}] as const;
@@ -46,7 +45,6 @@ export function StudioSidebar({mode,onModeChange,open,onToggle,pages,pageIndex,o
    {mode==='logic'&&<div>
      {selected&&editable?<ConditionalLogicPanel pages={pages} pageIndex={pageIndex} question={selected} onUpdate={onQuestionUpdate} onApplyToPage={onApplyPageCondition}/>:
        <div className="rounded-xl bg-[#f7faf5] p-4 text-sm leading-6 text-[#607265]">Sélectionne une question dans le document pour ajouter des conditions d'affichage, de validation ou une redirection.</div>}
-   </div>}
    </div>}
    </div>}
   </aside>;
