@@ -1,10 +1,11 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
-import { Bold, Heading2, ImagePlus, Italic, Quote, Strikethrough, Type, Underline, Undo2, Redo2 } from 'lucide-react';
+import { Bold, Heading1, Heading2, ImagePlus, Italic, Quote, Strikethrough, Type, Underline, Undo2, Redo2 } from 'lucide-react';
 import { ColorPalette } from './ColorPalette';
 import { audioMode } from '../../shared/audio';
 import { OTHER_VALUE } from '../../shared/publicForm';
 import { allowedInlineImage, sanitizeDocumentHtml } from '../../shared/richText';
 import { clipboardImageToDataUrl, clipboardWebImageToDataUrl } from '../../shared/clipboardImage';
+import { isFreeformMarker, isFreeformPage } from '../../shared/freeformLayout';
 import { duplicateQuestion, makeQuestion, questionDisplayName, insertQuestionTypes, insertionQuestionName, type InsertQuestionType, type StudioPageData, type StudioQuestion } from '../../shared/studio';
 
 type Props = {
@@ -21,7 +22,7 @@ export type DocumentCanvasHandle = {
 };
 
 const placeholderLine = 'Votre texte ici…';
-const textTypes = ['P','DIV','H2','BLOCKQUOTE'];
+const textTypes = ['P','DIV','H1','H2','BLOCKQUOTE'];
 
 function el(tag:string,cls:string,text?:string):HTMLElement{
  const result=document.createElement(tag);
@@ -31,8 +32,8 @@ function el(tag:string,cls:string,text?:string):HTMLElement{
 }
 function makeLine(question?:StudioQuestion):HTMLElement {
  const style=question?.settings.textStyle;
- const tag=style==='heading'?'h2':style==='quote'?'blockquote':'p';
- const line=el(tag,tag==='h2'?'my-4 text-2xl font-bold tracking-tight text-[#274632]':tag==='blockquote'?'my-4 border-l-[3px] border-[#a1bca3] pl-4 italic leading-8 text-[#49634f]':'my-2 min-h-8 text-base leading-8 text-[#2c4535]');
+ const tag=style==='display'?'h1':style==='heading'?'h2':style==='quote'?'blockquote':'p';
+ const line=el(tag,tag==='h1'?'my-5 text-4xl font-extrabold leading-tight tracking-tight text-[#274632] sm:text-5xl':tag==='h2'?'my-4 text-2xl font-bold tracking-tight text-[#274632]':tag==='blockquote'?'my-4 border-l-[3px] border-[#a1bca3] pl-4 italic leading-8 text-[#49634f]':'my-2 min-h-8 text-base leading-8 text-[#2c4535]');
  line.dataset.lineId=question?.id??crypto.randomUUID();
  if(question?.label&&question.label!==placeholderLine){
   const saved=question.settings.richHtml;
@@ -135,14 +136,17 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
  const build=useCallback((data:StudioPageData)=>{
   const editor=root.current;if(!editor)return;
   const fragment=document.createDocumentFragment();
-  const title=el('h1','mb-3 min-h-12 text-3xl font-bold tracking-tight text-[#294b36] sm:text-4xl',data.title==='Nouvelle page'?'':data.title);
-  title.dataset.role='title';title.dataset.placeholder='Titre de la page (facultatif)';title.dataset.empty=String(!title.textContent?.trim());
-  fragment.appendChild(title);
-  const intro=el('p','mb-7 min-h-8 text-sm leading-7 text-[#536a59]',data.description??'');
-  intro.dataset.role='description';intro.dataset.placeholder='Ajouter une introduction…';intro.dataset.empty=String(!intro.textContent?.trim());
-  fragment.appendChild(intro);
+  if(!isFreeformPage(data)){
+   const title=el('h1','mb-3 min-h-12 text-3xl font-bold tracking-tight text-[#294b36] sm:text-4xl',data.title==='Nouvelle page'?'':data.title);
+   title.dataset.role='title';title.dataset.placeholder='Titre de la page (facultatif)';title.dataset.empty=String(!title.textContent?.trim());
+   fragment.appendChild(title);
+   const intro=el('p','mb-7 min-h-8 text-sm leading-7 text-[#536a59]',data.description??'');
+   intro.dataset.role='description';intro.dataset.placeholder='Ajouter une introduction…';intro.dataset.empty=String(!intro.textContent?.trim());
+   fragment.appendChild(intro);
+  }
   let hasLine=false;
   for(const [i,q] of data.questions.entries()){
+   if(isFreeformMarker(q))continue;
    if(q.type==='statement'){
     if(!q.label.trim()||q.label===placeholderLine)continue;
     fragment.appendChild(makeLine(q));hasLine=true;
@@ -188,7 +192,7 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
     if(!label)continue;
     const original=map.get(child.dataset.lineId??'');
     const template=original?.type==='statement'?original:makeQuestion('statement');
-    const textStyle=child.tagName==='H2'?'heading':child.tagName==='BLOCKQUOTE'?'quote':'paragraph';
+    const textStyle=child.tagName==='H1'?'display':child.tagName==='H2'?'heading':child.tagName==='BLOCKQUOTE'?'quote':'paragraph';
     let id=child.dataset.lineId??crypto.randomUUID();
     if(usedIds.has(id))id=crypto.randomUUID();
     usedIds.add(id);child.dataset.lineId=id;
@@ -201,7 +205,9 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
   const nextIntro=(intro?.textContent??'').trim();
   if(title)title.dataset.empty=String(!nextTitle);
   if(intro)intro.dataset.empty=String(!nextIntro);
-  return {...previous,title:nextTitle,description:nextIntro||null,questions};
+  return isFreeformPage(previous)
+   ? {...previous,questions:[...previous.questions.filter(isFreeformMarker),...questions]}
+   : {...previous,title:nextTitle,description:nextIntro||null,questions};
  }
  function emit(){
   const result=snapshot();
@@ -332,7 +338,7 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
    updateQuestion(id,q=>q.options.length>2?{...q,options:q.options.filter(o=>o.id!==button.dataset.optionId)}:q);
   }
  }
- function styleLine(style:'paragraph'|'heading'|'quote'){
+ function styleLine(style:'paragraph'|'display'|'heading'|'quote'){
   const editor=root.current;if(!editor)return;
   const range=savedRange.current??(window.getSelection()?.rangeCount?window.getSelection()!.getRangeAt(0):null);
   const line=range?closestLine(range.startContainer,editor):null;
@@ -455,6 +461,7 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
    <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>format('strikeThrough')} aria-label="Barrer" title="Barrer" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Strikethrough size={18}/></button>
    <div className="mx-1 h-5 w-px bg-[#dce6db]"/>
    <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>styleLine('paragraph')} aria-label="Paragraphe" title="Paragraphe" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Type size={18}/></button>
+   <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>styleLine('display')} title="Grand titre" aria-label="Grand titre" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Heading1 size={18}/></button>
    <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>styleLine('heading')} title="Titre" aria-label="Titre" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Heading2 size={18}/></button>
    <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>styleLine('quote')} title="Citation" aria-label="Citation" className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><Quote size={17}/></button>
    <div className="mx-1 h-5 w-px bg-[#dce6db]"/>
