@@ -4,7 +4,7 @@ import { ColorPalette } from './ColorPalette';
 import { audioMode } from '../../shared/audio';
 import { OTHER_VALUE } from '../../shared/publicForm';
 import { allowedInlineImage, sanitizeDocumentHtml } from '../../shared/richText';
-import { clipboardImageToDataUrl } from '../../shared/clipboardImage';
+import { clipboardImageToDataUrl, clipboardWebImageToDataUrl } from '../../shared/clipboardImage';
 import { duplicateQuestion, makeQuestion, questionDisplayName, insertQuestionTypes, insertionQuestionName, type InsertQuestionType, type StudioPageData, type StudioQuestion } from '../../shared/studio';
 
 type Props = {
@@ -353,17 +353,16 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
   remember();emit();
  }
  function clipboardRange():Range|null{
-  const selection=window.getSelection();
-  const current=savedRange.current??(selection?.rangeCount?selection.getRangeAt(0):null);
-  return current?.cloneRange()??null;
+  const editor=root.current,selection=window.getSelection();
+  const active=selection?.rangeCount?selection.getRangeAt(0):null;
+  if(editor&&active&&editor.contains(active.startContainer))return active.cloneRange();
+  const saved=savedRange.current;
+  return editor&&saved&&editor.contains(saved.startContainer)?saved.cloneRange():null;
  }
- function pasteInlineImage(src:string,originalRange:Range|null){
+ function pasteInlineImage(src:string,originalRange:Range|null,nearQuestionId?:string){
   const editor=root.current;if(!editor)return;
-  const target=originalRange?.startContainer??null;
+  const target=nearQuestionId?null:originalRange?.startContainer??null;
   const line=target?closestLine(target,editor):null;
-  if(line&&(line.dataset.questionId||line.dataset.role)){
-   setImageFeedback('Clique dans un paragraphe pour y placer l’image.');return;
-  }
   if(editor.querySelectorAll('img[src^="data:image/"]').length>=8){
    setImageFeedback('Limite de 8 images par page atteinte.');return;
   }
@@ -372,40 +371,69 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
   const image=document.createElement('img');
   image.src=src;image.alt='Image du formulaire';
   image.className='my-3 max-w-full h-auto rounded-lg';
-  if(line&&originalRange&&editor.contains(line)){
+  const question=nearQuestionId?Array.from(editor.children).find(node=>node instanceof HTMLElement&&node.dataset.questionId===nearQuestionId):null;
+  let insertedRange:Range|null=null;
+  if(line&&!line.dataset.role&&!line.dataset.questionId&&originalRange&&editor.contains(line)){
    originalRange.deleteContents();
    originalRange.insertNode(image);
    originalRange.setStartAfter(image);
    originalRange.collapse(true);
+   insertedRange=originalRange;
   }else{
-   let paragraph=Array.from(editor.children).reverse().find(node=>node instanceof HTMLElement&&node.dataset.lineId) as HTMLElement|undefined;
-   if(!paragraph){paragraph=createEmptyParagraph();editor.appendChild(paragraph);}
+   let paragraph:HTMLElement|undefined;
+   if(question instanceof HTMLElement){
+    const next=question.nextElementSibling;
+    paragraph=next instanceof HTMLElement&&next.dataset.lineId?next:undefined;
+    if(!paragraph){paragraph=createEmptyParagraph();question.after(paragraph);}
+   }else if(line?.dataset.role){
+    const introduction=editor.querySelector<HTMLElement>('[data-role="description"]');
+    const next=introduction?.nextElementSibling;
+    paragraph=next instanceof HTMLElement&&next.dataset.lineId?next:undefined;
+    if(!paragraph){paragraph=createEmptyParagraph();introduction?.after(paragraph);}
+   }else{
+    paragraph=Array.from(editor.children).reverse().find(node=>node instanceof HTMLElement&&node.dataset.lineId) as HTMLElement|undefined;
+    if(!paragraph){paragraph=createEmptyParagraph();editor.appendChild(paragraph);}
+   }
    paragraph.append(image);
+   insertedRange=document.createRange();
+   insertedRange.setStartAfter(image);insertedRange.collapse(true);
   }
   const selection=window.getSelection();
-  if(selection&&originalRange){selection.removeAllRanges();selection.addRange(originalRange);savedRange.current=originalRange.cloneRange();}
+  if(selection&&insertedRange){selection.removeAllRanges();selection.addRange(insertedRange);savedRange.current=insertedRange.cloneRange();}
   ensureEnd();setImageFeedback('');emit();
  }
- async function pasteImageFile(file:File,range:Range|null){
+ async function pasteImageFile(file:File,range:Range|null,nearQuestionId?:string){
   if(!editable)return;
   setImageFeedback('Insertion de l’image…');
   try{
    const url=await clipboardImageToDataUrl(file);
-   pasteInlineImage(url,range);
+   pasteInlineImage(url,range,nearQuestionId);
+  }catch(error){setImageFeedback(error instanceof Error?error.message:'Impossible de coller cette image.');}
+ }
+ async function pasteWebImage(src:string,range:Range|null,nearQuestionId?:string){
+  setImageFeedback('Importation de l’image copiée…');
+  try{
+   const url=await clipboardWebImageToDataUrl(src);
+   pasteInlineImage(url,range,nearQuestionId);
   }catch(error){setImageFeedback(error instanceof Error?error.message:'Impossible de coller cette image.');}
  }
  function onPaste(event:ClipboardEvent<HTMLDivElement>){
-  if(!editable||closestQuestion(event.target))return;
-  event.preventDefault();
-  const range=clipboardRange();
+  if(!editable)return;
+  const questionId=closestQuestion(event.target)?.dataset.questionId;
   const image=Array.from(event.clipboardData.items??[]).find(item=>item.kind==='file'&&item.type.startsWith('image/'))?.getAsFile()
    ??Array.from(event.clipboardData.files??[]).find(file=>file.type.startsWith('image/'));
-  if(image){void pasteImageFile(image,range);return;}
   const html=event.clipboardData.getData('text/html');
-  if(html){
-   const template=document.createElement('template');template.innerHTML=html;
-   const embedded=Array.from(template.content.querySelectorAll('img')).find(img=>allowedInlineImage(img.getAttribute('src')??''));
-   if(embedded){pasteInlineImage(embedded.getAttribute('src')!,range);return;}
+  const template=document.createElement('template');template.innerHTML=html;
+  const embedded=template.content.querySelector('img[src]');
+  if(!image&&!embedded&&questionId)return; // Leave normal text editing in question fields untouched.
+  event.preventDefault();
+  const range=questionId?null:clipboardRange();
+  if(image){void pasteImageFile(image,range,questionId);return;}
+  if(embedded){
+   const src=embedded.getAttribute('src')??'';
+   if(allowedInlineImage(src)){pasteInlineImage(src,range,questionId);return;}
+   if(/^https?:\/\//i.test(src)){void pasteWebImage(src,range,questionId);return;}
+   setImageFeedback('Le format de cette image ne peut pas être collé. Utilisez « Copier l’image » ou le bouton image.');return;
   }
   const plain=event.clipboardData.getData('text/plain');
   if(typeof document.execCommand==='function')document.execCommand('insertText',false,plain);
@@ -439,7 +467,7 @@ export const DocumentCanvas=forwardRef<DocumentCanvasHandle,Props>(function Docu
    <div className="mx-1 h-5 w-px bg-[#dce6db]"/>
    <button type="button" aria-label="Ajouter une image" title="Coller ou importer une image" onClick={()=>fileInput.current?.click()}
     className="flex h-10 w-10 items-center justify-center rounded-lg text-[#496c52] hover:bg-[#edf4ea]"><ImagePlus size={19}/></button>
-   <input ref={fileInput} type="file" className="sr-only" tabIndex={-1} accept="image/png,image/jpeg,image/webp,image/gif"
+   <input ref={fileInput} type="file" className="sr-only" tabIndex={-1} accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif"
     onChange={e=>{const file=e.target.files?.[0];const range=clipboardRange();if(file)void pasteImageFile(file,range);e.target.value='';}} aria-label="Choisir une image"/>
   </div>}
   {imageFeedback&&<p role="status" aria-live="polite" className="mb-3 text-sm text-[#6d5a36]">{imageFeedback}</p>}
