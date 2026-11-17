@@ -10,19 +10,25 @@ const formId = '1d3b4fa0-5b4b-4f07-86b9-e7e3339f17a3';
 const draftId = 'a2f94923-4e89-4bf5-b77d-11c50e777192';
 
 class FakeRepo implements FormRepository {
-  private forms: Array<FormSummary & { ownerId: string }> = [];
+  private forms: Array<FormSummary & { ownerId: string;description:string|null }> = [];
   async list(userId: string, limit: number) {
     return this.forms.filter(f => f.ownerId === userId).slice(0, limit);
   }
   async create(userId: string, title: string) {
-    this.forms.push({ id: formId, title, slug: 'form-test', role: 'owner', ownerId: userId,
+    this.forms.push({ id: formId, title, slug: 'form-test', role: 'owner', ownerId: userId, description:null,
       createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString() });
     return { id: formId, title, slug: 'form-test', draftId };
   }
   async get(userId: string, id: string): Promise<FormDetail | null> {
     const f = this.forms.find(f => f.id === id && f.ownerId === userId);
-    return f ? { id: f.id, title: f.title, slug: f.slug, description: null,
+    return f ? { id: f.id, title: f.title, slug: f.slug, description: f.description,
       role: 'owner', versions: [{ id: draftId, number: 1, status: 'draft', publishedAt: null, pages: [], rules: [] }] } : null;
+  }
+  async setDescription(userId:string,id:string,description:string|null){
+    const form=this.forms.find(f=>f.id===id&&f.ownerId===userId);
+    if(!form)return null;
+    form.description=description;
+    return {id,description};
   }
   async rename(userId: string, id: string, title: string) {
     const f = this.forms.find(f => f.id === id && f.ownerId === userId);
@@ -96,6 +102,25 @@ describe('API REST sécurisée', () => {
     const excessive=await request('/api/forms/'+formId+'/draft','PUT','A'.repeat(4_194_305));
     expect(excessive.status).toBe(400);
     expect(save).toHaveBeenCalledOnce();
+  });
+  it('permet de modifier et vider uniquement l’introduction générale, sans toucher aux pages',async()=>{
+    const req=make();
+    await req('/api/forms','POST','owner',{title:'Enquête'});
+    const path=`/api/forms/${formId}/description`;
+    const updated=await req(path,'PATCH','owner',{description:'  Présentation de l’étude  '});
+    expect(updated.status).toBe(200);
+    expect((await updated.json()).data.description).toBe('Présentation de l’étude');
+    expect((await (await req(`/api/forms/${formId}`)).json()).data.description).toBe('Présentation de l’étude');
+    expect((await req(path,'PATCH','viewer',{description:'Accès illégal'})).status).toBe(404);
+    expect((await req(path,'PATCH','owner',{description:null})).status).toBe(200);
+    expect((await (await req(`/api/forms/${formId}`)).json()).data.description).toBeNull();
+  });
+  it('refuse les introductions trop longues et les champs non prévus',async()=>{
+    const req=make();
+    await req('/api/forms','POST','owner',{title:'Enquête'});
+    const path=`/api/forms/${formId}/description`;
+    expect((await req(path,'PATCH','owner',{description:'a'.repeat(3001)})).status).toBe(400);
+    expect((await req(path,'PATCH','owner',{description:'ok',admin:true})).status).toBe(400);
   });
   it('valide le type et le contenu des requêtes', async () => {
     const req = make();
