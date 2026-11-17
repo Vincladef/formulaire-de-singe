@@ -1,0 +1,42 @@
+name: Publication directe MonkForm (sans builds Netlify)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/netlify-direct-deploy.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monkform-manual-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN || secrets.NETLIFY_API_TOKEN }}
+      NETLIFY_SITE_ID: 2f2e535c-336b-41ce-a0ce-e1a65a5ff909
+      CI: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Installer les dépendances
+        run: npm install --no-audit --no-fund
+      - name: Vérifications
+        run: npm run check
+      - name: Publier en production sans consommer les minutes de build Netlify
+        if: ${{ env.NETLIFY_AUTH_TOKEN != '' }}
+        run: |
+          npx netlify build --context production
+          npx netlify deploy --prod --no-build --dir=dist --functions=netlify/functions --site "$NETLIFY_SITE_ID" --message "MonkForm: copier-coller des images"
+      - name: Signaler l'absence d'autorisation Netlify
+        if: ${{ env.NETLIFY_AUTH_TOKEN == '' }}
+        run: |
+          echo "::warning::Aucun jeton Netlify configuré dans les secrets GitHub. Le code est testé, mais la publication sur le site existant exige NETLIFY_AUTH_TOKEN."
+          echo "Le jeton est nécessaire pour publier vers le site Netlify existant, même si le build est exécuté ici."
