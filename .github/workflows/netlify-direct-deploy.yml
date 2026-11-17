@@ -40,3 +40,4 @@ jobs:
         run: |
           echo "::warning::Aucun jeton Netlify configuré dans les secrets GitHub. Le code est testé, mais la publication sur le site existant exige NETLIFY_AUTH_TOKEN."
           echo "Le jeton est nécessaire pour publier vers le site Netlify existant, même si le build est exécuté ici."
+          exit 1
