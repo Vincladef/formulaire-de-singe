@@ -4,7 +4,7 @@ import { createRestHandler } from '../../src/server/restApi';
 export default createRestHandler();
 
 export const config: Config = {
-  path: ['/api/forms', '/api/forms/:id', '/api/forms/:id/draft', '/api/forms/:id/publish', '/api/forms/:id/state', '/api/forms/:id/duplicate', '/api/forms/:id/folder'],
+  path: ['/api/forms', '/api/forms/:id', '/api/forms/:id/draft', '/api/forms/:id/publish', '/api/forms/:id/state', '/api/forms/:id/duplicate', '/api/forms/:id/folder', '/api/forms/:id/description'],
   method: ['GET', 'POST', 'PATCH', 'PUT'],
   rateLimit: { aggregateBy: ['ip', 'domain'], windowSize: 60, windowLimit: 60 },
 };
