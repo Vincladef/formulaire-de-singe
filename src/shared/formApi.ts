@@ -5,6 +5,8 @@ export const createFormInput = z.object({
   title: z.string().trim().min(1).max(200),
 }).strict();
 export const renameFormInput = createFormInput;
+/** Global introduction displayed under the form title on the first public page. */
+export const formDescriptionInput = z.object({description:z.string().trim().max(3000).nullable()}).strict();
 export const listFormsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 }).strict();
@@ -53,4 +55,5 @@ export interface FormRepository {
   create(userId: string, title: string): Promise<{ id: string; title: string; slug: string; draftId: string }>;
   get(userId: string, id: string): Promise<FormDetail | null>;
   rename(userId: string, id: string, title: string): Promise<FormSummary | null>;
+  setDescription(userId: string, id: string, description: string | null): Promise<{id:string;description:string|null} | null>;
 }
