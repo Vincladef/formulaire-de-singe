@@ -103,6 +103,19 @@ export const formRepository: FormRepository = {
     } satisfies FormDetail;
   },
 
+  async setDescription(userId, id, description) {
+    const db = getDb();
+    const [row] = await db.update(forms)
+      .set({description, updatedAt: sql`now()`})
+      .where(and(eq(forms.id,id),isNull(forms.deletedAt),isNull(forms.archivedAt),
+        or(eq(forms.ownerId,userId),sql`EXISTS (
+          SELECT 1 FROM fs_form_members AS m
+          WHERE m.form_id = ${forms.id} AND m.user_id = ${userId} AND m.role = 'editor'
+        )`)))
+      .returning({id:forms.id,description:forms.description});
+    return row ?? null;
+  },
+
   async rename(userId, id, title) {
     const db = getDb();
     // One authorization-guarded UPDATE prevents a TOCTOU race between checking
