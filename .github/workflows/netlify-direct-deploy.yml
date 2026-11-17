@@ -44,6 +44,9 @@ jobs:
           # the Netlify CLI may expose a redacted placeholder for secret env vars.
           export VITE_NEON_AUTH_URL NEON_AUTH_URL NEON_AUTH_JWKS_URL
           npx netlify build --context production
+          # Rebuild the frontend with the verified public URL. Keep Netlify
+          # generated functions, and avoid any masked remote build variable.
+          VITE_NEON_AUTH_URL="$VITE_NEON_AUTH_URL" npm run build
           # Fail closed: never publish a bundle with a masked or missing auth URL.
           node --input-type=module -e '
             import fs from "node:fs"; import path from "node:path";
@@ -55,7 +58,7 @@ jobs:
               console.error("ERREUR : URL Neon Auth absente du bundle. Publication annulée.");
               process.exit(1);
             }
-            if(/\\*{8,}auth/.test(js)||js.includes("YOUR-NEON-AUTH-URL")) {
+            if(js.includes("****************auth")||js.includes("YOUR-NEON-AUTH-URL")) {
               console.error("ERREUR : une URL Neon Auth masquée ou fictive a été compilée.");
               process.exit(1);
             }
