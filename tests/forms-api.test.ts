@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { FormDetail, FormRepository, FormSummary } from '../src/shared/formApi';
 import { FormActions } from '../src/server/formActions';
 import { createRestHandler } from '../src/server/restApi';
@@ -79,6 +79,23 @@ describe('API REST sécurisée', () => {
     await req('/api/forms', 'POST', 'owner', { title: 'Initial' });
     expect((await req(`/api/forms/${formId}`, 'PATCH', 'owner', { title: 'Renommé' })).status).toBe(200);
     expect((await (await req(`/api/forms/${formId}`)).json()).data.title).toBe('Renommé');
+  });
+  it('accepte les brouillons avec images au-delà de 256 Ko sans assouplir les autres endpoints',async()=>{
+    const save=vi.fn(async()=>({revision:1}));
+    const api=createRestHandler({save} as unknown as FormActions,async()=>owner);
+    const request=(path:string,method:string,content:string)=>api(new Request('https://monk-form.netlify.app'+path,{
+      method,headers:{'Content-Type':'application/json'},body:content
+    }));
+    const payload=JSON.stringify({versionId:draftId,expectedRevision:0,pages:[],image:'A'.repeat(300000)});
+    const valid=await request('/api/forms/'+formId+'/draft','PUT',payload);
+    expect(valid.status).toBe(200);
+    expect(save).toHaveBeenCalledOnce();
+    const denied=await request('/api/forms','POST',payload);
+    expect(denied.status).toBe(400);
+    expect((await denied.json()).error.message).toBe('Payload too large');
+    const excessive=await request('/api/forms/'+formId+'/draft','PUT','A'.repeat(4_194_305));
+    expect(excessive.status).toBe(400);
+    expect(save).toHaveBeenCalledOnce();
   });
   it('valide le type et le contenu des requêtes', async () => {
     const req = make();
