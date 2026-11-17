@@ -120,6 +120,32 @@ describe('édition épurée et images',()=>{
   await waitFor(()=>expect(documentEditor.querySelector('img')).toBeInTheDocument());
   expect(onChange.mock.lastCall![0].questions[0].settings.richHtml).toContain('data:image/png;base64,');
  });
+ it('colle une image depuis le titre sans demander de cliquer dans un paragraphe',async()=>{
+  const {documentEditor,onChange}=setup(false);
+  const title=documentEditor.querySelector<HTMLElement>('[data-role="title"]')!;
+  cursor(title,0);
+  const image=new File(['copie'],'copie.png',{type:'image/png'});
+  fireEvent.paste(title,{clipboardData:{
+   items:[{kind:'file',type:'image/png',getAsFile:()=>image}],
+   files:[],getData:()=>''
+  }});
+  await waitFor(()=>expect(documentEditor.querySelector('img')).toBeInTheDocument());
+  expect(screen.queryByText('Clique dans un paragraphe pour y placer l’image.')).not.toBeInTheDocument();
+  expect(onChange.mock.lastCall![0].questions.some((q:{type:string;settings:{richHtml?:string}})=>q.type==='statement'&&q.settings.richHtml?.includes('<img'))).toBe(true);
+ });
+ it('colle une image depuis la description du formulaire sans perdre son texte',async()=>{
+  const {documentEditor,onChange}=setup(false);
+  const intro=documentEditor.querySelector<HTMLElement>('[data-role="description"]')!;
+  const description=intro.textContent;
+  cursor(intro,0);
+  const image=new File(['copie'],'copie.png',{type:'image/png'});
+  fireEvent.paste(intro,{clipboardData:{
+   items:[{kind:'file',type:'image/png',getAsFile:()=>image}],
+   files:[],getData:()=>''
+  }});
+  await waitFor(()=>expect(documentEditor.querySelector('img')).toBeInTheDocument());
+  expect(onChange.mock.lastCall![0].description).toBe(description||null);
+ });
  it('importe une image copiée sur un site lorsque le presse-papiers fournit son HTML',async()=>{
   const {documentEditor,onChange}=setup(false);
   const paragraph=documentEditor.querySelector<HTMLElement>('[data-line-id]')!;
