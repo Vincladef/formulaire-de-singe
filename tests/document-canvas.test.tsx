@@ -5,7 +5,10 @@ import { DocumentCanvas } from '../src/components/studio/DocumentCanvas';
 import { sanitizeDocumentHtml } from '../src/shared/richText';
 import { makePage, makeQuestion } from '../src/shared/studio';
 
-vi.mock('../src/shared/clipboardImage',()=>({clipboardImageToDataUrl:vi.fn(async()=> 'data:image/png;base64,'+'A'.repeat(80))}));
+vi.mock('../src/shared/clipboardImage',()=>({
+ clipboardImageToDataUrl:vi.fn(async()=> 'data:image/png;base64,'+'A'.repeat(80)),
+ clipboardWebImageToDataUrl:vi.fn(async()=> 'data:image/png;base64,'+'B'.repeat(80))
+}));
 
 afterEach(()=>cleanup());
 function setup(withText=true){
@@ -116,6 +119,38 @@ describe('édition épurée et images',()=>{
   });
   await waitFor(()=>expect(documentEditor.querySelector('img')).toBeInTheDocument());
   expect(onChange.mock.lastCall![0].questions[0].settings.richHtml).toContain('data:image/png;base64,');
+ });
+ it('importe une image copiée sur un site lorsque le presse-papiers fournit son HTML',async()=>{
+  const {documentEditor,onChange}=setup(false);
+  const paragraph=documentEditor.querySelector<HTMLElement>('[data-line-id]')!;
+  cursor(paragraph,0);
+  fireEvent.paste(documentEditor,{clipboardData:{
+   items:[],files:[],getData:(type:string)=>type==='text/html'?'<p><img src="https://example.org/photo.jpg"></p>':''
+  }});
+  await waitFor(()=>expect(documentEditor.querySelector('img')?.getAttribute('src')).toContain('data:image/png;base64,BBBB'));
+  expect(onChange.mock.lastCall![0].questions[0].settings.richHtml).toContain('data:image/png;base64,BBBB');
+ });
+ it('colle une image depuis un champ de question sans remplacer le contenu de ce champ',async()=>{
+  const {documentEditor,onChange}=setup();
+  const input=documentEditor.querySelector<HTMLInputElement>('[data-field="label"]')!;
+  const before=input.value;
+  const file=new File(['image'],'copie.png',{type:'image/png'});
+  fireEvent.paste(input,{clipboardData:{
+   items:[{kind:'file',type:'image/png',getAsFile:()=>file}],
+   files:[],getData:()=>''
+  }});
+  await waitFor(()=>expect(documentEditor.querySelector('img')).toBeInTheDocument());
+  expect(input.value).toBe(before);
+  const result=onChange.mock.lastCall![0];
+  expect(result.questions.some((q:{type:string;settings:{richHtml?:string}})=>q.type==='statement'&&q.settings.richHtml?.includes('<img'))).toBe(true);
+ });
+ it('laisse le collage de texte standard intact dans les questions',()=>{
+  const {documentEditor}=setup();
+  const input=documentEditor.querySelector<HTMLInputElement>('[data-field="label"]')!;
+  const prevented=fireEvent.paste(input,{clipboardData:{
+   items:[],files:[],getData:(type:string)=>type==='text/plain'?'Bonjour':''
+  }});
+  expect(prevented).toBe(true);
  });
  it('montre un vrai aperçu de liste déroulante',()=>{
   const page=makePage();const q=makeQuestion('select');
