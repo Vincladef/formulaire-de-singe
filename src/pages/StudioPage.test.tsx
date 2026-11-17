@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { StudioPage } from './StudioPage';
@@ -15,6 +15,41 @@ describe('Studio',()=>{
     expect(screen.getByRole('heading',{name:/Mes formulaires/i})).toBeInTheDocument();
     expect(screen.getByRole('button',{name:/Nouveau formulaire/i})).toBeInTheDocument();
     expect(await screen.findByRole('alert')).toHaveTextContent(/Impossible de récupérer le jeton de connexion/);
+  });
+  it('affiche en permanence les onglets de pages et permet de modifier l’introduction du formulaire',async()=>{
+    vi.mocked(getAccessToken).mockResolvedValue('test-jwt');
+    const id='d8ee0d8b-9d43-4609-8865-fd9b090c7fe9';
+    const summary={id,title:'Vos courses alimentaires',slug:'courses-alimentaires',role:'owner',
+      createdAt:'2026-11-02T10:00:00.000Z',updatedAt:'2026-11-02T10:00:00.000Z',archivedAt:null,published:false};
+    const form={...summary,description:'Texte de présentation existant',versions:[{
+      id:'0b447a9b-80a6-4c1d-92a5-cf248fb97723',number:1,status:'draft',
+      publishedAt:null,revision:0,rules:[],pages:[
+        {id:'c54df471-6a38-42b8-b279-1e9667f963bc',position:0,title:'Pour commencer',description:'Environ 5 minutes.',questions:[]},
+        {id:'183c502d-7944-4406-8919-2bc3a915cece',position:1,title:'Vos habitudes',description:null,questions:[]},
+      ]
+    }]};
+    const fetchMock=vi.fn(async(input:string,init?:RequestInit)=>({
+      json:async()=>({ok:true,data:input.includes('/api/forms/'+id+'/description')?
+       {id,description:JSON.parse(String(init?.body)).description}:
+       input.includes('/api/folders')?[]:
+       input.endsWith('/api/forms/'+id)?form:[summary]})
+    }));
+    vi.stubGlobal('fetch',fetchMock);
+    render(<MemoryRouter><StudioPage/></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button',{name:/Vos courses alimentaires/i}));
+    const nav=await screen.findByRole('tablist',{name:'Pages du formulaire'});
+    expect(within(nav).getAllByRole('tab')).toHaveLength(2);
+    expect(within(nav).getByRole('tab',{name:/Page 1 Pour commencer/i})).toHaveAttribute('aria-selected','true');
+    expect(screen.getByRole('textbox',{name:'Introduction du formulaire'})).toHaveValue('Texte de présentation existant');
+    fireEvent.click(within(nav).getByRole('tab',{name:/Page 2 Vos habitudes/i}));
+    expect(screen.queryByRole('textbox',{name:'Introduction du formulaire'})).not.toBeInTheDocument();
+    fireEvent.click(within(nav).getByRole('tab',{name:/Page 1 Pour commencer/i}));
+    const intro=screen.getByRole('textbox',{name:'Introduction du formulaire'});
+    fireEvent.change(intro,{target:{value:'Nouvelle présentation de l’étude'}});
+    fireEvent.blur(intro);
+    await waitFor(()=>expect(fetchMock.mock.calls.some(call=>
+      String(call[0]).endsWith('/description')&&call[1]?.method==='PATCH'
+      &&JSON.parse(String(call[1]?.body)).description==='Nouvelle présentation de l’étude')).toBe(true));
   });
   it('rend visible l’onglet Intégrations et son action Google Sheets',async()=>{
     vi.mocked(getAccessToken).mockResolvedValue('test-jwt');
