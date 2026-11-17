@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useParams } from 'react-router-dom';
 import { sanitizeDocumentHtml } from '../shared/richText';
+import { isFreeformPage, isFreeformMarker } from '../shared/freeformLayout';
 import { evaluateLogic, logicKey, readLogic } from '../shared/conditionalLogic';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert, ExternalLink, FileQuestion, LoaderCircle } from 'lucide-react';
 import { AudioRecorder } from '../components/AudioRecorder';
@@ -158,7 +159,13 @@ export function QuestionField({question,value,onChange,error,audioStatus,compact
  const common={id:question.id,'aria-invalid':!!error,'aria-describedby':ariaDesc,required:question.required} as const;
  return <div className={question.type==='statement'?'px-1 py-2 sm:px-3':compact?'rounded-xl border border-[#e1e9df] bg-white/90 p-3 sm:p-4':'rounded-2xl border border-[#e1e9df] bg-[var(--monk-surface)] p-5 sm:p-7'}>
   {question.type==='statement' ? <>
-   <h3 className={question.settings?.textStyle==='heading'?'font-display text-2xl font-bold leading-snug text-[#294a34]':question.settings?.textStyle==='quote'?'border-l-[3px] border-[#a8c4aa] pl-4 text-base italic leading-7 text-[#647c69]':'whitespace-pre-line text-[15px] font-normal leading-8 text-[#526c59]'}>{typeof question.settings?.richHtml==='string'?<span dangerouslySetInnerHTML={{__html:sanitizeDocumentHtml(question.settings.richHtml)}}/>:question.label}</h3>
+   {question.settings?.textStyle==='display'
+    ?<h1 className="font-display mb-3 text-[clamp(2.2rem,6vw,3.5rem)] font-extrabold leading-tight tracking-[-.055em] text-[var(--monk-text)]">{typeof question.settings?.richHtml==='string'?<span dangerouslySetInnerHTML={{__html:sanitizeDocumentHtml(question.settings.richHtml)}}/>:question.label}</h1>
+    :question.settings?.textStyle==='heading'
+     ?<h2 className="font-display text-2xl font-bold leading-snug text-[#294a34]">{typeof question.settings?.richHtml==='string'?<span dangerouslySetInnerHTML={{__html:sanitizeDocumentHtml(question.settings.richHtml)}}/>:question.label}</h2>
+     :question.settings?.textStyle==='quote'
+      ?<blockquote className="border-l-[3px] border-[#a8c4aa] pl-4 text-base italic leading-7 text-[#647c69]">{typeof question.settings?.richHtml==='string'?<span dangerouslySetInnerHTML={{__html:sanitizeDocumentHtml(question.settings.richHtml)}}/>:question.label}</blockquote>
+      :<p className="whitespace-pre-line text-[15px] font-normal leading-8 text-[#526c59]">{typeof question.settings?.richHtml==='string'?<span dangerouslySetInnerHTML={{__html:sanitizeDocumentHtml(question.settings.richHtml)}}/>:question.label}</p>}
    {question.description&&<p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-[#607265]">{question.description}</p>}
   </> : <>
    <label htmlFor={question.id} className="font-display mb-2 block text-[17px] font-bold leading-snug text-[#294a34]">
@@ -482,12 +489,12 @@ export function PublicFormPage(){
   <div className="mx-auto max-w-[740px]">
    <div className="mb-8 flex items-center justify-between text-xs font-semibold uppercase tracking-[.12em] text-[#607265]"><span>Questionnaire</span><span>{availablePages.length<=1?`${answeredCount}/${totalQuestions.length} réponses`:`Étape ${availablePages.indexOf(pageIndex)+1} sur ${availablePages.length}`}</span></div>
    {totalQuestions.length>1&&<div className="h-1.5 w-full overflow-hidden rounded-full bg-[#e3ece1]" role="progressbar" aria-label="Questions complétées" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full bg-[var(--monk-accent)] transition-[width] duration-300" style={{width:`${progress}%`}}/></div>}
-   <header className="pb-10 pt-10 sm:pt-12">
+   {page&&!isFreeformPage(page)&&<header className="pb-10 pt-10 sm:pt-12">
     {pageIndex===0&&<><h1 className="font-display text-[clamp(2.2rem,6vw,3.5rem)] font-extrabold leading-tight tracking-[-.055em] " style={{color:'var(--monk-text)'}}>{form.title}</h1>{form.description&&<p className="mt-4 max-w-2xl whitespace-pre-line text-base leading-8 text-[#607265]">{form.description}</p>}</>}
     {(availablePages.length>1||(page?.title&&page.title!=='Nouvelle page'))&&<h2 className={'font-display font-bold text-[#35583f] '+(pageIndex===0?'mt-9 text-2xl':'text-3xl')}>{page?.title||`Page ${pageIndex+1}`}</h2>}
     {page?.description&&<p className="mt-3 whitespace-pre-line text-sm leading-7 text-[#607265]">{page.description}</p>}
-   </header>
-   <div className="space-y-4">{page?.questions.filter(q=>journey?.visibleIds.has(q.id)).map(q=><QuestionField key={q.id} question={{...q,required:journey?.requiredIds.has(q.id)??q.required}} value={answers[q.id]} onChange={v=>setAnswer(q.id,v)} error={errors[q.id]} audioStatus={uploadStates[q.id]} inlineDetails={inlineGroups?.galleryId===q.id?inlineGroups.groups:undefined} inlineAnswers={answers} inlineRequired={journey?.requiredIds} inlineErrors={errors} onInlineAnswer={setAnswer}/>)}</div>
+   </header>}
+   <div className="space-y-4">{page?.questions.filter(q=>!isFreeformMarker(q)&&journey?.visibleIds.has(q.id)).map(q=><QuestionField key={q.id} question={{...q,required:journey?.requiredIds.has(q.id)??q.required}} value={answers[q.id]} onChange={v=>setAnswer(q.id,v)} error={errors[q.id]} audioStatus={uploadStates[q.id]} inlineDetails={inlineGroups?.galleryId===q.id?inlineGroups.groups:undefined} inlineAnswers={answers} inlineRequired={journey?.requiredIds} inlineErrors={errors} onInlineAnswer={setAnswer}/>)}</div>
    {error&&<div role="alert" className="mt-6 flex gap-3 rounded-2xl border border-[#f0d4cc] bg-[#fff8f4] p-4 text-sm text-[#aa594d]"><CircleAlert className="shrink-0" size={19}/>{error}</div>}
    <nav aria-label="Navigation dans le formulaire" className="mt-9 flex flex-wrap items-center justify-between gap-4">
     {previousPage!==undefined?<button type="button" className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-semibold text-[#42664b] hover:bg-[#edf4eb]" onClick={()=>{setError('');setPageIndex(previousPage!);}}><ArrowLeft size={18}/> Retour</button>:<span/>}
