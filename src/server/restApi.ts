@@ -29,7 +29,7 @@ export function createRestHandler(actions = new FormActions(), identity: Identit
         const input = await readJson(request);
         return json({ ok: true, data: await actions.create(userId, input) }, 201);
       }
-      if (request.method === 'PUT' && id && operation==='draft') return json({ok:true,data:await actions.save(userId,id,await readJson(request))});
+      if (request.method === 'PUT' && id && operation==='draft') return json({ok:true,data:await actions.save(userId,id,await readJson(request,4_194_304))});
       if (request.method === 'POST' && id && operation==='publish') return json({ok:true,data:await actions.publish(userId,id,await readJson(request))});
       if (request.method === 'POST' && id && operation==='state') return json({ok:true,data:await actions.state(userId,id,await readJson(request))});
       if (request.method === 'PATCH' && id && operation==='folder') return json({ok:true,data:await actions.move(userId,id,await readJson(request))});
@@ -52,12 +52,12 @@ export function createRestHandler(actions = new FormActions(), identity: Identit
   };
 }
 
-async function readJson(req: Request): Promise<unknown> {
+async function readJson(req: Request, maxBytes=262_144): Promise<unknown> {
   if (!(req.headers.get('content-type') ?? '').toLowerCase().startsWith('application/json'))
     throw new ValidationFault('Content-Type must be application/json');
   // Reject large payloads without holding an unbounded request body in memory.
-  if (Number(req.headers.get('content-length') || 0) > 262_144) throw new ValidationFault('Payload too large');
+  if (Number(req.headers.get('content-length') || 0) > maxBytes) throw new ValidationFault('Payload too large');
   const text = await req.text();
-  if (text.length > 262_144) throw new ValidationFault('Payload too large');
+  if (new TextEncoder().encode(text).byteLength > maxBytes) throw new ValidationFault('Payload too large');
   return JSON.parse(text) as unknown;
 }
