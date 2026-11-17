@@ -1,6 +1,6 @@
 import { draftPayloadSchema, publishInputSchema, statusActionSchema } from '../shared/studio';
 import { duplicateForm, publish, saveDraft, setFormState } from './studioRepository';
-import { createFormInput, formParams, listFormsQuery, renameFormInput, type FormRepository } from '../shared/formApi';
+import { createFormInput, formParams, listFormsQuery, renameFormInput, formDescriptionInput, type FormRepository } from '../shared/formApi';
 import { formRepository } from './formRepository';
 import { folderActions } from './folderService';
 
@@ -33,6 +33,15 @@ export class FormActions {
     if (!params.success || !body.success) throw new ValidationFault('Invalid identifier or title');
     const result = await this.repository.rename(userId, params.data.id, body.data.title);
     if (!result) throw new NotFoundFault('Form not found or modification not permitted');
+    return result;
+  }
+  async setDescription(userId:string,id:unknown,input:unknown){
+    const params=formParams.safeParse({id});
+    const body=formDescriptionInput.safeParse(input);
+    if(!params.success||!body.success)throw new ValidationFault('Introduction invalide (3 000 caractères maximum)');
+    const value=body.data.description?.trim()||null;
+    const result=await this.repository.setDescription(userId,params.data.id,value);
+    if(!result)throw new NotFoundFault('Formulaire introuvable ou accès interdit');
     return result;
   }
   async save(userId:string,id:unknown,input:unknown){
