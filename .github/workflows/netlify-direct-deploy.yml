@@ -64,7 +64,7 @@ jobs:
             }
             console.log("Neon Auth public URL OK. Publication autorisée.");
           '
-          npx netlify deploy --prod --no-build --dir=dist --functions=netlify/functions --site "$NETLIFY_SITE_ID" --message "MonkForm: navigation pages et intro editable avec API"
+          npx netlify deploy --prod --no-build --dir=dist --functions=netlify/functions --site "$NETLIFY_SITE_ID" --message "MonkForm: edition libre des pages sans en-tete impose"
       - name: Signaler l'absence d'autorisation Netlify
         if: ${{ env.NETLIFY_AUTH_TOKEN == '' }}
         run: |
