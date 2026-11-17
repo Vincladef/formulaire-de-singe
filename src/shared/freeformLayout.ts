@@ -10,10 +10,11 @@ import { makeQuestion, type StudioPageData, type StudioQuestion } from './studio
  */
 const FREEFORM_MARKER='monk-freeform-layout-v1';
 
-export function isFreeformMarker(question:Pick<StudioQuestion,'type'|'settings'>):boolean {
- return question.type==='statement'&&question.settings.freeformMarker===FREEFORM_MARKER;
+type LayoutQuestion={type:string;settings?:Record<string,unknown>};
+export function isFreeformMarker(question:LayoutQuestion):boolean {
+ return question.type==='statement'&&question.settings?.freeformMarker===FREEFORM_MARKER;
 }
-export function isFreeformPage(page:Pick<StudioPageData,'questions'>):boolean {
+export function isFreeformPage(page:{questions:readonly LayoutQuestion[]}):boolean {
  return page.questions.some(isFreeformMarker);
 }
 function textBlock(value:string,style:'display'|'heading'|'paragraph'):StudioQuestion{
