@@ -4,7 +4,7 @@ import { allowedInlineImage } from './richText';
  * No third-party hosting, no remote URLs and no unbounded draft payloads.
  */
 export async function clipboardImageToDataUrl(file:File):Promise<string>{
- if(!/^image\/(?:png|jpeg|webp|gif)$/i.test(file.type))throw new Error('Image non prise en charge (PNG, JPEG, WebP ou GIF).');
+ if(!/^image\/(?:png|jpeg|webp|gif|bmp|avif)$/i.test(file.type))throw new Error('Image non prise en charge (PNG, JPEG, WebP, GIF, BMP ou AVIF).');
  if(!file.size||file.size>10*1024*1024)throw new Error('Image trop volumineuse (10 Mo maximum avant compression).');
  const objectUrl=URL.createObjectURL(file);
  const image=new Image();
@@ -37,4 +37,28 @@ export async function clipboardImageToDataUrl(file:File):Promise<string>{
  }finally{
   URL.revokeObjectURL(objectUrl);
  }
+}
+
+/** Some browsers copy website images as HTML with an HTTPS src instead of
+ * placing an image File in the clipboard. Import them into the same bounded
+ * inline format; never persist a remote image URL or send user credentials.
+ */
+export async function clipboardWebImageToDataUrl(src:string):Promise<string>{
+ let url:URL;
+ try{url=new URL(src);}catch{throw new Error('Adresse de l’image invalide.');}
+ if(url.protocol!=='https:')throw new Error('Seules les images HTTPS peuvent être copiées depuis une page Web.');
+ let response:Response;
+ try{
+  response=await fetch(url.toString(),{mode:'cors',credentials:'omit',referrerPolicy:'no-referrer'});
+ }catch{
+  throw new Error('Le site empêche le collage direct de cette image. Utilisez « Copier l’image » (plutôt que « Copier l’adresse de l’image »), ou le bouton image.');
+ }
+ if(!response.ok)throw new Error('Impossible de récupérer cette image. Utilisez « Copier l’image » ou le bouton image.');
+ const type=(response.headers.get('content-type')??'').split(';')[0].trim().toLowerCase();
+ if(!/^image\/(?:png|jpeg|webp|gif|bmp|avif)$/.test(type))throw new Error('Le lien ne fournit pas une image reconnue.');
+ const bytes=Number(response.headers.get('content-length')??0);
+ if(bytes>10*1024*1024)throw new Error('Image trop volumineuse (10 Mo maximum avant compression).');
+ const blob=await response.blob();
+ if(!blob.size||blob.size>10*1024*1024)throw new Error('Image trop volumineuse (10 Mo maximum avant compression).');
+ return clipboardImageToDataUrl(new File([blob],'image-copiee',{type}));
 }
