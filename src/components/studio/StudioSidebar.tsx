@@ -1,28 +1,28 @@
-import { GitBranch, Layers3,Plus,Settings2,SlidersHorizontal,PanelLeftClose,PanelLeftOpen } from 'lucide-react';
+import { GitBranch,Plus,Settings2,SlidersHorizontal,PanelLeftClose,PanelLeftOpen } from 'lucide-react';
 import { ConditionalLogicPanel } from './ConditionalLogicPanel';
 import type { VisibilityLogic } from '../../shared/conditionalLogic';
 import { QuestionSettings } from './QuestionSettings';
 import { insertQuestionTypes,insertionQuestionName,type InsertQuestionType,type StudioPageData,type StudioQuestion } from '../../shared/studio';
 
-export type SidebarMode='add'|'settings'|'logic'|'pages';
+export type SidebarMode='add'|'settings'|'logic';
 type Props={
  mode:SidebarMode;onModeChange:(mode:SidebarMode)=>void;open:boolean;onToggle:()=>void;
- pages:StudioPageData[];pageIndex:number;onPageIndex:(index:number)=>void;
+ pages:StudioPageData[];pageIndex:number;
  selected:StudioQuestion|null;editable:boolean;
  onQuestionUpdate:(q:StudioQuestion)=>void;onApplyPageCondition:(rule:VisibilityLogic)=>void;onAddQuestion:(type:InsertQuestionType)=>void;
- onAddPage:()=>void;onDeletePage:()=>void;
+
 };
 export function StudioSidebar({mode,onModeChange,open,onToggle,pages,pageIndex,onPageIndex,selected,editable,
- onQuestionUpdate,onApplyPageCondition,onAddQuestion,onAddPage,onDeletePage}:Props){
+ onQuestionUpdate,onApplyPageCondition,onAddQuestion}:Props){
  const tools=[{mode:'add',name:'Ajouter',icon:Plus},{mode:'settings',name:'Options',icon:SlidersHorizontal},
- {mode:'logic',name:'Logique',icon:GitBranch},{mode:'pages',name:'Pages',icon:Layers3}] as const;
+ {mode:'logic',name:'Logique',icon:GitBranch}] as const;
  return <aside aria-label="Outils du formulaire" className={open?"fixed inset-x-3 top-20 z-40 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-2xl border border-[#e4eae1] bg-white p-3 shadow-xl lg:sticky lg:inset-auto lg:top-4 lg:max-h-none lg:overflow-visible lg:p-2.5 lg:shadow-none":"flex flex-row items-center justify-between rounded-2xl border border-[#e4eae1] bg-white p-2 lg:sticky lg:top-4 lg:flex-col"}>
    <div className={open?"mb-2 flex justify-end":"flex justify-start lg:mb-2 lg:justify-center"}><button type="button" onClick={onToggle} title={open?'Réduire les outils':'Afficher les outils'}
      aria-label={open?'Réduire le menu latéral':'Ouvrir le menu latéral'}
      aria-expanded={open} className="flex h-11 w-11 items-center justify-center rounded-lg text-[#3f654a] hover:bg-[#eef6ed]">
       {open?<PanelLeftClose size={19}/>:<PanelLeftOpen size={19}/>}
    </button></div>
-   <nav aria-label="Outils" className={open?'grid grid-cols-4 gap-1':'flex flex-row items-center gap-1 lg:flex-col'}>
+   <nav aria-label="Outils" className={open?'grid grid-cols-3 gap-1':'flex flex-row items-center gap-1 lg:flex-col'}>
     {tools.map(t=><button key={t.mode} type="button" aria-pressed={mode===t.mode} aria-label={t.name} title={t.name}
       onClick={()=>onModeChange(t.mode)}
       className={`flex flex-col items-center gap-1 min-h-11 rounded-xl px-2 py-2.5 text-xs font-semibold transition ${mode===t.mode?'bg-[#e7f3e5] text-[#2f7549]':'text-[#43674d] hover:bg-[#f2f7f1]'}`}>
@@ -47,14 +47,6 @@ export function StudioSidebar({mode,onModeChange,open,onToggle,pages,pageIndex,o
      {selected&&editable?<ConditionalLogicPanel pages={pages} pageIndex={pageIndex} question={selected} onUpdate={onQuestionUpdate} onApplyToPage={onApplyPageCondition}/>:
        <div className="rounded-xl bg-[#f7faf5] p-4 text-sm leading-6 text-[#607265]">Sélectionne une question dans le document pour ajouter des conditions d'affichage, de validation ou une redirection.</div>}
    </div>}
-   {mode==='pages'&&<div className="space-y-2">
-     <h3 className="px-1 text-sm font-bold text-[#33583f]">Pages</h3>
-     {pages.map((p,i)=><button type="button" key={p.id} aria-current={pageIndex===i?'page':undefined}
-      onClick={()=>onPageIndex(i)}
-      className={`w-full truncate rounded-xl px-3 py-3 text-left text-sm ${pageIndex===i?'bg-[#e6f1e5] font-semibold text-[#2c6a41]':'text-[#496a54] hover:bg-[#f3f7f1]'}`}>
-      {i+1}. {p.title||'Page sans titre'}</button>)}
-     {editable&&<button className="mt-2 flex w-full items-center gap-2 rounded-xl p-3 text-xs font-semibold text-[#468253] hover:bg-[#edf6ea]" onClick={onAddPage}><Plus size={16}/> Ajouter une page</button>}
-     {editable&&pages.length>1&&<button onClick={onDeletePage} className="w-full rounded-lg px-3 py-2 text-left text-xs text-[#98483f]">Supprimer la page actuelle</button>}
    </div>}
    </div>}
   </aside>;
