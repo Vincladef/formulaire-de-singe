@@ -17,7 +17,7 @@ export function createRestHandler(actions = new FormActions(), identity: Identit
       if (!userId) throw new UnauthorizedError();
       const url = new URL(request.url);
       const path = url.pathname;
-      const match = path.match(/^\/api\/forms(?:\/([^/]+))?(?:\/(draft|publish|state|duplicate|folder))?\/?$/);
+      const match = path.match(/^\/api\/forms(?:\/([^/]+))?(?:\/(draft|publish|state|duplicate|folder|description))?\/?$/);
       if (!match) return json({ ok: false, error: { code: 'NOT_FOUND', message: 'Route not found' } }, 404);
       const id = match[1]; const operation=match[2];
       if (request.method === 'GET' && !id) {
@@ -33,6 +33,7 @@ export function createRestHandler(actions = new FormActions(), identity: Identit
       if (request.method === 'POST' && id && operation==='publish') return json({ok:true,data:await actions.publish(userId,id,await readJson(request))});
       if (request.method === 'POST' && id && operation==='state') return json({ok:true,data:await actions.state(userId,id,await readJson(request))});
       if (request.method === 'PATCH' && id && operation==='folder') return json({ok:true,data:await actions.move(userId,id,await readJson(request))});
+      if (request.method === 'PATCH' && id && operation==='description') return json({ok:true,data:await actions.setDescription(userId,id,await readJson(request))});
       if (request.method === 'POST' && id && operation==='duplicate') return json({ok:true,data:await actions.duplicate(userId,id)},201);
       if (request.method === 'PATCH' && id && !operation) {
         const input = await readJson(request);
