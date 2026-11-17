@@ -197,6 +197,7 @@ export function StudioPage(){
   }catch(e){setError(e instanceof Error?e.message:'Publication impossible');}finally{setOperation(false);}
  }
  function updatePage(next:StudioPageData){setSaveState('pending');setPages(p=>p.map((it,i)=>i===pageIndex?next:it));}
+ function renamePage(index:number,title:string){setSaveState('pending');setPages(p=>p.map((page,i)=>i===index?{...page,title}:page));}
  function updateQuestion(question:StudioQuestion){
   setSaveState('pending');
   setPages(prev=>prev.map((p,i)=>i===pageIndex?{...p,questions:p.questions.map(q=>q.id===question.id?question:q)}:p));
@@ -466,7 +467,7 @@ export function StudioPage(){
        preview?<StudioPreview pages={pages} title={detail.title} description={detail.description}/>:<div className="space-y-4">
         <PageNavigator pages={pages} pageIndex={pageIndex} editable={editable}
          onSelect={idx=>{setPageIndex(idx);setQuestionId(null);}}
-         onAdd={addPage}/>
+         onRename={renamePage} onAdd={addPage}/>
         <div className={`grid items-start gap-4 ${sidebarOpen?(sideMode==='logic'?'lg:grid-cols-[335px_minmax(0,1fr)]':'lg:grid-cols-[255px_minmax(0,1fr)]'):'lg:grid-cols-[70px_minmax(0,1fr)]'}`}>
         <StudioSidebar mode={sideMode} onModeChange={mode=>{setSideMode(mode);setSidebarOpen(true);}} open={sidebarOpen} onToggle={()=>setSidebarOpen(v=>!v)} pages={pages} pageIndex={pageIndex}
           selected={selected} editable={editable} onQuestionUpdate={updateQuestion} onApplyPageCondition={applyPageCondition}
